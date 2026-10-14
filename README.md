@@ -53,4 +53,6 @@ The version 1 format contains `companyName`, `subtitle`, `color`, `logoDataUrl`,
 - `apps/extension`: Chrome Manifest V3 scaffold without host permissions.
 - `docs/`: architecture, decisions, open questions, and adapter documentation.
 
+The detailed delivery sequence and next-session handoff are in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 Authentication, the central credential vault, and assisted sign-in are planned for a later stage. The remaining design questions are listed in [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md). A successful local build does not validate supplier compatibility or production readiness.
