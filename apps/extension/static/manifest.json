@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Hublink (base local)",
+  "version": "0.1.0",
+  "description": "Base da extensão Hublink; automação ainda indisponível.",
+  "action": { "default_popup": "popup.html" },
+  "background": { "service_worker": "background.js" },
+  "permissions": [],
+  "host_permissions": []
+}
