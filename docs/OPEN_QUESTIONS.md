@@ -8,5 +8,8 @@
 6. Qual contrato exato do bilhete de abertura: vínculo com usuário, serviço, extensão, tentativa, TTL e uso único?
 7. Quais URLs de Fullarm/CRM, caminhos e sinais de dashboard dos demais SVAs? Quais formulários permitem envio automático no piloto controlado?
 8. Qual métrica e conjunto de SVAs para o piloto? O DRS recomenda PARTIU!, Fullcam e Playhub, mas ainda não aprova essa seleção.
+9. Para reutilizar o Hublink, cada cliente terá uma instalação própria ou haverá uma instalação com clientes isolados? Como marca, links e usuários ficam separados?
+10. Quem pode alterar e publicar a configuração de cada cliente? Ela precisa ser compartilhada entre navegadores, versionada e reversível?
+11. Onde ficará a demonstração pública do aplicativo e quais logos, links e outros ativos podem ser exibidos no portfólio?
 
 Não substitua essas respostas por defaults silenciosos na implementação.

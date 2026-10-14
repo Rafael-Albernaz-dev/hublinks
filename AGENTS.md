@@ -6,9 +6,10 @@ Leia este arquivo antes de alterar o repositório. Hublink contém uma demonstra
 
 1. `README.md`: funcionalidades reais, modo de configuração e comandos.
 2. `docs/CONTEXT.md`: estado implementado e próximo passo.
-3. `docs/ARCHITECTURE.md`: fronteiras entre demonstração, API, extensão e SVAs.
-4. `docs/DECISIONS.md` e `docs/OPEN_QUESTIONS.md`: decisões e pendências.
-5. Se alterar um adaptador de fornecedor, leia `docs/skills/extension-adapter/SKILL.md`.
+3. `docs/ROADMAP.md`: sequência de entregas, dependências e ponto de retomada.
+4. `docs/ARCHITECTURE.md`: fronteiras entre demonstração, API, extensão e SVAs.
+5. `docs/DECISIONS.md` e `docs/OPEN_QUESTIONS.md`: decisões e pendências.
+6. Se alterar um adaptador de fornecedor, leia `docs/skills/extension-adapter/SKILL.md`.
 
 ## Guardrails
 
