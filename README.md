@@ -1,14 +1,14 @@
 # Hublink
 
-Hublink é uma casca configurável para reunir links de uma equipe com a identidade visual de cada cliente. Esta versão também funciona como demonstração de portfólio: permite alterar nome, descrição, logo, cor RGB e cards de links diretamente na interface.
+Hublink is a configurable hub for a team's links, styled with each client's brand. This version also serves as a portfolio demo: the company name, description, logo, RGB color, and link cards can be changed in the interface.
 
-## Estado atual
+## Current state
 
-A configuração da demonstração fica **somente no navegador atual** (`localStorage`). É possível exportar e importar um JSON para reutilizar a aparência e os links em outro navegador. Os dois cards iniciais apontam para domínios de exemplo. Use apenas links públicos nesta versão: ainda não há login, catálogo privado, sincronização entre usuários, cofre, nem automação de acesso. A API responde apenas `/health`, e a extensão Chrome não pede permissões de sites.
+The demo configuration is stored **only in the current browser** (`localStorage`). You can export and import a JSON file to reuse the branding and links in another browser. The two initial cards point to example domains. Use only public links in this version: login, a private catalog, user synchronization, a credential vault, and assisted sign-in are not implemented. The API exposes only `/health`, and the Chrome extension requests no website permissions.
 
-## Rodar localmente
+## Run locally
 
-Requer Node 24 e npm:
+Requires Node 24 and npm:
 
 ```sh
 npm ci
@@ -16,42 +16,41 @@ npm run check
 npm run dev:web
 ```
 
-Abra `http://127.0.0.1:5177`. Clique em **Personalizar hub** para editar a marca e os links. Para iniciar a API local, rode `npm run dev:api` em outro terminal; a saúde responde em `http://127.0.0.1:3177/health`.
+Open `http://127.0.0.1:5177` and use the customization panel to edit the branding and links. The demo interface is currently in Portuguese. To start the local API, run `npm run dev:api` in another terminal; its health endpoint is `http://127.0.0.1:3177/health`.
 
-## Configurar a demonstração
+## Configure the demo
 
-1. Preencha o nome da empresa e o texto de apresentação.
-2. Envie uma logo PNG, JPG ou WebP de até 1 MB. A imagem é guardada como data URL no navegador e no JSON exportado.
-3. Ajuste R, G e B entre 0 e 255 ou use o seletor de cor. O texto sobre a cor da marca escolhe automaticamente um tom claro ou escuro.
-4. Adicione, edite ou remova até 30 links HTTPS públicos. Eles abrem em nova aba com `noopener noreferrer`.
-5. Use **Exportar JSON** para guardar a configuração e **Importar JSON** para aplicá-la em outro navegador. O arquivo pode conter a logo e os links; revise-o antes de compartilhar.
+1. Enter the company name and introductory text.
+2. Upload a PNG, JPG, or WebP logo up to 1 MB. The image is stored as a data URL in the browser and in the exported JSON file.
+3. Set the R, G, and B values from 0 to 255, or use the color picker. Text displayed over the brand color automatically switches between light and dark.
+4. Add, edit, or remove up to 30 public HTTPS links. They open in a new tab with `noopener noreferrer`.
+5. Use the JSON export control to save the configuration and the import control to apply it in another browser. The file may contain the logo and links, so review it before sharing.
 
-O formato tem `version: 1` e os campos `companyName`, `subtitle`, `color`, `logoDataUrl` e `links`. A validação fica em [`apps/web/src/config.ts`](apps/web/src/config.ts). Um exemplo mínimo:
+The version 1 format contains `companyName`, `subtitle`, `color`, `logoDataUrl`, and `links`. Validation is implemented in [`apps/web/src/config.ts`](apps/web/src/config.ts). A minimal example:
 
 ```json
 {
   "version": 1,
-  "companyName": "Cliente Exemplo",
-  "subtitle": "Links úteis da equipe",
+  "companyName": "Example Company",
+  "subtitle": "Useful links for the team",
   "color": { "r": 31, "g": 86, "b": 139 },
   "logoDataUrl": null,
   "links": [
     {
       "id": "site",
-      "title": "Site",
-      "description": "Página pública",
+      "title": "Website",
+      "description": "Public page",
       "url": "https://example.com/"
     }
   ]
 }
 ```
 
-## Estrutura
+## Project structure
 
-- `apps/web`: interface React/TypeScript, configuração e testes de validação e interação.
-- `apps/api`: Fastify com endpoint de saúde em loopback.
-- `apps/extension`: base Chrome Manifest V3 sem permissões de host.
-- `docs/`: decisões, arquitetura, perguntas abertas e procedimento de adaptadores.
-- `AGENTS.md`: regras de trabalho, incluindo commits em inglês e atualização deste README a cada feature.
+- `apps/web`: React/TypeScript interface, configuration, and validation and interaction tests.
+- `apps/api`: Fastify server with a loopback health endpoint.
+- `apps/extension`: Chrome Manifest V3 scaffold without host permissions.
+- `docs/`: architecture, decisions, open questions, and adapter documentation.
 
-O desenho de autenticação, cofre central e abertura assistida pertence a uma etapa futura. Consulte [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) antes de implementar essas funções. Build local não comprova login, compatibilidade com fornecedores nem prontidão para publicação.
+Authentication, the central credential vault, and assisted sign-in are planned for a later stage. The remaining design questions are listed in [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md). A successful local build does not validate supplier compatibility or production readiness.

@@ -13,7 +13,7 @@ Leia este arquivo antes de alterar o repositório. Hublink contém uma demonstra
 ## Guardrails
 
 - Antes de editar, veja `git status --short --branch`; preserve mudanças de terceiros. Não faça commit, push ou deploy sem instrução explícita. **Quando um commit for autorizado, escreva a mensagem inteira em inglês**, incluindo título e corpo.
-- **Atualize `README.md` no mesmo trabalho de toda nova feature ou mudança de comportamento**, com uso, limites e comandos afetados. Mantenha exemplos executáveis e o estado atual honesto.
+- **Atualize os arquivos `README.md` no mesmo trabalho de toda nova feature ou mudança de comportamento. Escreva todos os READMEs integralmente em inglês e mantenha regras de agentes fora deles**, concentradas em `AGENTS.md` e nas skills apropriadas. Documente uso, limites e comandos afetados; mantenha exemplos executáveis e o estado atual honesto.
 - A demonstração só pode conter links e logos próprios ou públicos. Não copie URLs operacionais, planilhas reais, credenciais, dados de clientes ou o DRS bruto para este repositório de portfólio. Arquivos JSON exportados podem conter dados do usuário e não devem ser versionados sem revisão.
 - Não acesse painéis de fornecedores, planilhas privadas, contas, senhas ou produção para desenvolver o scaffold. Use dados sintéticos em testes.
 - Nunca grave senhas, códigos 2FA, cookies, bilhetes, chaves ou dados de clientes em Git, documentação, logs, screenshots ou exemplos. `.gitignore` não torna seguro um segredo já rastreado.

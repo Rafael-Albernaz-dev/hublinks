@@ -1,3 +1,3 @@
-# Skills locais
+# Local skills
 
-Procedimentos específicos e repetidos do Hub ficam aqui. No momento há apenas `extension-adapter/SKILL.md`. Não copie skills de outros projetos sem verificar a fronteira de segurança deste produto.
+This directory contains repeatable Hublink procedures. It currently includes `extension-adapter/SKILL.md` for supplier-specific extension adapters.
