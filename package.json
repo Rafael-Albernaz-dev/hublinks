@@ -12,8 +12,9 @@
   "scripts": {
     "dev:web": "npm run dev -w @hublink/web",
     "dev:api": "npm run dev -w @hublink/api",
+    "test:e2e": "playwright test",
     "build": "npm run build --workspaces",
-    "typecheck": "npm run typecheck --workspaces",
+    "typecheck": "npm run typecheck --workspaces && tsc --noEmit --strict --skipLibCheck --module nodenext --moduleResolution nodenext --target es2022 --types node playwright.config.ts tests/e2e/hublink.spec.ts",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.56.0",
     "@types/node": "^26.6.5",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",

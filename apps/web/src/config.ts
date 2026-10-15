@@ -5,6 +5,7 @@ export type HubLink = {
   title: string;
   description: string;
   url: string;
+  logoDataUrl?: string | null;
 };
 
 export type HubConfig = {
@@ -15,8 +16,6 @@ export type HubConfig = {
   logoDataUrl: string | null;
   links: HubLink[];
 };
-
-export const STORAGE_KEY = 'hublink.demo.config.v1';
 
 export const DEFAULT_CONFIG: HubConfig = {
   version: 1,
@@ -49,6 +48,19 @@ function channel(value: unknown, label: string): number {
   return value;
 }
 
+function imageDataUrl(value: unknown, maxBytes: number, label: string): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new Error(`${label} precisa ser uma imagem válida.`);
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+  if (!match || !match[2] || match[2].length % 4 !== 0) {
+    throw new Error(`${label} precisa ser uma imagem PNG, JPG ou WebP válida.`);
+  }
+  const bytes =
+    (match[2].length / 4) * 3 - (match[2].endsWith('==') ? 2 : match[2].endsWith('=') ? 1 : 0);
+  if (bytes > maxBytes) throw new Error(`${label} excede o limite de ${maxBytes / 1000} KB.`);
+  return value;
+}
+
 export function validateLinkUrl(value: string): string {
   let url: URL;
   try {
@@ -71,15 +83,7 @@ export function parseHubConfig(input: unknown): HubConfig {
     throw new Error('A configuração aceita até 30 links.');
   }
 
-  const logo = value.logoDataUrl;
-  if (
-    logo !== null &&
-    (typeof logo !== 'string' ||
-      logo.length > 1_500_000 ||
-      !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(logo))
-  ) {
-    throw new Error('A logo deve ser uma imagem PNG, JPG ou WebP de até 1 MB.');
-  }
+  const logo = imageDataUrl(value.logoDataUrl, 1_000_000, 'Logo da empresa');
 
   const ids = new Set<string>();
   return {
@@ -97,12 +101,16 @@ export function parseHubConfig(input: unknown): HubConfig {
       const id = textField(link.id, `ID do link ${index + 1}`, 80);
       if (ids.has(id)) throw new Error('Há IDs de links repetidos.');
       ids.add(id);
-      return {
+      const parsed: HubLink = {
         id,
         title: textField(link.title, `Nome do link ${index + 1}`, 70),
         description: textField(link.description, `Descrição do link ${index + 1}`, 140, false),
         url: validateLinkUrl(textField(link.url, `URL do link ${index + 1}`, 2048)),
       };
+      if (link.logoDataUrl !== undefined) {
+        parsed.logoDataUrl = imageDataUrl(link.logoDataUrl, 500_000, `Logo do link ${index + 1}`);
+      }
+      return parsed;
     }),
   };
 }
