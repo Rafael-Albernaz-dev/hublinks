@@ -2,20 +2,21 @@
 
 ```mermaid
 flowchart LR
-  C[Cliente da demonstração] --> W[Web React]
-  W --> L[localStorage do navegador]
+  C[Cliente da demonstração] --> W[Web React :5177]
+  W -->|Proxy /api| A[API Fastify :3177]
+  A -->|JSON 0600| D[(data/config.json)]
   W --> J[JSON importado ou exportado]
-  U[Atendente futuro] --> A[API autenticada futura]
-  A --> V[Cofre central futuro]
+  U[Atendente futuro] --> AP[API autenticada futura]
+  AP --> V[Cofre central futuro]
   U --> E[Extensão Chrome futura]
   E --> S[SVA no Chrome]
 ```
 
-## Demonstração atual
+## Demonstração atual (R1 entregue)
 
-A configuração é validada em `apps/web/src/config.ts`. A web usa somente estado React e `localStorage`; não chama a API. Cada link é HTTPS, abre em nova aba e não recebe credenciais. A logo é um data URL de PNG/JPG/WebP com limite de tamanho. O JSON exportado pode conter esses dados, portanto deve ser revisado antes de compartilhamento. O catálogo de exemplo é público por definição e não contém destinos do DRS.
+A configuração é validada tanto no frontend (`apps/web/src/config.ts`) quanto no backend (`apps/api/src/server.ts`). A web consome a API Fastify local em `127.0.0.1:3177` via proxy reverso no Vite. A API persiste os dados no arquivo local `data/config.json` de forma atômica (arquivo temporário seguido de rename, com modo de criação `0600`). Cada link é HTTPS, abre em nova aba e suporta logo opcional individual em base64 (< 500 KB). A logo da empresa suporta PNG/JPG/WebP (< 1 MB). O salvamento é explícito e requer confirmação na interface ("Salvar alterações"). Se a API estiver offline, a web bloqueia edição e exibe banner informativo. O JSON exportado pode ser importado para transferir configurações entre instalações.
 
-`/health` não contém dados de negócio. A extensão não se conecta à web e não tem permissões de host. A interface é uma casca reutilizável e uma demonstração de portfólio; configuração local não é administração multiusuário.
+`/health` e `/api/config` não contêm segredos ou dados de negócio sensíveis. A extensão não se conecta à web e não tem permissões de host. A interface é uma casca reutilizável instalada isoladamente por cliente (single-tenant local).
 
 ## Fronteiras da futura variante privada
 

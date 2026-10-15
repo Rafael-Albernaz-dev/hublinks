@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import {
   DEFAULT_CONFIG,
-  STORAGE_KEY,
   brandInk,
   brandText,
   hexToRgb,
@@ -13,15 +12,6 @@ import {
 } from './config';
 import type { HubConfig, HubLink, RgbColor } from './config';
 import './theme.css';
-
-function initialConfig(): HubConfig {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? parseHubConfig(JSON.parse(saved)) : DEFAULT_CONFIG;
-  } catch {
-    return DEFAULT_CONFIG;
-  }
-}
 
 function LinkEditor({
   link,
@@ -35,6 +25,7 @@ function LinkEditor({
   const [title, setTitle] = useState(link?.title ?? '');
   const [description, setDescription] = useState(link?.description ?? '');
   const [url, setUrl] = useState(link?.url ?? '');
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(link?.logoDataUrl ?? null);
   const [error, setError] = useState('');
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -45,6 +36,7 @@ function LinkEditor({
         title: title.trim(),
         description: description.trim(),
         url: validateLinkUrl(url),
+        logoDataUrl,
       };
       parseHubConfig({ ...DEFAULT_CONFIG, links: [next] });
       onSave(next);
@@ -84,6 +76,52 @@ function LinkEditor({
           placeholder="https://exemplo.com"
         />
       </label>
+      <div className="logo-setting">
+        <span className="setting-label">Logo do card</span>
+        <div className="logo-actions">
+          {logoDataUrl && (
+            <span className="logo-preview">
+              <img src={logoDataUrl} alt="Prévia da logo do card" />
+            </span>
+          )}
+          <div>
+            <label className="button button-small">
+              Enviar logo
+              <input
+                className="visually-hidden"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  if (
+                    !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) ||
+                    file.size > 500_000
+                  ) {
+                    setError('Escolha uma logo PNG, JPG ou WebP de até 500 KB.');
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    if (typeof reader.result === 'string') {
+                      setLogoDataUrl(reader.result);
+                      setError('');
+                    }
+                  };
+                  reader.onerror = () => setError('Não foi possível ler a imagem.');
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </label>
+            <small>PNG, JPG ou WebP · até 500 KB</small>
+            {logoDataUrl && (
+              <button className="text-button" type="button" onClick={() => setLogoDataUrl(null)}>
+                Remover logo do card
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -102,20 +140,84 @@ function LinkEditor({
 }
 
 export function App() {
-  const [config, setConfig] = useState<HubConfig>(initialConfig);
+  const [config, setConfig] = useState<HubConfig>(DEFAULT_CONFIG);
+  const [persisted, setPersisted] = useState<HubConfig | null>(null);
+  const [apiState, setApiState] = useState<'loading' | 'online' | 'offline'>('loading');
+  const [saving, setSaving] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [editing, setEditing] = useState(false);
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
   const [addingLink, setAddingLink] = useState(false);
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(parseHubConfig(config)));
-    } catch (cause) {
-      if (cause instanceof DOMException)
-        setNotice('O navegador não conseguiu guardar as alterações. Exporte uma cópia em JSON.');
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const response = await fetch('/api/config', { signal: controller.signal });
+        if (!response.ok) throw new Error('API unavailable');
+        const loaded = parseHubConfig(await response.json());
+        if (!controller.signal.aborted) {
+          setConfig(loaded);
+          setPersisted(loaded);
+          setApiState('online');
+        }
+      } catch {
+        if (!controller.signal.aborted) setApiState('offline');
+      }
     }
-  }, [config]);
+    void load();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (editing) closeRef.current?.focus();
+  }, [editing]);
+
+  useEffect(() => {
+    if (!editing) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') closePanel();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [editing]);
+
+  const isDirty = persisted !== null && JSON.stringify(config) !== JSON.stringify(persisted);
+
+  function closePanel() {
+    setEditing(false);
+    triggerRef.current?.focus();
+  }
+
+  async function saveConfig() {
+    if (apiState !== 'online' || !isDirty || saving) return;
+    let candidate: HubConfig;
+    try {
+      candidate = parseHubConfig(config);
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Configuração inválida.');
+      return;
+    }
+    setSaving(true);
+    setNotice('');
+    try {
+      const response = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(candidate),
+      });
+      if (!response.ok) throw new Error('A API não conseguiu salvar a configuração.');
+      const result = (await response.json()) as { config: unknown };
+      setPersisted(parseHubConfig(result.config));
+      setNotice('Alterações salvas na API local.');
+    } catch {
+      setNotice('Não foi possível salvar as alterações na API local.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const style = {
     '--brand': rgbToCss(config.color),
@@ -140,7 +242,7 @@ export function App() {
     reader.onload = () => {
       if (typeof reader.result === 'string') {
         setConfig((current) => ({ ...current, logoDataUrl: reader.result as string }));
-        setNotice('Logo atualizada neste navegador.');
+        setNotice('Logo alterada. Salve as alterações para persistir.');
       }
     };
     reader.onerror = () => setNotice('Não foi possível ler a imagem.');
@@ -174,7 +276,7 @@ export function App() {
       setConfig(parseHubConfig(JSON.parse(await file.text())));
       setEditingLinkId(null);
       setAddingLink(false);
-      setNotice('Configuração importada neste navegador.');
+      setNotice('Configuração importada. Salve as alterações para persistir.');
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : 'Arquivo de configuração inválido.');
     }
@@ -189,7 +291,7 @@ export function App() {
     }));
     setEditingLinkId(null);
     setAddingLink(false);
-    setNotice('Link salvo neste navegador.');
+    setNotice('Link alterado. Salve as alterações para persistir.');
   }
 
   function removeLink(id: string) {
@@ -200,6 +302,12 @@ export function App() {
 
   return (
     <div className="site-shell" style={style}>
+      {apiState === 'offline' && (
+        <div className="api-error" role="alert">
+          Não foi possível conectar à API do Hublink. Inicie o servidor local com 'npm run dev:api'
+          para carregar e gerenciar a configuração.
+        </div>
+      )}
       <header className="site-header">
         <a className="brand" href="#inicio" aria-label="Voltar ao início do hub">
           <span className="brand-mark">
@@ -219,11 +327,13 @@ export function App() {
           <button
             className="button button-outline"
             type="button"
-            onClick={() => setEditing(!editing)}
+            ref={triggerRef}
+            disabled={apiState !== 'online'}
+            onClick={() => (editing ? closePanel() : setEditing(true))}
             aria-expanded={editing}
             aria-controls="config-panel"
           >
-            {editing ? 'Fechar ajustes' : 'Personalizar hub'}
+            Personalizar hub
           </button>
         </div>
       </header>
@@ -278,7 +388,13 @@ export function App() {
                     rel="noopener noreferrer"
                   >
                     <span className="card-top">
-                      <span className="card-icon">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="card-icon">
+                        {link.logoDataUrl ? (
+                          <img src={link.logoDataUrl} alt="" />
+                        ) : (
+                          String(index + 1).padStart(2, '0')
+                        )}
+                      </span>
                       <span className="card-arrow" aria-hidden="true">
                         ↗
                       </span>
@@ -299,6 +415,7 @@ export function App() {
                 <button
                   type="button"
                   className="button button-primary"
+                  disabled={apiState !== 'online'}
                   onClick={() => {
                     setEditing(true);
                     setAddingLink(true);
@@ -311,7 +428,7 @@ export function App() {
           </section>
           <footer className="site-footer">
             <span>Hublink · modelo configurável</span>
-            <span>Configuração local deste navegador</span>
+            <span>Configuração nesta API local</span>
           </footer>
         </div>
 
@@ -326,14 +443,14 @@ export function App() {
                 className="icon-button"
                 type="button"
                 aria-label="Fechar ajustes"
-                onClick={() => setEditing(false)}
+                ref={closeRef}
+                onClick={closePanel}
               >
                 ×
               </button>
             </div>
             <p className="panel-intro">
-              Ajuste a aparência e os links desta demonstração. Os dados ficam apenas neste
-              navegador.
+              Ajuste a aparência e os links desta demonstração. Salve para gravar na API local.
             </p>
 
             <div className="setting-group">
@@ -524,7 +641,7 @@ export function App() {
                 type="button"
                 className="reset-button"
                 onClick={() => {
-                  if (window.confirm('Restaurar a configuração de exemplo neste navegador?')) {
+                  if (window.confirm('Restaurar a configuração de exemplo?')) {
                     setConfig(DEFAULT_CONFIG);
                     setNotice('Exemplo restaurado.');
                   }
@@ -533,11 +650,20 @@ export function App() {
                 Restaurar exemplo
               </button>
             </div>
-            {notice && (
-              <p className="notice" role="status">
-                {notice}
-              </p>
-            )}
+            <div className="save-actions">
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={!isDirty || saving}
+                onClick={() => void saveConfig()}
+              >
+                {saving ? 'Salvando...' : 'Salvar alterações'}
+              </button>
+              {isDirty && <span>Alterações pendentes</span>}
+            </div>
+            <p className="notice" aria-live="polite">
+              {notice}
+            </p>
           </aside>
         )}
       </main>

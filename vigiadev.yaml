@@ -5,73 +5,73 @@
 version: 1
 project_name: hublink
 services:
-    api:
-        command:
-            - npm
-            - run
-            - dev:api
-        ports:
-            - 3177
-        port_policy: remap
-        env:
-            HUB_API_PORT: "{port}"
-        healthcheck:
-            type: http
-            url: http://127.0.0.1:{port}/health
-    web:
-        command:
-            - npm
-            - run
-            - dev:web
-        ports:
-            - 5177
-        port_policy: remap
-        healthcheck:
-            type: tcp
-            port: 5177
+  api:
+    command:
+      - npm
+      - run
+      - dev:api
+    ports:
+      - 3177
+    port_policy: remap
+    env:
+      HUB_API_PORT: '{port}'
+    healthcheck:
+      type: http
+      url: http://127.0.0.1:{port}/health
+  web:
+    command:
+      - npm
+      - run
+      - dev:web
+    ports:
+      - 5177
+    port_policy: remap
+    healthcheck:
+      type: tcp
+      port: 5177
 tasks:
-    build:
-        command:
-            - npm
-            - run
-            - build
-    check:
-        command:
-            - npm
-            - run
-            - check
-    dev:api:
-        command:
-            - npm
-            - run
-            - dev:api
-    dev:web:
-        command:
-            - npm
-            - run
-            - dev:web
-    format:
-        command:
-            - npm
-            - run
-            - format
-    format:check:
-        command:
-            - npm
-            - run
-            - format:check
-    lint:
-        command:
-            - npm
-            - run
-            - lint
-    test:
-        command:
-            - npm
-            - run
-            - test
-    typecheck:
-        command:
-            - npm
-            - run
-            - typecheck
+  build:
+    command:
+      - npm
+      - run
+      - build
+  check:
+    command:
+      - npm
+      - run
+      - check
+  dev:api:
+    command:
+      - npm
+      - run
+      - dev:api
+  dev:web:
+    command:
+      - npm
+      - run
+      - dev:web
+  format:
+    command:
+      - npm
+      - run
+      - format
+  format:check:
+    command:
+      - npm
+      - run
+      - format:check
+  lint:
+    command:
+      - npm
+      - run
+      - lint
+  test:
+    command:
+      - npm
+      - run
+      - test
+  typecheck:
+    command:
+      - npm
+      - run
+      - typecheck

@@ -1,15 +1,15 @@
-# Perguntas para o próximo incremento
+# Perguntas e gates da variante privada
 
-1. Qual domínio oficial, TLS e topologia de proxy/API no servidor on-premise? A origem precisa ser fixa para a extensão.
-2. Como representar “manter conectado” em cookie e sessão persistida, com revogação por dispositivo e expiração técnica documentada?
-3. Qual método de 2FA para admin em navegador novo e como registrar dispositivo confiável sem reduzir a revogação?
-4. Qual banco e modelo transacional para usuários, sessões, catálogo, bilhetes, auditoria e credenciais?
-5. Como cifrar o cofre, separar/rotacionar chaves, fazer backup e testar restauração? Qual procedimento de perda da chave?
-6. Qual contrato exato do bilhete de abertura: vínculo com usuário, serviço, extensão, tentativa, TTL e uso único?
-7. Quais URLs de Fullarm/CRM, caminhos e sinais de dashboard dos demais SVAs? Quais formulários permitem envio automático no piloto controlado?
-8. Qual métrica e conjunto de SVAs para o piloto? O DRS recomenda PARTIU!, Fullcam e Playhub, mas ainda não aprova essa seleção.
-9. Para reutilizar o Hublink, cada cliente terá uma instalação própria ou haverá uma instalação com clientes isolados? Como marca, links e usuários ficam separados?
-10. Quem pode alterar e publicar a configuração de cada cliente? Ela precisa ser compartilhada entre navegadores, versionada e reversível?
-11. Onde ficará a demonstração pública do aplicativo e quais logos, links e outros ativos podem ser exibidos no portfólio?
+O contrato aprovado para o **piloto local** está em `docs/PRIVATE_SPEC.md`. “Adiado” abaixo não autoriza exposição remota nem uso de credenciais reais. A numeração preserva as perguntas originais.
 
-Não substitua essas respostas por defaults silenciosos na implementação.
+1. **Origem, TLS e proxy — resolvido para piloto local; produção em aberto.** Banco, API e administração permanecem em rede local/loopback. A origem oficial fixa, domínio, TLS, proxy e ID estável da extensão precisam ser definidos e testados antes de R6 ou acesso remoto.
+2. **Manter conectado — resolvido em R2.** Cookie `HttpOnly` rolling de 365 dias; `last_seen_at` atualizado em cada request autenticada; sessão recusada após 365 dias de inatividade ou imediatamente quando `revoked_at` for preenchido. Ver `docs/PRIVATE_SPEC.md`.
+3. **2FA do admin — adiado explicitamente no piloto.** O Hub piloto não exige 2FA e seu acesso administrativo é restrito à rede local/loopback. Método de 2FA, dispositivo confiável e recuperação são gates antes de produção. O 2FA do Playhub é do fornecedor e permanece humano.
+4. **Banco e transações — resolvido para R2.** PostgreSQL 16 isolado; DDL das seis tabelas em `apps/api/migrations/001_initial_schema.sql`. Em R3/R4/R6, autorização e consumo de bilhete devem ser transacionais conforme `docs/PRIVATE_SPEC.md`.
+5. **Cofre — algoritmo e modelo resolvidos; operação em aberto.** AES-256-GCM com chave mestra runtime de 32 bytes, IV de 12 bytes e tag de 16 bytes, uma operação autenticada por registro. Codificação da chave, formato exato do frame, custódia, rotação, backup cifrado, restauração e perda de chave devem ser fechados e testados antes de credenciais reais.
+6. **Bilhete — resolvido para contrato local.** UUID v4 é ID interno; portador aleatório de 32 bytes, hash SHA-256, TTL 30 segundos, vínculo com usuário/sessão/serviço e consumo atômico único na troca direta pela extensão. Origem/ID estáveis e associação da extensão continuam gates de R6. Ver `docs/PRIVATE_SPEC.md`.
+7. **URLs, destinos e automação — catálogo resolvido; fornecedores pendentes.** CRM e Fullarm ficam visíveis sem ação até URL validada pelo admin (D-41). URLs, caminhos, sinais de dashboard e envio automático de cada fornecedor exigem validação específica; nenhum endereço operacional é copiado aqui.
+8. **Escopo do piloto — catálogo resolvido; métrica pendente.** Cards para PARTIU!, Fullcam, Playhub, IPTV, CRM, Fullarm e três planilhas de consulta (D-21). Entrada efetiva por fornecedor depende de validação; métrica de sucesso, responsáveis e evidência de operação real continuam a decidir antes de R7.
+9. **Isolamento por cliente — resolvido para modelo inicial.** Uma instalação por cliente, sem mistura de catálogos ou credenciais. A demonstração local e a variante privada têm armazenamento e fronteiras de autorização distintos.
+10. **Edição e publicação — parcialmente aberto.** A configuração pública é compartilhada entre navegadores conectados à API local, mas não tem controle de acesso. A variante privada exige decisão de fluxo de edição/publicação, versões, reversão e backup antes do painel administrativo correspondente.
+11. **Portfólio público — aberto.** Local de publicação e direitos de uso de logos/links ainda precisam de aprovação. A especificação privada e o catálogo operacional não integram a demonstração pública.

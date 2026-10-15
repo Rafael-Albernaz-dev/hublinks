@@ -26,6 +26,27 @@ describe('public demo configuration', () => {
     ).toThrow();
   });
 
+  it('accepts a valid card logo and rejects malformed or oversized card logos', () => {
+    const link = { id: 'one', title: 'Site', description: '', url: 'https://example.com/' };
+    const valid = 'data:image/png;base64,iVBORw==';
+    expect(
+      parseHubConfig({ ...DEFAULT_CONFIG, links: [{ ...link, logoDataUrl: valid }] }).links[0]
+        ?.logoDataUrl,
+    ).toBe(valid);
+    expect(() =>
+      parseHubConfig({
+        ...DEFAULT_CONFIG,
+        links: [{ ...link, logoDataUrl: 'data:image/png;base64,broken!' }],
+      }),
+    ).toThrow();
+    expect(() =>
+      parseHubConfig({
+        ...DEFAULT_CONFIG,
+        links: [{ ...link, logoDataUrl: `data:image/png;base64,${'AAAA'.repeat(166_667)}` }],
+      }),
+    ).toThrow();
+  });
+
   it('chooses readable text on light and dark brand colors', () => {
     expect(brandInk({ r: 255, g: 255, b: 255 })).toBe('#102333');
     expect(brandInk({ r: 0, g: 0, b: 0 })).toBe('#ffffff');

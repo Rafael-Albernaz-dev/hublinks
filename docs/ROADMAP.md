@@ -1,6 +1,6 @@
 # Roadmap do Hublink
 
-**Atualizado em:** 14/10/2026
+**Atualizado em:** 15/10/2026
 
 **Estado:** plano de execução para retomada; etapas futuras ainda não equivalem a autorização de implantação ou acesso a fornecedores.
 
@@ -14,7 +14,7 @@
 - **Planejado:** sequência proposta; escopo e critérios devem ser confirmados ao iniciar a etapa.
 - **Piloto:** depende de ambiente, pessoas e fornecedores reais. Teste sintético não substitui essa prova.
 
-O Hublink tem dois percursos relacionados. O **modelo público reutilizável** permite demonstrar marca e links públicos. A **variante privada de SVAs** requer login, API autorizada, cofre central e extensão. A configuração no navegador da demonstração não é a base de segurança da variante privada.
+O Hublink tem dois percursos relacionados. O **modelo público reutilizável** permite demonstrar marca e links públicos. A **variante privada de SVAs** requer login, API autorizada, cofre central e extensão. A configuração na API local da demonstração não é a base de segurança da variante privada.
 
 ## 2. Estado de partida
 
@@ -22,15 +22,17 @@ O Hublink tem dois percursos relacionados. O **modelo público reutilizável** p
 
 - Monorepo npm com web React/TypeScript, API Fastify/TypeScript e extensão Chrome Manifest V3.
 - Demonstração com nome, descrição, logo PNG/JPG/WebP, cor RGB, cards de links HTTPS públicos, edição e remoção.
-- Configuração local validada, importação/exportação JSON e persistência por `localStorage` em um único navegador.
-- API limitada a `/health` em loopback; extensão sem permissões de host, sem troca de mensagens e sem automação.
-- Verificações locais disponíveis: `npm run check` executa tipos, lint, formatação, testes e builds. O repositório já está no GitHub, mas o aplicativo não foi publicado.
+- Configuração validada, importação/exportação JSON e persistência por API local (`GET/PUT /api/config`) em arquivo privado com escrita atômica. Edição em rascunho e salvamento explícito.
+- Logos opcionais por card, estado de API indisponível, foco no painel e retorno por `Escape`.
+- API em loopback; extensão sem permissões de host, sem troca de mensagens e sem automação.
+- Scaffold R2 do PostgreSQL 16 isolado, DDL nativo de seis tabelas e contrato privado em `docs/PRIVATE_SPEC.md`; nenhuma rota privada usa o banco ainda.
+- Verificações locais: `npm run check` executa tipos, lint, formatação, testes e builds; `npm run test:e2e` cobre cinco cenários reais em Chromium headless com dados sintéticos isolados. O repositório já está no GitHub, mas o aplicativo não foi publicado.
 - README em inglês; regras para agentes em `AGENTS.md`. O DRS bruto, com links operacionais, continua fora do repositório público.
 
 ### Ainda não entregue
 
-- Revisão visual e funcional em navegador real, incluindo telas móveis, upload e importação/exportação manual.
-- Configuração compartilhada entre computadores, persistência no servidor, instâncias por cliente ou multiempresa.
+- Revisão manual ampliada em navegadores e dispositivos reais, incluindo importação manual, marcas variadas e conteúdo extremo. O E2E local não substitui essa prova.
+- Autenticação e autorização para edição, fluxo operacional de publicação, versões, rollback e backup da configuração.
 - Autenticação, sessões, 2FA do admin, painel administrativo, cofre, catálogo privado e auditoria.
 - Protocolo web–extensão–API, permissões por fornecedor, adaptadores e piloto autenticado.
 - CI, implantação on-premise, DNS/TLS, backup/restauração operacional e distribuição da extensão.
@@ -45,60 +47,47 @@ O Hublink tem dois percursos relacionados. O **modelo público reutilizável** p
 
 **Dependência seguinte:** R1 pode avançar na experiência pública; R2 deve fechar decisões antes de qualquer rota sensível da variante privada.
 
-### R1 — Qualidade e produto reutilizável — PRÓXIMO
+### R1 — Qualidade e produto reutilizável — ENTREGUE
 
 **Objetivo:** tornar a demonstração uma referência confiável para apresentar e configurar clientes, sem misturar dados privados com o portfólio.
 
-**Trabalho previsto:**
+**Entregas:** API local `GET/PUT /api/config` com validação e escrita atômica, rascunho com salvamento explícito, logos opcionais nos cards, bloqueio de edição sem API e acessibilidade de foco/`Escape`. A suíte Playwright cobre carregamento, edição e persistência após reload, logo, teclado, layout desktop/mobile sem overflow e exportação JSON. O modelo decidido é uma instalação isolada por cliente, registrado em `docs/DECISIONS.md`.
 
-1. Revisar a interface em Chrome desktop e mobile, incluindo estados vazio, muitos cards, nomes longos, logo clara/escura, RGB extremo, teclado, foco e mensagens de erro. Corrigir problemas comprovados.
-2. Exercitar manualmente importação/exportação, atualização e restauração no navegador; comparar o JSON exportado com o estado exibido. Registrar o que foi observado, além dos testes automatizados.
-3. Definir o modelo de reutilização: **uma instalação por cliente** ou **uma instalação com clientes isolados**. Decidir quem pode alterar marca e links, como publicar uma configuração e se ela precisa ser compartilhada entre dispositivos.
-4. Se houver configuração no servidor, desenhar contrato, migração do JSON v1, controle de versões, validação e rollback. Não tratar `localStorage` como painel administrativo coletivo.
-5. Definir apresentação de portfólio, revisão de conteúdo/ativos e destino de hospedagem da demonstração. Publicação do app é etapa distinta do push do código.
+**Limite da prova:** Chromium headless e dados sintéticos demonstram o fluxo local. A revisão manual ampliada, infraestrutura, backup, publicação do app e comportamento de fornecedor continuam fora desse aceite. Links e logos de clientes só entram em ambiente apropriado e com direito de uso.
 
-**Aceite para encerrar R1:** fluxo de configuração demonstrado em navegador, erros previsíveis, documentação em inglês atualizada e modelo de reutilização registrado como decisão. Links e logos de clientes só entram em ambiente apropriado e com direito de uso.
-
-### R2 — Fechar o contrato da variante privada — PENDENTE DE DECISÃO
+### R2 — Fechar o contrato da variante privada — ENTREGUE
 
 **Objetivo:** transformar as escolhas do DRS em contratos implementáveis antes do login, cofre e extensão.
 
-**Decisões necessárias:**
+**Entregas:** PostgreSQL 16 em Compose, limitado a `127.0.0.1` e porta 5439 por padrão; DDL de usuários, sessões, serviços, credenciais, bilhetes e auditoria; contrato de sessão rolling de 365 dias, cofre AES-256-GCM, bilhete único de 30 segundos e catálogo privado do piloto. `docs/PRIVATE_SPEC.md` descreve fluxos, ameaças, limites e aceite futuro. `docs/OPEN_QUESTIONS.md` distingue escolhas locais das decisões operacionais adiadas.
 
-1. Domínio oficial, TLS, proxy e relação entre origem da web, API e extensão.
-2. Sessão “manter conectado”: cookie, duração técnica, validação por acesso sensível, dispositivo confiável, logout e revogação imediata. A experiência desejada não deve ser traduzida como sessão literalmente infinita.
-3. 2FA do admin em navegador novo e recuperação em perda completa de acesso. TOTP e códigos de recuperação fora do Hub são recomendação do DRS, ainda sem aprovação final.
-4. Banco, transações e trilha de auditoria para usuários, sessões, catálogo, bilhetes e credenciais. PostgreSQL é recomendação, não decisão fechada.
-5. Cifragem do cofre, guarda separada da chave, rotação, backup cifrado e restauração ensaiada; procedimento para perda da chave.
-6. Contrato do bilhete de abertura: usuário, serviço, tentativa, extensão, prazo curto, uso único e prevenção de replay.
-7. Limite entre configuração pública reutilizável e catálogo/credenciais privados. Escolher se a variante SVA é uma instalação por empresa ou parte de um produto multiempresa.
-8. Métrica de sucesso, serviços do piloto e quem pode validar cada fornecedor. PARTIU!, Fullcam e Playhub são apenas a seleção recomendada no DRS.
+**Limite:** R2 entrega desenho e schema, sem endpoints sensíveis nem prova de fornecedor. O piloto local adia 2FA do Hub; exposição remota requer origem/TLS, 2FA administrativo, custódia de chave, backup/restauração e associação segura da extensão. Cada URL e adaptador exigem validação própria.
 
-**Aceite para encerrar R2:** DRS com decisões, alternativas descartadas, fluxos, ameaças e critérios de aceite por recurso; perguntas correspondentes de `docs/OPEN_QUESTIONS.md` resolvidas ou explicitamente adiadas sem bloquear o próximo recorte. Não colocar credenciais reais no documento.
-
-### R3 — Identidade, sessões e administração — PLANEJADO; DEPENDE DE R2
+### R3 — Identidade, sessões e administração — PRÓXIMO
 
 **Trabalho previsto:**
 
 - Criar contas com usuário de exibição, e-mail único e senha inicial definida pelo admin; login por e-mail e senha, sem convite ou e-mail automático na V1.
 - Guardar apenas hash apropriado da senha do Hub. Definir tentativa de login, erros, auditoria e limites de abuso conforme o desenho aprovado.
-- Implementar papéis de admin/dev e atendente, sessão protegida, “manter conectado”, Sair e revogação por usuário/dispositivo.
-- Exigir 2FA do admin em navegador novo conforme contrato de R2.
+- Configurar pool do PostgreSQL (`pg`) com limites explícitos (`max: 10`, `idleTimeoutMillis: 30000`) e encerramento limpo via hook `server.addHook('onClose', ...)` para prevenir vazamento de conexões.
+- Implementar papéis de admin e atendente, sessão protegida, “manter conectado”, Sair e revogação por usuário/dispositivo.
+- Restringir administração do piloto à rede local/loopback. Definir e implementar 2FA do Hub antes de exposição remota ou produção, conforme gate de R2.
 - Permitir redefinição assistida pelo admin após conferência operacional; redefinição invalida todas as sessões anteriores do atendente.
 
-**Aceite:** acesso a rota privada sem sessão é negado no servidor; papel e identidade são conferidos por operação; revogação e redefinição impedem novo acesso imediatamente, inclusive em sessão persistente. Logs não contêm senha, cookie ou código 2FA.
+**Aceite:** acesso a rota privada sem sessão é negado no servidor; papel e identidade são conferidos por operação; revogação e redefinição impedem novo acesso imediatamente, inclusive em sessão persistente. Conexões de banco encerram limpamente sem vazamento. Logs não contêm senha, cookie ou código 2FA.
 
 ### R4 — Cofre central e auditoria — PLANEJADO; DEPENDE DE R2 E R3
 
 **Trabalho previsto:**
 
 - Cifrar credenciais de SVA de modo reversível com chave protegida separadamente dos dados; versionar e rotacionar o esquema conforme decisão de R2.
+- Validar rigorosamente a chave mestra `VAULT_MASTER_KEY` no boot da API (recusar inicialização fail-closed se a chave não tiver exatamente 32 bytes / 256 bits ou formato inválido).
 - Vincular credencial individual ao atendente e credencial compartilhada ao serviço/equipe; não entregar o cofre inteiro ao cliente.
 - Admin cadastra e atualiza as compartilhadas; atendente cadastra e atualiza somente as próprias individuais.
 - Admin pode revelar individuais e compartilhadas para suporte; atendente revela apenas as próprias individuais. Compartilhadas ficam ocultas ao atendente no Hub.
 - Registrar criação, alteração, revelação, revogação e falhas sem registrar valores secretos. Preparar backup e prova de restauração.
 
-**Aceite:** testes de autorização cruzada, isolamento por dono, rotação, falha de chave e restauração. O controle de interface precisa corresponder à decisão da API. Não prometer sigilo absoluto depois que uma senha é preenchida no Chrome do usuário.
+**Aceite:** testes de autorização cruzada, isolamento por dono, rotação, falha de chave e restauração. Inicialização recusa chave inválida no boot. O controle de interface precisa corresponder à decisão da API. Não prometer sigilo absoluto depois que uma senha é preenchida no Chrome do usuário.
 
 ### R5 — Catálogo privado e jornadas do Hub — PLANEJADO; DEPENDE DE R3
 
@@ -115,8 +104,9 @@ O Hublink tem dois percursos relacionados. O **modelo público reutilizável** p
 
 **Trabalho previsto:**
 
-- Fixar origem oficial e ID estável da extensão; aceitar somente mensagens esperadas, de serviço conhecido e ação iniciada pelo usuário.
+- Fixar origem oficial e ID estável da extensão; validar cabeçalho `Origin` oficial nas rotas mutativas (`POST`, `PUT`, `DELETE`).
 - Emitir e consumir bilhete limitado à tentativa; a extensão solicita apenas a credencial autorizada para o formulário reconhecido.
+- Adicionar rotina periódica de limpeza de bilhetes expirados (`opening_tickets`), expurgando registros antigos com mais de 24h.
 - Adicionar permissões por domínio aprovado, sem `*://*/*`, código remoto ou persistência de senha em texto claro.
 - Tratar suspensão do service worker, repetição de mensagem, timeout e atualização da extensão sem reutilizar bilhete gasto.
 
@@ -124,7 +114,7 @@ O Hublink tem dois percursos relacionados. O **modelo público reutilizável** p
 
 ### R7 — Adaptadores e piloto por fornecedor — PILOTO; DEPENDE DE R6
 
-**Sequência proposta, sujeita à aprovação em R2:** PARTIU! para conta compartilhada sem desafio visível; Fullcam para conta individual; Playhub para formulário com reCAPTCHA e 2FA humanos. IPTV pode vir depois para avaliar Turnstile. Demais SVAs entram após URL, inspeção e validação próprias.
+**Sequência proposta, sujeita à validação por fornecedor:** PARTIU! para conta compartilhada sem desafio visível; Fullcam para conta individual; Playhub para formulário com reCAPTCHA e 2FA humanos. IPTV integra o catálogo, mas seu adaptador depende de validação de Turnstile. CRM e Fullarm permanecem sem ação até validação de URL.
 
 **Critérios por serviço:**
 
@@ -150,8 +140,8 @@ Consolidar métricas acordadas em R2, falhas por serviço, tempo e intervenção
 
 ```mermaid
 flowchart LR
-  R0[R0 Base entregue] --> R1[R1 Modelo público reutilizável]
-  R0 --> R2[R2 Fechar DRS privado]
+  R0[R0 Base entregue] --> R1[R1 Modelo público entregue]
+  R1 --> R2[R2 Contrato privado entregue]
   R2 --> R3[R3 Identidade]
   R2 --> R4[R4 Cofre]
   R3 --> R4
@@ -163,13 +153,13 @@ flowchart LR
   R8 --> R9[R9 Evolução]
 ```
 
-R1 pode avançar sem credenciais reais. R3–R6 só devem assumir as decisões fechadas em R2. Projeto público no GitHub não equivale a app publicado; build local não equivale a piloto ou produção.
+R1 foi validado localmente sem credenciais reais. R3–R6 só devem assumir as decisões fechadas em R2. Projeto público no GitHub não equivale a app publicado; Chromium local não equivale a piloto ou produção.
 
 ## 5. Ponto de retomada da próxima sessão
 
 1. Ler `AGENTS.md`, este roadmap, `docs/CONTEXT.md`, `docs/DECISIONS.md` e `docs/OPEN_QUESTIONS.md`; verificar `git status --short --branch`. Preservar alterações e runtime locais de outras ferramentas.
-2. Escolher o próximo recorte: **R1**, para qualidade e modelo reutilizável, ou **R2**, para fechar as decisões da variante privada. Registrar a escolha sem misturar os dois escopos.
-3. Em R1, começar por inspeção visual/funcional do navegador e definir o modelo por cliente. Em R2, resolver o bloco de decisões do DRS antes de selecionar banco, autenticação ou cofre.
+2. Retomar em **R3** com `docs/PRIVATE_SPEC.md`: implementar identidade, autorização por operação, sessão rolling e revogação com testes sintéticos.
+3. Antes de rotas de cofre ou extensão, fechar formato cifrado, custódia/rotação/backup da chave, origem oficial e associação da extensão. Uma revisão manual ampliada da demonstração pode seguir em paralelo.
 4. Para qualquer feature, atualizar o README em inglês no mesmo trabalho. Registrar prova local, lacunas de navegador/fornecedor e próximo passo. Commits, quando solicitados, têm mensagem em inglês.
 
 **Pendência documental conhecida:** `docs/CONTEXT.md` era anterior ao primeiro commit; esta rodada o sincroniza com o estado publicado. O DRS v0.37 continua rascunho e não foi copiado para o repositório público.
