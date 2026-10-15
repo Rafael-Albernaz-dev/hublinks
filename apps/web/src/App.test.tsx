@@ -13,18 +13,41 @@ const apiConfig = {
 };
 let saved: HubConfig = apiConfig;
 let requests: Array<{ method: string; body?: unknown }> = [];
+let authenticated = true;
+const admin = {
+  id: 'admin',
+  displayName: 'Administrador',
+  email: 'admin@example.test',
+  role: 'admin',
+};
 
 beforeEach(() => {
   saved = structuredClone(apiConfig);
   requests = [];
+  authenticated = true;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (_url: string, options?: RequestInit) => {
+    vi.fn(async (url: string, options?: RequestInit) => {
       const method = options?.method ?? 'GET';
       requests.push({
         method,
         body: options?.body ? JSON.parse(options.body as string) : undefined,
       });
+      if (url === '/api/auth/me')
+        return {
+          ok: authenticated,
+          status: authenticated ? 200 : 401,
+          json: async () => ({ user: admin }),
+        };
+      if (url === '/api/auth/login') {
+        authenticated = true;
+        return { ok: true, json: async () => ({ user: admin }) };
+      }
+      if (url === '/api/auth/logout') {
+        authenticated = false;
+        return { ok: true };
+      }
+      if (url === '/api/admin/users') return { ok: true, json: async () => ({ users: [] }) };
       if (method === 'PUT') saved = JSON.parse(options?.body as string);
       return {
         ok: true,
@@ -62,7 +85,8 @@ describe('API backed customization', () => {
   it('shows an offline banner and blocks editing when GET fails', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => {
+      vi.fn(async (url: string) => {
+        if (url === '/api/auth/me') return { ok: true, json: async () => ({ user: admin }) };
         throw new Error('offline');
       }),
     );
@@ -79,7 +103,11 @@ describe('API backed customization', () => {
   it('shows the offline banner for an HTTP error response', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, status: 503 })),
+      vi.fn(async (url: string) =>
+        url === '/api/auth/me'
+          ? { ok: true, json: async () => ({ user: admin }) }
+          : { ok: false, status: 503 },
+      ),
     );
     render(<App />);
     expect(await screen.findByRole('alert')).toHaveProperty(
@@ -128,7 +156,9 @@ describe('API backed customization', () => {
   it('keeps changes pending when PUT fails', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (_url: string, options?: RequestInit) => {
+      vi.fn(async (url: string, options?: RequestInit) => {
+        if (url === '/api/auth/me') return { ok: true, json: async () => ({ user: admin }) };
+        if (url === '/api/admin/users') return { ok: true, json: async () => ({ users: [] }) };
         if (options?.method === 'PUT') return { ok: false };
         return { ok: true, json: async () => apiConfig };
       }),
@@ -146,5 +176,26 @@ describe('API backed customization', () => {
     expect(
       (screen.getByRole('button', { name: 'Salvar alterações' }) as HTMLButtonElement).disabled,
     ).toBe(false);
+  });
+
+  it('shows login without exposing link cards when the session is missing', async () => {
+    authenticated = false;
+    render(<App />);
+    expect(await screen.findByRole('button', { name: 'Entrar no Hublink' })).not.toBeNull();
+    expect(screen.queryByRole('link', { name: /Site público/ })).toBeNull();
+  });
+
+  it('unlocks links after login and returns to login after logout', async () => {
+    authenticated = false;
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(await screen.findByRole('textbox', { name: 'E-mail' }), 'admin@example.test');
+    await user.type(screen.getByLabelText('Senha'), 'synthetic-password');
+    await user.click(screen.getByRole('button', { name: 'Entrar no Hublink' }));
+    expect(await screen.findByRole('link', { name: /Site público/ })).not.toBeNull();
+    expect(screen.getByText('Administrador')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Sair' }));
+    expect(await screen.findByRole('button', { name: 'Entrar no Hublink' })).not.toBeNull();
+    expect(screen.queryByRole('link', { name: /Site público/ })).toBeNull();
   });
 });

@@ -25,15 +25,15 @@ O Hublink tem dois percursos relacionados. O **modelo público reutilizável** p
 - Configuração validada, importação/exportação JSON e persistência por API local (`GET/PUT /api/config`) em arquivo privado com escrita atômica. Edição em rascunho e salvamento explícito.
 - Logos opcionais por card, estado de API indisponível, foco no painel e retorno por `Escape`.
 - API em loopback; extensão sem permissões de host, sem troca de mensagens e sem automação.
-- Scaffold R2 do PostgreSQL 16 isolado, DDL nativo de seis tabelas e contrato privado em `docs/PRIVATE_SPEC.md`; nenhuma rota privada usa o banco ainda.
+- PostgreSQL 16 isolado, DDL nativo de seis tabelas e contrato privado em `docs/PRIVATE_SPEC.md`; R3 usa o banco para identidade, sessões e administração básica.
 - Verificações locais: `npm run check` executa tipos, lint, formatação, testes e builds; `npm run test:e2e` cobre cinco cenários reais em Chromium headless com dados sintéticos isolados. O repositório já está no GitHub, mas o aplicativo não foi publicado.
 - README em inglês; regras para agentes em `AGENTS.md`. O DRS bruto, com links operacionais, continua fora do repositório público.
 
 ### Ainda não entregue
 
 - Revisão manual ampliada em navegadores e dispositivos reais, incluindo importação manual, marcas variadas e conteúdo extremo. O E2E local não substitui essa prova.
-- Autenticação e autorização para edição, fluxo operacional de publicação, versões, rollback e backup da configuração.
-- Autenticação, sessões, 2FA do admin, painel administrativo, cofre, catálogo privado e auditoria.
+- Autorização para edição da configuração pública, fluxo operacional de publicação, versões, rollback e backup.
+- 2FA do admin, limitação de tentativas, cofre, catálogo privado e auditoria das operações futuras.
 - Protocolo web–extensão–API, permissões por fornecedor, adaptadores e piloto autenticado.
 - CI, implantação on-premise, DNS/TLS, backup/restauração operacional e distribuição da extensão.
 
@@ -63,7 +63,7 @@ O Hublink tem dois percursos relacionados. O **modelo público reutilizável** p
 
 **Limite:** R2 entrega desenho e schema, sem endpoints sensíveis nem prova de fornecedor. O piloto local adia 2FA do Hub; exposição remota requer origem/TLS, 2FA administrativo, custódia de chave, backup/restauração e associação segura da extensão. Cada URL e adaptador exigem validação própria.
 
-### R3 — Identidade, sessões e administração — PRÓXIMO
+### R3 — Identidade, sessões e administração — ENTREGUE LOCALMENTE
 
 **Trabalho previsto:**
 
@@ -76,7 +76,9 @@ O Hublink tem dois percursos relacionados. O **modelo público reutilizável** p
 
 **Aceite:** acesso a rota privada sem sessão é negado no servidor; papel e identidade são conferidos por operação; revogação e redefinição impedem novo acesso imediatamente, inclusive em sessão persistente. Conexões de banco encerram limpamente sem vazamento. Logs não contêm senha, cookie ou código 2FA.
 
-### R4 — Cofre central e auditoria — PLANEJADO; DEPENDE DE R2 E R3
+**Entrega R3:** login, logout, sessão rolling em PostgreSQL, criação de atendente e redefinição com revogação transacional. A web bloqueia os links antes do login. Os endpoints `GET/PUT /api/config` permanecem da demonstração pública local e não constituem catálogo privado. O piloto local ainda não implementa 2FA do Hub, limitação de tentativas ou confirmação operacional antes de redefinir senha. R3 não autoriza exposição remota ou produção.
+
+### R4 — Cofre central e auditoria — PRÓXIMO; DEPENDE DE R2 E R3
 
 **Trabalho previsto:**
 
@@ -158,7 +160,7 @@ R1 foi validado localmente sem credenciais reais. R3–R6 só devem assumir as d
 ## 5. Ponto de retomada da próxima sessão
 
 1. Ler `AGENTS.md`, este roadmap, `docs/CONTEXT.md`, `docs/DECISIONS.md` e `docs/OPEN_QUESTIONS.md`; verificar `git status --short --branch`. Preservar alterações e runtime locais de outras ferramentas.
-2. Retomar em **R3** com `docs/PRIVATE_SPEC.md`: implementar identidade, autorização por operação, sessão rolling e revogação com testes sintéticos.
+2. Retomar em **R4** com `docs/PRIVATE_SPEC.md`: implementar cofre central e auditoria por operação com testes sintéticos, após fechar formato de chave e backup.
 3. Antes de rotas de cofre ou extensão, fechar formato cifrado, custódia/rotação/backup da chave, origem oficial e associação da extensão. Uma revisão manual ampliada da demonstração pode seguir em paralelo.
 4. Para qualquer feature, atualizar o README em inglês no mesmo trabalho. Registrar prova local, lacunas de navegador/fornecedor e próximo passo. Commits, quando solicitados, têm mensagem em inglês.
 

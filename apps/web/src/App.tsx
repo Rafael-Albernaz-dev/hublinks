@@ -13,6 +13,30 @@ import {
 import type { HubConfig, HubLink, RgbColor } from './config';
 import './theme.css';
 
+type User = { id: string; displayName: string; email: string; role: 'admin' | 'attendant' };
+type ManagedUser = User & { createdAt: string };
+
+function readUser(value: unknown): User {
+  if (typeof value !== 'object' || value === null || !('user' in value))
+    throw new Error('Invalid user');
+  const user = value.user;
+  if (
+    typeof user !== 'object' ||
+    user === null ||
+    !('id' in user) ||
+    typeof user.id !== 'string' ||
+    !('displayName' in user) ||
+    typeof user.displayName !== 'string' ||
+    !('email' in user) ||
+    typeof user.email !== 'string' ||
+    !('role' in user) ||
+    (user.role !== 'admin' && user.role !== 'attendant')
+  ) {
+    throw new Error('Invalid user');
+  }
+  return { id: user.id, displayName: user.displayName, email: user.email, role: user.role };
+}
+
 function LinkEditor({
   link,
   onSave,
@@ -140,6 +164,19 @@ function LinkEditor({
 }
 
 export function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
+  const [adminName, setAdminName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [resetId, setResetId] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [adminNotice, setAdminNotice] = useState('');
   const [config, setConfig] = useState<HubConfig>(DEFAULT_CONFIG);
   const [persisted, setPersisted] = useState<HubConfig | null>(null);
   const [apiState, setApiState] = useState<'loading' | 'online' | 'offline'>('loading');
@@ -152,6 +189,23 @@ export function App() {
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
+    const controller = new AbortController();
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/auth/me', { signal: controller.signal });
+        if (response.ok) setCurrentUser(readUser(await response.json()));
+      } catch {
+        // The login screen also handles a temporarily unavailable API.
+      } finally {
+        if (!controller.signal.aborted) setAuthChecked(true);
+      }
+    }
+    void checkAuth();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
     const controller = new AbortController();
     async function load() {
       try {
@@ -169,7 +223,139 @@ export function App() {
     }
     void load();
     return () => controller.abort();
-  }, []);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!editing || currentUser?.role !== 'admin') return;
+    void refreshUsers();
+  }, [editing, currentUser]);
+
+  async function refreshUsers() {
+    try {
+      const response = await fetch('/api/admin/users');
+      if (response.status === 401) {
+        setCurrentUser(null);
+        return;
+      }
+      if (!response.ok) throw new Error('Could not list users');
+      const data: unknown = await response.json();
+      if (
+        typeof data !== 'object' ||
+        data === null ||
+        !('users' in data) ||
+        !Array.isArray(data.users)
+      ) {
+        throw new Error('Invalid users');
+      }
+      setManagedUsers(
+        data.users.filter(
+          (user): user is ManagedUser =>
+            typeof user === 'object' &&
+            user !== null &&
+            'id' in user &&
+            typeof user.id === 'string' &&
+            'displayName' in user &&
+            typeof user.displayName === 'string' &&
+            'email' in user &&
+            typeof user.email === 'string' &&
+            'role' in user &&
+            (user.role === 'admin' || user.role === 'attendant') &&
+            'createdAt' in user &&
+            typeof user.createdAt === 'string',
+        ),
+      );
+    } catch {
+      setAdminNotice('Não foi possível carregar os atendentes.');
+    }
+  }
+
+  async function login(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthBusy(true);
+    setLoginError('');
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+      if (!response.ok) throw new Error('Credenciais inválidas ou API indisponível.');
+      setCurrentUser(readUser(await response.json()));
+      setLoginPassword('');
+    } catch {
+      setLoginError('Credenciais inválidas ou API indisponível.');
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function logout() {
+    setAuthBusy(true);
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      if (!response.ok) throw new Error('Could not log out');
+      setCurrentUser(null);
+      setConfig(DEFAULT_CONFIG);
+      setPersisted(null);
+      setApiState('loading');
+      setEditing(false);
+      setManagedUsers([]);
+    } catch {
+      setNotice('Não foi possível sair. Tente novamente.');
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function createAttendant(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAdminNotice('');
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: adminName,
+          email: adminEmail,
+          password: adminPassword,
+        }),
+      });
+      if (response.status === 401) {
+        setCurrentUser(null);
+        return;
+      }
+      if (!response.ok) throw new Error('Could not create user');
+      setAdminName('');
+      setAdminEmail('');
+      setAdminPassword('');
+      setAdminNotice('Atendente cadastrado.');
+      await refreshUsers();
+    } catch {
+      setAdminNotice('Não foi possível cadastrar o atendente. Verifique os dados e o e-mail.');
+    }
+  }
+
+  async function changePassword(event: FormEvent<HTMLFormElement>, id: string) {
+    event.preventDefault();
+    setAdminNotice('');
+    try {
+      const response = await fetch(`/api/admin/users/${id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: resetPassword }),
+      });
+      if (response.status === 401) {
+        setCurrentUser(null);
+        return;
+      }
+      if (!response.ok) throw new Error('Could not reset password');
+      setResetPassword('');
+      setResetId(null);
+      setAdminNotice('Senha redefinida. As sessões anteriores foram revogadas.');
+    } catch {
+      setAdminNotice('Não foi possível redefinir a senha.');
+    }
+  }
 
   useEffect(() => {
     if (editing) closeRef.current?.focus();
@@ -300,6 +486,52 @@ export function App() {
     setNotice('Link removido.');
   }
 
+  if (!authChecked)
+    return (
+      <div className="auth-screen">
+        <p>Verificando sessão...</p>
+      </div>
+    );
+  if (!currentUser)
+    return (
+      <div className="auth-screen">
+        <form className="auth-card" onSubmit={(event) => void login(event)}>
+          <span className="auth-mark">H</span>
+          <span className="eyebrow">ACESSO AO HUB</span>
+          <h1>Bem-vindo ao Hublink</h1>
+          <p>Entre com sua conta para acessar os links da equipe.</p>
+          <label>
+            E-mail
+            <input
+              autoComplete="username"
+              type="email"
+              required
+              value={loginEmail}
+              onChange={(event) => setLoginEmail(event.target.value)}
+            />
+          </label>
+          <label>
+            Senha
+            <input
+              autoComplete="current-password"
+              type="password"
+              required
+              value={loginPassword}
+              onChange={(event) => setLoginPassword(event.target.value)}
+            />
+          </label>
+          {loginError && (
+            <p className="form-error" role="alert">
+              {loginError}
+            </p>
+          )}
+          <button className="button button-primary" type="submit" disabled={authBusy}>
+            Entrar no Hublink
+          </button>
+        </form>
+      </div>
+    );
+
   return (
     <div className="site-shell" style={style}>
       {apiState === 'offline' && (
@@ -324,6 +556,18 @@ export function App() {
         </a>
         <div className="header-actions">
           <span className="demo-badge">Demonstração local</span>
+          <span className="user-badge">
+            {currentUser.displayName}{' '}
+            <small>{currentUser.role === 'admin' ? 'Admin' : 'Atendente'}</small>
+          </span>
+          <button
+            className="button button-plain"
+            type="button"
+            disabled={authBusy}
+            onClick={() => void logout()}
+          >
+            Sair
+          </button>
           <button
             className="button button-outline"
             type="button"
@@ -650,6 +894,92 @@ export function App() {
                 Restaurar exemplo
               </button>
             </div>
+            {currentUser.role === 'admin' && (
+              <div className="setting-group admin-group">
+                <h3>Gerenciar Atendentes</h3>
+                <form onSubmit={(event) => void createAttendant(event)}>
+                  <label>
+                    Nome
+                    <input
+                      required
+                      maxLength={80}
+                      value={adminName}
+                      onChange={(event) => setAdminName(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    E-mail
+                    <input
+                      required
+                      type="email"
+                      value={adminEmail}
+                      onChange={(event) => setAdminEmail(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Senha inicial
+                    <input
+                      required
+                      type="password"
+                      minLength={8}
+                      value={adminPassword}
+                      onChange={(event) => setAdminPassword(event.target.value)}
+                    />
+                  </label>
+                  <button className="button button-small" type="submit">
+                    Cadastrar atendente
+                  </button>
+                </form>
+                <div className="managed-users">
+                  {managedUsers
+                    .filter((user) => user.role === 'attendant')
+                    .map((user) => (
+                      <div className="configured-link" key={user.id}>
+                        <strong>{user.displayName}</strong>
+                        <small>{user.email}</small>
+                        {resetId === user.id ? (
+                          <form onSubmit={(event) => void changePassword(event, user.id)}>
+                            <label>
+                              Nova senha
+                              <input
+                                required
+                                type="password"
+                                minLength={8}
+                                value={resetPassword}
+                                onChange={(event) => setResetPassword(event.target.value)}
+                              />
+                            </label>
+                            <button className="button button-small" type="submit">
+                              Salvar nova senha
+                            </button>
+                            <button
+                              className="button button-small"
+                              type="button"
+                              onClick={() => {
+                                setResetId(null);
+                                setResetPassword('');
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                          </form>
+                        ) : (
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() => setResetId(user.id)}
+                          >
+                            Redefinir senha
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                </div>
+                <p className="notice" aria-live="polite">
+                  {adminNotice}
+                </p>
+              </div>
+            )}
             <div className="save-actions">
               <button
                 type="button"

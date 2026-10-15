@@ -1,7 +1,10 @@
 import { readFile, unlink } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import pg from 'pg';
 
 const configPath = '/tmp/hublink-e2e-config.json';
+const apiBase = 'http://127.0.0.1:3178';
 const logo = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=',
   'base64',
@@ -15,8 +18,24 @@ const initialConfig = {
   links: [],
 };
 
-test.beforeEach(async ({ request }) => {
-  const response = await request.put('http://127.0.0.1:3177/api/config', {
+async function login(
+  page: Page,
+  email = process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
+  password = process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
+) {
+  await page.getByRole('textbox', { name: 'E-mail' }).fill(email);
+  await page.getByLabel('Senha').fill(password);
+  await page.getByRole('button', { name: 'Entrar no Hublink' }).click();
+  await expect(page.getByRole('button', { name: 'Sair' })).toBeVisible();
+}
+
+test.beforeEach(async ({ page, request }) => {
+  await page.route('**/api/**', async (route) => {
+    const target = new URL(route.request().url());
+    const response = await route.fetch({ url: `${apiBase}${target.pathname}${target.search}` });
+    await route.fulfill({ response });
+  });
+  const response = await request.put(`${apiBase}/api/config`, {
     data: initialConfig,
   });
   expect(response.ok()).toBeTruthy();
@@ -30,6 +49,7 @@ test.afterAll(async () => {
 
 test('initial page displays the default identity and empty state', async ({ page }) => {
   await page.goto('/');
+  await login(page);
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
     'Tudo o que sua equipe precisa',
   );
@@ -42,6 +62,7 @@ test('edits company, RGB and link logo, saves to API, and persists after reload'
   page,
 }) => {
   await page.goto('/');
+  await login(page);
   await page.getByRole('button', { name: 'Personalizar hub' }).click();
   const panel = page.getByLabel('Personalização do hub');
   await panel.getByLabel('Nome da empresa').fill('Empresa E2E');
@@ -75,6 +96,7 @@ test('edits company, RGB and link logo, saves to API, and persists after reload'
 
 test('Escape closes the panel and restores focus to its trigger', async ({ page }) => {
   await page.goto('/');
+  await login(page);
   const trigger = page.getByRole('button', { name: 'Personalizar hub' });
   await trigger.click();
   const close = page.getByRole('button', { name: 'Fechar ajustes' });
@@ -88,7 +110,7 @@ test('cards and customization panel fit desktop and mobile viewports', async ({
   page,
   request,
 }) => {
-  const response = await request.put('http://127.0.0.1:3177/api/config', {
+  const response = await request.put(`${apiBase}/api/config`, {
     data: {
       ...initialConfig,
       links: [
@@ -101,6 +123,7 @@ test('cards and customization panel fit desktop and mobile viewports', async ({
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
+  await login(page);
   const cards = page.locator('.link-card');
   await expect(cards).toHaveCount(2);
   const desktopFirst = await cards.nth(0).boundingBox();
@@ -127,6 +150,7 @@ test('cards and customization panel fit desktop and mobile viewports', async ({
 
 test('exports a version 1 JSON configuration download', async ({ page }) => {
   await page.goto('/');
+  await login(page);
   await page.getByRole('button', { name: 'Personalizar hub' }).click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exportar JSON' }).click();
@@ -135,4 +159,55 @@ test('exports a version 1 JSON configuration download', async ({ page }) => {
   const path = await download.path();
   expect(path).not.toBeNull();
   expect(JSON.parse(await readFile(path!, 'utf8'))).toEqual(initialConfig);
+});
+
+test('login persists across reload and logout blocks links again', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Entrar no Hublink' })).toBeVisible();
+  await login(page);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Sair' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sair' }).click();
+  await expect(page.getByRole('button', { name: 'Entrar no Hublink' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Seus links' })).toHaveCount(0);
+});
+
+test('admin password reset blocks an attendant session on reload', async ({ page, request }) => {
+  const email = `e2e-${Date.now()}@example.test`;
+  const password = 'synthetic-password-123';
+  const pool = new pg.Pool({
+    connectionString:
+      process.env.E2E_DATABASE_URL ??
+      `postgres://hublink:hublink_dev_password@127.0.0.1:${process.env.HUB_DB_PORT ?? '5439'}/hublink_e2e`,
+  });
+  try {
+    const adminLogin = await request.post(`${apiBase}/api/auth/login`, {
+      data: {
+        email: process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
+        password: process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
+      },
+    });
+    expect(adminLogin.ok()).toBeTruthy();
+    const created = await request.post(`${apiBase}/api/admin/users`, {
+      data: {
+        displayName: 'Synthetic Attendant',
+        email,
+        password,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const id: string = (await created.json()).user.id;
+    await page.goto('/');
+    await login(page, email, password);
+    const reset = await request.post(`${apiBase}/api/admin/users/${id}/reset-password`, {
+      data: { password: 'new-synthetic-password-123' },
+    });
+    expect(reset.ok()).toBeTruthy();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Entrar no Hublink' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Seus links' })).toHaveCount(0);
+  } finally {
+    await pool.query('DELETE FROM users WHERE email = $1', [email]);
+    await pool.end();
+  }
 });

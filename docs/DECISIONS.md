@@ -43,3 +43,11 @@ Essas decisões encerram para R1 a alternativa de instalação da pergunta 9 e a
 - Catálogo piloto: PARTIU!, Fullcam, Playhub, IPTV, CRM e Fullarm; os dois últimos ficam sem ação até validação da URL (D-41). Três planilhas de consulta abrem em nova aba sem cofre (D-21). Nenhuma URL operacional integra o repositório público.
 
 O contrato completo, inclusive limites e pendências para R3–R8, está em `docs/PRIVATE_SPEC.md`. R2 entrega especificação e DDL; não entrega endpoints privados, automação, implantação ou prova de fornecedor.
+
+## R3 — Identidade e sessões locais (15/10/2026)
+
+- A API abre pool `pg` de até dez conexões, timeout de conexão de cinco segundos e idle de trinta segundos. No boot local, aplica o DDL R2 somente se a tabela `users` não existir, sob advisory lock, e provisiona um admin se ainda não houver um. Fecha o pool no hook `onClose`.
+- Senhas do Hub usam `node:crypto.scrypt` com salt aleatório de 16 bytes e chave de 64 bytes. A comparação usa `timingSafeEqual`. O admin inicial tem valores de desenvolvimento substituíveis por `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`; o ambiente piloto deve defini-los antes do primeiro boot. Mudar essas variáveis depois não altera o admin já criado.
+- Login cria token opaco de 32 bytes, salva somente SHA-256 em `sessions` e entrega cookie `HttpOnly`, `SameSite=Lax`, rolling de 365 dias. `GET /api/auth/me` e rotas administrativas revalidam revogação/inatividade no banco. Logout e redefinição de senha revogam sessões no servidor; redefinição e revogação são transacionais.
+- Admin pode listar/criar atendentes e redefinir senha de atendente. O servidor verifica papel por operação. O React exige sessão para exibir links e oferece painel básico de gestão. `GET/PUT /api/config` continuam endpoints da demonstração pública local, sem autorização; esse arquivo não é catálogo privado. R5 deve servir destinos privados somente por API autorizada.
+- O piloto permanece vinculado ao loopback. Não há 2FA do Hub, limitação de tentativas, CSRF por origem, TLS, cofre, integração com extensão ou prova em fornecedor nesta etapa. Esses controles são gates para exposição remota e fases posteriores.
