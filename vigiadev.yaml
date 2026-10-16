@@ -4,7 +4,20 @@
 
 version: 1
 project_name: hublink
+compose_file: docker-compose.yml
+
 services:
+  postgres:
+    compose_service: postgres
+    ports:
+      - 5439
+    port_policy: reuse
+    healthcheck:
+      type: tcp
+      host: 127.0.0.1
+      port: 5439
+      timeout: 30
+      interval: 0.25
   api:
     command:
       - npm
@@ -13,6 +26,8 @@ services:
     ports:
       - 3177
     port_policy: remap
+    depends_on:
+      - postgres
     env:
       HUB_API_PORT: '{port}'
     healthcheck:
@@ -26,6 +41,8 @@ services:
     ports:
       - 5177
     port_policy: remap
+    depends_on:
+      - api
     healthcheck:
       type: tcp
       port: 5177
