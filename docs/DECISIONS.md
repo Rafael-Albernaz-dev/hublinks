@@ -1,53 +1,95 @@
-# Decisões e origem
+# Decisions and provenance
 
-Fonte da variante SVA: DRS versão 0.37 de 14/10/2026, preservado fora deste repositório em `Codex/2026-10-13/c/outputs/`. Consulte os IDs e a legenda de estado no original antes de implementar a variante privada. Este resumo evita publicar os links operacionais do documento bruto.
+The SVA variant comes from research document DRS v0.37 (October 14, 2026), kept outside this portfolio repository. Check its decision IDs and status legend before implementing the private variant. This summary omits its operational links.
 
-## Confirmado no DRS
+## Confirmed in the DRS
 
-- D-02, D-12 e D-13: web React/TypeScript e extensão própria para piloto em Chrome, com instalação manual.
-- D-23, D-25, D-27 e D-33: Hub com login individual, backend/cofre central, contas compartilhadas mantidas pelo admin e individuais pelo atendente; mesmos cards visíveis no piloto.
-- D-19: reCAPTCHA e 2FA do Playhub ficam com o atendente.
-- D-21: planilhas de consulta continuam acessíveis por link, em leitura; login do Hub não restringe o Google.
-- D-28, D-30 e D-35: revogação imediata das sessões do Hub, 2FA admin em navegador novo e revogação após redefinição de senha.
-- D-41: Fullarm e CRM aparecem sem ação enquanto não tiverem URL.
+- D-02, D-12, D-13: React/TypeScript web and a dedicated Chrome pilot extension, installed manually.
+- D-23, D-25, D-27, D-33: Individual Hub login, central backend vault, shared accounts maintained by admins, individual accounts maintained by attendants, and the same pilot cards visible to both roles.
+- D-19: The attendant handles Playhub reCAPTCHA and 2FA.
+- D-21: Consultation spreadsheets remain accessible through read-only links; Hub login does not restrict Google access.
+- D-28, D-30, D-35: Immediate Hub session revocation, admin 2FA in a new browser, and revocation after password reset.
+- D-41: Fullarm and CRM remain without an action until their URLs are validated.
 
-## Escolhas reversíveis desta inicialização
+## Reversible setup choices
 
-- npm workspaces e um lockfile para web, API e extensão.
-- Vite + React para web, Fastify para API, Manifest V3 e esbuild para extensão.
-- Node 24, TypeScript strict, ESLint e Prettier. Sem CI, banco, autenticação ou permissões de host por enquanto.
-- `/health` em loopback para verificação local, sem dados de negócio.
-- Repositório `hublink/` com uma demonstração pública configurável; o DRS bruto continua no diretório de pesquisa.
-- Configuração local com logo, RGB e links HTTPS públicos; importação/exportação JSON. Isso não substitui o catálogo autenticado da variante privada.
-- Mensagens de commit em inglês quando forem autorizadas; README atualizado em cada feature.
+- npm workspaces and one lockfile for web, API, and extension.
+- Vite + React for web, Fastify for API, Manifest V3 and esbuild for the extension.
+- Node 24, strict TypeScript, ESLint, and Prettier. The initial scaffold had no CI, database, authentication, or host permissions.
+- Loopback `/health` for local checks, without business data.
+- A configurable public demo in the `hublink/` repository; the raw DRS stays in the research directory.
+- Local configuration with logo, RGB color, public HTTPS links, and JSON import/export. This does not replace the authenticated private catalog.
+- Commit messages in English when authorized; update the README for each feature.
 
-Essas escolhas não fecham perguntas de produto, segurança ou infraestrutura em aberto no DRS. Uma revisão futura deve registrar a alternativa escolhida e sua prova antes de implementar rotas sensíveis.
+These choices do not settle the DRS product, security, or infrastructure questions. Record each later choice and its evidence before implementing sensitive routes.
 
-## R1 — Demonstração pública reutilizável (15/10/2026)
+## R1 — Reusable public demonstration (October 15, 2026)
 
-- **Persistência central via API local:** a web carrega `GET /api/config` e salva a configuração completa com `PUT /api/config`. O arquivo padrão é `data/config.json`; `HUB_CONFIG_PATH` permite outro caminho para testes. A API valida o JSON v1 e grava por arquivo temporário seguido de rename, com modo `0600` na criação. Isso compartilha a configuração entre navegadores conectados à mesma API local, sem oferecer autenticação, backup ou isolamento multiempresa.
-- **Rede estrita:** a web depende da API de loopback. Se ela estiver indisponível, a interface mostra erro e bloqueia edição. Não há fallback silencioso para `localStorage`.
-- **Salvamento explícito:** alterações de marca, cor e links permanecem em rascunho até **Salvar alterações**. Importar JSON também cria um rascunho. Exportar JSON pode conter dados inseridos pelo usuário e exige revisão antes de compartilhar.
-- **Logos por card:** cada link aceita logo opcional PNG, JPG ou WebP em data URL base64 de até 500 KB. A ausência de logo mostra o número do card. A logo faz parte do JSON persistido e exportado.
-- **Reutilização:** o modelo da demonstração é uma instalação local/on-premise separada por cliente (single-tenant). O arquivo da API local não é um catálogo privado nem um painel administrativo multiusuário. A variante privada ainda depende do contrato de identidade, autorização, cofre e operação em R2.
+- **Central persistence through the local API:** Web loads `GET /api/config` and saves the full configuration through `PUT /api/config`. The default file is `data/config.json`; `HUB_CONFIG_PATH` selects another path for tests. The API validates JSON v1 and writes through a temporary file and rename, creating the file with mode `0600`. This shares configuration among browsers connected to the same local API without authentication, backup, or multi-company isolation.
+- **Strict network dependency:** Web depends on the loopback API. When it is unavailable, the interface shows an error and blocks editing. There is no silent `localStorage` fallback.
+- **Explicit save:** Brand, color, and link edits stay in a draft until **Salvar alterações**. JSON import also creates a draft. Exported JSON may contain user-entered data and must be reviewed before sharing.
+- **Card logos:** Each link accepts an optional PNG, JPG, or WebP base64 data URL of up to 500 KB. Without a logo, the card shows its number. The logo is part of persisted and exported JSON.
+- **Reuse:** The demonstration is a separate local/on-premise installation per client (single tenant). Its API file is neither a private catalog nor a multiuser admin panel. The private variant still needs R2 identity, authorization, vault, and operation contracts.
 
-Essas decisões encerram para R1 a alternativa de instalação da pergunta 9 e a necessidade de configuração compartilhada entre navegadores da pergunta 10 em `docs/OPEN_QUESTIONS.md`. Quem pode editar/publicar, versionamento e reversão para a variante privada continuam pendentes em R2; o arquivo de perguntas permanece como registro das questões originais.
+R1 settled the initial installation alternative in question 9 and browser-shared configuration in question 10 of `docs/OPEN_QUESTIONS.md`. Editing and publishing rights, versioning, and rollback for the private variant remained open in R2; that file retains the original questions.
 
-## R2 — Contratos e Especificação da Variante Privada (15/10/2026)
+## R2 — Private variant contracts and specification (October 15, 2026)
 
-- A variante privada começa com uma instalação isolada e PostgreSQL 16 local em porta de host `127.0.0.1:5439` por padrão. As seis tabelas centrais estão em `apps/api/migrations/001_initial_schema.sql`; a API atual não usa esse banco.
-- Sessões usam cookie opaco `HttpOnly` rolling de 365 dias, token persistido apenas como SHA-256 e revogação pelo servidor via `revoked_at`. Cada operação sensível revalida sessão e autorização.
-- Cofre planejado com AES-256-GCM, chave mestra de 32 bytes injetada em runtime, IV aleatório de 12 bytes e tag de 16 bytes. As duas colunas cifradas formam uma única mensagem autenticada; não se reutiliza IV em duas operações. Credenciais compartilhadas são geridas pelo admin; individuais pertencem ao atendente, com revelação de suporte ao admin.
-- Bilhete de abertura: UUID v4 interno e token portador aleatório de 32 bytes, guardado apenas por hash; TTL de 30 segundos, vínculo com usuário/sessão/serviço e consumo transacional único pela extensão diretamente na API. A senha de SVA não passa pelo React.
-- Piloto local do Hub sem 2FA do Hub; acesso administrativo restrito à rede local/loopback. Desafios de fornecedores continuam humanos. Domínio/TLS, 2FA futuro do admin, chaves/backup e vínculo da extensão seguem como gates operacionais antes de exposição remota.
-- Catálogo piloto: PARTIU!, Fullcam, Playhub, IPTV, CRM e Fullarm; os dois últimos ficam sem ação até validação da URL (D-41). Três planilhas de consulta abrem em nova aba sem cofre (D-21). Nenhuma URL operacional integra o repositório público.
+- The private variant starts with an isolated installation and local PostgreSQL 16, using host port `127.0.0.1:5439` by default. The six core tables are in `apps/api/migrations/001_initial_schema.sql`. R2 itself did not connect the API to the database.
+- Sessions use a rolling 365-day opaque `HttpOnly` cookie. Only the token's SHA-256 hash is stored, and the server revokes sessions through `revoked_at`. Each sensitive operation rechecks session and authorization.
+- The planned vault uses AES-256-GCM, a 32-byte runtime master key, random 12-byte IV, and 16-byte tag. Its two encrypted columns make one authenticated message; an IV is never reused across operations. Admins manage shared credentials; attendants own individual credentials, with admin reveal for support.
+- An opening ticket has an internal UUID v4 and a random 32-byte bearer token stored only by hash. It expires in 30 seconds, binds to user/session/service, and is consumed exactly once in a transaction by the extension calling the API directly. SVA passwords do not pass through React.
+- The local Hub pilot has no Hub 2FA and restricts admin access to the local network/loopback. Supplier challenges remain human. Domain/TLS, future admin 2FA, key custody/backup, and extension binding remain operational gates before remote exposure.
+- Pilot catalog: PARTIU!, Fullcam, Playhub, IPTV, CRM, and Fullarm. The last two have no action until URL validation (D-41). Three consultation spreadsheets open in a new tab without the vault (D-21). No operational URL belongs in this public repository.
 
-O contrato completo, inclusive limites e pendências para R3–R8, está em `docs/PRIVATE_SPEC.md`. R2 entrega especificação e DDL; não entrega endpoints privados, automação, implantação ou prova de fornecedor.
+The full contract and R3–R8 limits are in `docs/PRIVATE_SPEC.md`. R2 delivered specification and DDL, not private endpoints, automation, deployment, or supplier proof.
 
-## R3 — Identidade e sessões locais (15/10/2026)
+## R3 — Local identity and sessions (October 15, 2026)
 
-- A API abre pool `pg` de até dez conexões, timeout de conexão de cinco segundos e idle de trinta segundos. No boot local, aplica o DDL R2 somente se a tabela `users` não existir, sob advisory lock, e provisiona um admin se ainda não houver um. Fecha o pool no hook `onClose`.
-- Senhas do Hub usam `node:crypto.scrypt` com salt aleatório de 16 bytes e chave de 64 bytes. A comparação usa `timingSafeEqual`. O admin inicial tem valores de desenvolvimento substituíveis por `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`; o ambiente piloto deve defini-los antes do primeiro boot. Mudar essas variáveis depois não altera o admin já criado.
-- Login cria token opaco de 32 bytes, salva somente SHA-256 em `sessions` e entrega cookie `HttpOnly`, `SameSite=Lax`, rolling de 365 dias. `GET /api/auth/me` e rotas administrativas revalidam revogação/inatividade no banco. Logout e redefinição de senha revogam sessões no servidor; redefinição e revogação são transacionais.
-- Admin pode listar/criar atendentes e redefinir senha de atendente. O servidor verifica papel por operação. O React exige sessão para exibir links e oferece painel básico de gestão. `GET/PUT /api/config` continuam endpoints da demonstração pública local, sem autorização; esse arquivo não é catálogo privado. R5 deve servir destinos privados somente por API autorizada.
-- O piloto permanece vinculado ao loopback. Não há 2FA do Hub, limitação de tentativas, CSRF por origem, TLS, cofre, integração com extensão ou prova em fornecedor nesta etapa. Esses controles são gates para exposição remota e fases posteriores.
+- The API opens a `pg` pool of up to ten connections, with a five-second connection timeout and 30-second idle timeout. At local boot it applies R2 DDL only when the `users` table does not exist, under an advisory lock, then provisions an admin if none exists. It closes the pool on `onClose`.
+- Hub passwords use `node:crypto.scrypt` with a random 16-byte salt and 64-byte key; comparisons use `timingSafeEqual`. `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` override development defaults before first boot. Changing them later does not change the existing admin.
+- Login creates a random 32-byte opaque token, stores only SHA-256 in `sessions`, and sends a rolling 365-day `HttpOnly`, `SameSite=Lax` cookie. `GET /api/auth/me` and admin routes recheck revocation and inactivity. Logout and password reset revoke sessions on the server; reset and revocation are transactional.
+- Admins can list/create attendants and reset attendant passwords. The server checks role per operation. React requires a session before displaying links and offers basic management. `GET/PUT /api/config` remain unauthenticated local public-demo endpoints, not a private catalog. R5 must serve private destinations only through an authorized API.
+- The pilot remains bound to loopback. R3 has no Hub 2FA, login rate limit, CSRF origin protection, TLS, vault, extension integration, or supplier proof. These are gates for remote exposure and later stages.
+
+## R4 — Central vault and audit (October 16, 2026)
+
+- **Master-key contract:** `VAULT_MASTER_KEY` is strictly validated at boot in `apps/api/src/vault.ts`. It must contain exactly 32 bytes (256 bits), represented as 64 hex characters or 32 raw UTF-8 bytes. In production, missing or malformed keys fail closed. Local development and tests use a deterministic 32-byte fallback.
+- **Single-operation AES-256-GCM frame:** The existing DDL provides one 12-byte `iv` and one 16-byte `auth_tag` for `encrypted_username` and `encrypted_password`. The vault packs both values into one versioned binary frame: `[version: 0x01 (1B)][len_u: 2B BE][u_bytes][len_p: 2B BE][p_bytes]`. One GCM operation encrypts the frame, then divides ciphertext at the frame boundary. Decryption concatenates both buffers and authenticates them together.
+- **Additional Authenticated Data:** Every encryption and decryption operation binds `${service_id}:${owner_user_id ?? 'shared'}:${key_version}` as AAD, preventing substitution across services, owners, or key versions.
+- **Role isolation:** Only admins manage and reveal shared credentials (`owner_user_id IS NULL`); attendants will use extension tickets in R6. Attendants manage only their own individual credentials; admins may reveal an attendant's individual credential for support.
+- **Audit without secrets:** `credential_saved` and `credential_revealed` record actor, IP, service, and credential type in `audit_logs`, without plaintext, keys, or reversible hashes.
+
+## R4b — Custom vault services (October 16, 2026)
+
+- Admins alone register vault services through `POST /api/vault/services`. The API revalidates the session and role before parsing the request. Names are trimmed to 2–60 characters; credential type is exactly `shared` or `individual`. Category defaults to `sva`; credential-bearing services support `sva`, `crm`, `sistemas` (forms and ERP), and `outros`. `sheet` requires `credential_type = 'none'` and is rejected for this route. The idempotent `002_vault_service_categories.sql` migration extends the category check at startup for both new and existing local databases; the original R2 DDL remains intact.
+- A service gets a UUID primary key, an optional validated HTTPS target without embedded credentials, and `has_action = false`. Registration does not grant supplier access or publish a catalog destination. The transaction also records `service_created` with actor, IP, service ID, name, credential type, and category; it omits the target URL and credentials.
+- The admin panel offers shared or individual service registration and refreshes the vault list after success. Admins can enter shared credentials. Attendants can enter their own first individual credential even when no owner row exists yet; admins can support existing individual credentials only after an owner is established.
+
+## R5 — Authenticated catalog and integrated vault form (October 16, 2026)
+
+- Authenticated cards are read from PostgreSQL `services` through `GET /api/catalog`; legacy demo JSON links no longer drive the signed-in dashboard. The demo brand settings and public configuration API remain separate.
+- Admin-only catalog mutations use `/api/catalog/services`. The service record and optional shared credential are saved in one SQL transaction. Shared credentials use the existing AES-256-GCM vault implementation and service/owner/version AAD. The listing exposes metadata and a user-specific credential-present flag, never credential values or encrypted payloads.
+- A sheet card must have no vault credential. A card with no validated HTTPS target has no opening action. Configured cards open a new tab for now; this does not implement the R6 extension exchange or supplier authentication.
+- Migration `003_services_visual_metadata.sql` adds optional description and logo data URL fields under the startup advisory lock. Card logos are limited to PNG/JPEG/WebP and 500 KB on both client and server. Existing seeded services remain without a destination until an admin configures them.
+- Deleting a service cascades to credentials and opening tickets. Audit events record service changes and credential saves without secret values. Key custody, backup, supplier behavior, and remote security remain separate gates.
+
+## R6 — Local extension ticket bridge (October 16, 2026)
+
+- The local pilot accepts `http://127.0.0.1:5177` and `http://localhost:5177` in `externally_connectable` and the worker, and grants the extension only `http://127.0.0.1:3177/*` plus tab creation. `HUB_EXTENSION_ID` binds API exchange to a configured Chrome extension origin; `VITE_HUB_EXTENSION_ID` tells the web app where to send messages. An unset API ID denies exchange. This is a reversible local association, not a stable distribution ID or remote attestation.
+- A session-bound, 32-byte random bearer ticket carries no credential. The API stores its SHA-256 hash, uses the existing 30-second schema deadline, and exchanges it under `SELECT ... FOR UPDATE`. The exchange rechecks the issuing session, action status, HTTPS destination, and the issuing user's shared or individual credential before committing `used_at`. `ticket_issued` and `ticket_exchanged` audits contain no credential values. Issuance also deletes rows older than 24 hours.
+- The React card flow sends only the bearer ticket to the extension. If detection or opening fails, the user can install the unpacked local extension or open the destination for manual login. The extension exchanges directly with the API and opens the API-confirmed destination; it discards plaintext because supplier adapters and host permissions are outside R6. No supplier login success is claimed.
+- Origin headers and `externally_connectable` constrain browser behavior but cannot authenticate a malicious local HTTP client that possesses a bearer ticket. Stable ID, TLS, production origin, supplier-specific permissions, and adapter verification remain pilot gates.
+
+## R7 — Universal assisted autofill (October 16, 2026)
+
+- The user approved one generic autofill engine for dynamically configured HTTPS destinations. No supplier-specific TypeScript modules are required. The extension receives credentials only after a user-initiated, one-time ticket exchange, then opens the API-confirmed destination.
+- The user approved MV3 `tabs` and `scripting` permissions plus `https://*/*` host access for immediate filling without a second permission prompt. The existing `http://127.0.0.1:3177/*` permission remains for the local API. The worker verifies the completed tab URL against the exchanged target, including its HTTPS origin, before injection; the content script checks its own location again before using credentials. The wildcard still grants broad HTTPS reach and requires review for deployment.
+- The engine recognizes a single usable password field and a nearby identifier field, uses the native input setter and bubbling events, and focuses the password field. Ambiguous forms fail closed to manual login. It never submits a form; CAPTCHA, Turnstile, hCaptcha, and OTP remain human steps. A fill result is not evidence of supplier authentication.
+- Worker and content script release local credential references promptly and never persist them in extension storage, browser localStorage, cookies, or logs. JavaScript strings and values left in the destination DOM cannot be guaranteed to be erased from memory. Synthetic DOM tests do not establish behavior on any real supplier page.
+
+## R7b — Local extension presence and access dialog (October 16, 2026)
+
+- The local Chrome manifest and worker accept Hub pages on `http://localhost:5177` and `http://127.0.0.1:5177`. The API endpoint remains `http://127.0.0.1:3177`.
+- A content script marks the Hub document and emits a presence event for immediate UI feedback. Page DOM is mutable, so a successful PING to the configured extension still gates ticket issuance. This does not remove the extension ID or prove installed-extension behavior in Chrome.
+- The individual credential dialog has dedicated responsive form styles. Its AES-256-GCM label refers to the server vault contract.
