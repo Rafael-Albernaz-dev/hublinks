@@ -5,6 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from './server.js';
 import { createPool } from './db.js';
+import { createHash, randomBytes } from 'node:crypto';
+import { encryptCredential } from './vault.js';
+
+process.env.HUB_EXTENSION_ID = 'a'.repeat(32);
+const extensionOrigin = `chrome-extension://${process.env.HUB_EXTENSION_ID}`;
 
 const directory = await mkdtemp(join(tmpdir(), 'hublink-api-test-'));
 const path = join(directory, 'data', 'config.json');
@@ -49,6 +54,211 @@ test('/health reports readiness', async () => {
   const response = await server.inject('/health');
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), { status: 'ok' });
+});
+
+test('opening tickets: issuance, atomic exchange, replay, expiry and session revocation', async () => {
+  const serviceId = `ticket-${randomBytes(8).toString('hex')}`;
+  const cookie = await adminLogin();
+  const me = await server.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } });
+  const userId: string = me.json().user.id;
+  const encrypted = encryptCredential('synthetic-user', 'synthetic-password', serviceId, null, 1);
+  await pool.query(
+    `INSERT INTO services (id, name, category, credential_type, target_url, has_action)
+     VALUES ($1, 'Ticket test', 'sva', 'shared', 'https://example.test/login', TRUE)`,
+    [serviceId],
+  );
+  try {
+    await pool.query(
+      `INSERT INTO vault_credentials (service_id, owner_user_id, encrypted_username,
+       encrypted_password, iv, auth_tag, key_version)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6)`,
+      [
+        serviceId,
+        encrypted.encryptedUsername,
+        encrypted.encryptedPassword,
+        encrypted.iv,
+        encrypted.authTag,
+        encrypted.keyVersion,
+      ],
+    );
+    const issue = () =>
+      server.inject({
+        method: 'POST',
+        url: '/api/vault/tickets',
+        headers: { cookie },
+        payload: { serviceId },
+      });
+    assert.equal(
+      (
+        await server.inject({
+          method: 'POST',
+          url: '/api/vault/tickets',
+          payload: { serviceId },
+        })
+      ).statusCode,
+      401,
+    );
+    assert.equal(
+      (
+        await server.inject({
+          method: 'POST',
+          url: '/api/vault/tickets',
+          headers: { cookie },
+          payload: { serviceId: 'unknown-service' },
+        })
+      ).statusCode,
+      404,
+    );
+    const exchange = (ticket: string, origin = extensionOrigin) =>
+      server.inject({
+        method: 'POST',
+        url: '/api/vault/exchange',
+        headers: { origin },
+        payload: { ticket, serviceId },
+      });
+    const issued = await issue();
+    assert.equal(issued.statusCode, 200);
+    assert.equal(issued.headers['cache-control'], 'no-store');
+    const ticket: string = issued.json().ticket;
+    assert.match(ticket, /^[A-Za-z0-9_-]{43}$/);
+    assert.deepEqual(Object.keys(issued.json()).sort(), ['serviceId', 'targetUrl', 'ticket']);
+    const stored = await pool.query<{ ticket_hash: string; session_id: string }>(
+      'SELECT ticket_hash, session_id FROM opening_tickets WHERE service_id = $1 AND ticket_hash = $2',
+      [serviceId, createHash('sha256').update(ticket).digest('hex')],
+    );
+    assert.equal(stored.rowCount, 1);
+    assert.notEqual(stored.rows[0]?.ticket_hash, ticket);
+    assert.equal(
+      (
+        await server.inject({
+          method: 'OPTIONS',
+          url: '/api/vault/exchange',
+          headers: { origin: extensionOrigin },
+        })
+      ).statusCode,
+      204,
+    );
+    assert.equal((await exchange(ticket, 'https://evil.test')).statusCode, 403);
+    const concurrent = await Promise.all([exchange(ticket), exchange(ticket)]);
+    assert.deepEqual(concurrent.map((item) => item.statusCode).sort(), [200, 403]);
+    assert.deepEqual(concurrent.find((item) => item.statusCode === 200)?.json(), {
+      username: 'synthetic-user',
+      password: 'synthetic-password',
+      targetUrl: 'https://example.test/login',
+    });
+    assert.equal((await exchange(ticket)).statusCode, 403);
+    const expired = (await issue()).json().ticket as string;
+    await pool.query(
+      `UPDATE opening_tickets SET created_at = NOW() - INTERVAL '31 seconds',
+       expires_at = NOW() - INTERVAL '1 second' WHERE ticket_hash = $1`,
+      [createHash('sha256').update(expired).digest('hex')],
+    );
+    assert.equal((await exchange(expired)).statusCode, 403);
+    const revoked = (await issue()).json().ticket as string;
+    await server.inject({ method: 'POST', url: '/api/auth/logout', headers: { cookie } });
+    assert.equal((await exchange(revoked)).statusCode, 403);
+    const audits = await pool.query<{ action: string; details: unknown }>(
+      `SELECT action, details FROM audit_logs WHERE service_id = $1 AND user_id = $2`,
+      [serviceId, userId],
+    );
+    assert.equal(audits.rows.filter((row) => row.action === 'ticket_issued').length, 3);
+    assert.equal(audits.rows.filter((row) => row.action === 'ticket_exchanged').length, 1);
+    assert.ok(
+      audits.rows.every((row) => !JSON.stringify(row.details).includes('synthetic-password')),
+    );
+  } finally {
+    await pool.query('DELETE FROM services WHERE id = $1', [serviceId]);
+  }
+});
+
+test('individual opening ticket is bound to the authenticated credential owner', async () => {
+  const adminCookie = await adminLogin();
+  const serviceId = `individual-${randomBytes(8).toString('hex')}`;
+  const owners: Array<{ id: string; cookie: string }> = [];
+  try {
+    for (let index = 0; index < 2; index++) {
+      const email = `ticket-owner-${index}-${randomBytes(5).toString('hex')}@example.test`;
+      const created = await server.inject({
+        method: 'POST',
+        url: '/api/admin/users',
+        headers: { cookie: adminCookie },
+        payload: { displayName: `Ticket Owner ${index}`, email, password: 'synthetic-pass-123' },
+      });
+      assert.equal(created.statusCode, 201);
+      const login = await server.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { email, password: 'synthetic-pass-123' },
+      });
+      owners.push({ id: created.json().user.id, cookie: sessionCookie(login) });
+    }
+    await pool.query(
+      `INSERT INTO services (id, name, category, credential_type, target_url, has_action)
+       VALUES ($1, 'Individual ticket test', 'sva', 'individual', 'https://example.test/owner', TRUE)`,
+      [serviceId],
+    );
+    const first = owners[0]!;
+    const second = owners[1]!;
+    const encrypted = encryptCredential('first-owner', 'first-password', serviceId, first.id, 1);
+    await pool.query(
+      `INSERT INTO vault_credentials (service_id, owner_user_id, encrypted_username,
+       encrypted_password, iv, auth_tag, key_version) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        serviceId,
+        first.id,
+        encrypted.encryptedUsername,
+        encrypted.encryptedPassword,
+        encrypted.iv,
+        encrypted.authTag,
+        encrypted.keyVersion,
+      ],
+    );
+    const issue = (cookie: string) =>
+      server.inject({
+        method: 'POST',
+        url: '/api/vault/tickets',
+        headers: { cookie },
+        payload: { serviceId },
+      });
+    assert.equal((await issue(second.cookie)).statusCode, 404);
+    const issued = await issue(first.cookie);
+    assert.equal(issued.statusCode, 200);
+    const ticket = issued.json().ticket as string;
+    assert.equal(
+      (
+        await server.inject({
+          method: 'POST',
+          url: '/api/vault/exchange',
+          headers: { origin: extensionOrigin },
+          payload: { serviceId: 'other-service', ticket },
+        })
+      ).statusCode,
+      403,
+    );
+    const exchanged = await server.inject({
+      method: 'POST',
+      url: '/api/vault/exchange',
+      headers: { origin: extensionOrigin },
+      payload: { serviceId, ticket },
+    });
+    assert.equal(exchanged.statusCode, 200);
+    assert.equal(exchanged.json().username, 'first-owner');
+    assert.equal(exchanged.json().password, 'first-password');
+    assert.equal(
+      (
+        await server.inject({
+          method: 'POST',
+          url: '/api/vault/exchange',
+          headers: { origin: extensionOrigin },
+          payload: { serviceId, ticket },
+        })
+      ).statusCode,
+      403,
+    );
+  } finally {
+    await pool.query('DELETE FROM services WHERE id = $1', [serviceId]);
+    for (const owner of owners) await pool.query('DELETE FROM users WHERE id = $1', [owner.id]);
+  }
 });
 
 test('GET creates the initial configuration and reads it again', async () => {
@@ -246,4 +456,436 @@ test('admin creates an attendant; reset revokes all prior sessions', async () =>
     ).statusCode,
     200,
   );
+});
+
+test('vault: shared credentials managed and revealed by admin, blocked for attendant', async () => {
+  const adminCookie = await adminLogin();
+
+  // Create an attendant
+  const attendantRes = await server.inject({
+    method: 'POST',
+    url: '/api/admin/users',
+    headers: { cookie: adminCookie },
+    payload: {
+      displayName: 'Attendant Vault Test',
+      email: `vault-attendant-${process.pid}@example.test`,
+      password: 'password-12345',
+    },
+  });
+  assert.equal(attendantRes.statusCode, 201);
+  const attendantId = attendantRes.json().user.id;
+
+  const attendantLoginRes = await server.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: {
+      email: `vault-attendant-${process.pid}@example.test`,
+      password: 'password-12345',
+    },
+  });
+  const attendantCookie = sessionCookie(attendantLoginRes);
+
+  // 1. Attendant cannot save shared credential (PARTIU!)
+  const attSaveShared = await server.inject({
+    method: 'PUT',
+    url: '/api/vault/credentials/partiu',
+    headers: { cookie: attendantCookie },
+    payload: { username: 'shared_user', password: 'shared_password' },
+  });
+  assert.equal(attSaveShared.statusCode, 403);
+
+  // 2. Admin saves shared credential (PARTIU!)
+  const adminSaveShared = await server.inject({
+    method: 'PUT',
+    url: '/api/vault/credentials/partiu',
+    headers: { cookie: adminCookie },
+    payload: { username: 'partiu_shared_user', password: 'partiu_secret_123' },
+  });
+  assert.equal(adminSaveShared.statusCode, 200);
+
+  // 3. Attendant CANNOT reveal shared credential in Hub
+  const attRevealShared = await server.inject({
+    method: 'POST',
+    url: '/api/vault/credentials/partiu/reveal',
+    headers: { cookie: attendantCookie },
+  });
+  assert.equal(attRevealShared.statusCode, 403);
+
+  // 4. Admin CAN reveal shared credential
+  const adminRevealShared = await server.inject({
+    method: 'POST',
+    url: '/api/vault/credentials/partiu/reveal',
+    headers: { cookie: adminCookie },
+  });
+  assert.equal(adminRevealShared.statusCode, 200);
+  assert.equal(adminRevealShared.json().username, 'partiu_shared_user');
+  assert.equal(adminRevealShared.json().password, 'partiu_secret_123');
+
+  // 5. Attendant saves their own individual credential (Fullcam)
+  const attSaveIndiv = await server.inject({
+    method: 'PUT',
+    url: '/api/vault/credentials/fullcam',
+    headers: { cookie: attendantCookie },
+    payload: { username: 'fullcam_my_operator', password: 'operator_pass_456' },
+  });
+  assert.equal(attSaveIndiv.statusCode, 200);
+
+  // 6. Attendant reveals their own individual credential
+  const attRevealIndiv = await server.inject({
+    method: 'POST',
+    url: '/api/vault/credentials/fullcam/reveal',
+    headers: { cookie: attendantCookie },
+  });
+  assert.equal(attRevealIndiv.statusCode, 200);
+  assert.equal(attRevealIndiv.json().username, 'fullcam_my_operator');
+  assert.equal(attRevealIndiv.json().password, 'operator_pass_456');
+
+  // 7. Admin reveals attendant individual credential for support
+  const adminRevealIndiv = await server.inject({
+    method: 'POST',
+    url: '/api/vault/credentials/fullcam/reveal',
+    headers: { cookie: adminCookie },
+    payload: { ownerUserId: attendantId },
+  });
+  assert.equal(adminRevealIndiv.statusCode, 200);
+  assert.equal(adminRevealIndiv.json().username, 'fullcam_my_operator');
+  assert.equal(adminRevealIndiv.json().password, 'operator_pass_456');
+
+  // 8. Audit logs check: verify action logged and no secrets in details
+  const auditRes = await pool.query<{ action: string; details: string | null }>(
+    "SELECT action, details::text AS details FROM audit_logs WHERE action IN ('credential_saved', 'credential_revealed') ORDER BY id DESC LIMIT 4",
+  );
+  assert.ok(auditRes.rows.length >= 2);
+  for (const row of auditRes.rows) {
+    if (row.details) {
+      assert.equal(row.details.includes('partiu_secret_123'), false);
+      assert.equal(row.details.includes('operator_pass_456'), false);
+    }
+  }
+
+  // Cleanup attendant
+  await pool.query('DELETE FROM users WHERE id = $1', [attendantId]);
+});
+
+test('admin creates vault services in supported categories with audit and no action', async () => {
+  const cookie = await adminLogin();
+  const createdIds: string[] = [];
+  try {
+    for (const entry of [
+      { credentialType: 'shared', category: undefined, targetUrl: null },
+      { credentialType: 'individual', category: 'crm', targetUrl: 'https://example.test/login' },
+      { credentialType: 'individual', category: 'sistemas', targetUrl: null },
+      { credentialType: 'shared', category: 'outros', targetUrl: null },
+    ] as const) {
+      const category = entry.category ?? 'sva';
+      const name = `  New ${category} service  `;
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/vault/services',
+        headers: { cookie },
+        payload: { name, ...entry },
+      });
+      assert.equal(response.statusCode, 201);
+      const service = response.json().service;
+      createdIds.push(service.id);
+      assert.match(service.id, /^[0-9a-f-]{36}$/);
+      assert.deepEqual(service, {
+        id: service.id,
+        name: name.trim(),
+        category,
+        credentialType: entry.credentialType,
+        targetUrl: entry.targetUrl,
+      });
+      const stored = await pool.query<{
+        has_action: boolean;
+        credential_type: string;
+        target_url: string | null;
+      }>('SELECT has_action, credential_type, target_url FROM services WHERE id = $1', [
+        service.id,
+      ]);
+      assert.equal(stored.rows[0]?.has_action, false);
+      assert.equal(stored.rows[0]?.credential_type, entry.credentialType);
+      assert.equal(stored.rows[0]?.target_url, service.targetUrl);
+      const logged = await pool.query<{
+        user_id: string;
+        action: string;
+        details: { name: string; credentialType: string; category: string };
+      }>('SELECT user_id, action, details FROM audit_logs WHERE service_id = $1', [service.id]);
+      assert.equal(logged.rows[0]?.action, 'service_created');
+      assert.equal(logged.rows[0]?.details.name, name.trim());
+      assert.equal(logged.rows[0]?.details.credentialType, entry.credentialType);
+      assert.equal(logged.rows[0]?.details.category, service.category);
+      assert.equal(typeof logged.rows[0]?.user_id, 'string');
+      const list = await server.inject({
+        method: 'GET',
+        url: '/api/vault/credentials',
+        headers: { cookie },
+      });
+      assert.equal(list.statusCode, 200);
+      assert.ok(
+        list
+          .json()
+          .credentials.some((entry: { serviceId: string }) => entry.serviceId === service.id),
+      );
+    }
+    assert.notEqual(createdIds[0], createdIds[1]);
+  } finally {
+    for (const id of createdIds) await pool.query('DELETE FROM services WHERE id = $1', [id]);
+  }
+});
+
+test('attendant cannot create a vault service', async () => {
+  const adminCookie = await adminLogin();
+  const email = `service-attendant-${process.pid}@example.test`;
+  const created = await server.inject({
+    method: 'POST',
+    url: '/api/admin/users',
+    headers: { cookie: adminCookie },
+    payload: { displayName: 'Service Test', email, password: 'test-password-123' },
+  });
+  assert.equal(created.statusCode, 201);
+  try {
+    const login = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email, password: 'test-password-123' },
+    });
+    assert.equal(login.statusCode, 200);
+    const denied = await server.inject({
+      method: 'POST',
+      url: '/api/vault/services',
+      headers: { cookie: sessionCookie(login) },
+      payload: { name: 'Denied Service', credentialType: 'shared' },
+    });
+    assert.equal(denied.statusCode, 403);
+    const found = await pool.query('SELECT 1 FROM services WHERE name = $1', ['Denied Service']);
+    assert.equal(found.rowCount, 0);
+  } finally {
+    await pool.query('DELETE FROM users WHERE id = $1', [created.json().user.id]);
+  }
+});
+
+test('vault service creation rejects invalid names, types, categories and URLs', async () => {
+  const cookie = await adminLogin();
+  for (const payload of [
+    { name: '   ', credentialType: 'shared' },
+    { name: 'x', credentialType: 'individual' },
+    { name: 'x'.repeat(61), credentialType: 'shared' },
+    { name: 'Valid Service', credentialType: 'none' },
+    { name: 'Valid Service', credentialType: 'shared', category: 'sheet' },
+    { name: 'Valid Service', credentialType: 'shared', targetUrl: 'http://example.test' },
+    { name: 'Valid Service', credentialType: 'shared', targetUrl: 'https://u:p@example.test' },
+    { name: 'Valid Service', credentialType: 'shared', password: 'unexpected' },
+  ]) {
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/vault/services',
+      headers: { cookie },
+      payload,
+    });
+    assert.equal(response.statusCode, 400);
+  }
+});
+
+test('catalog migration, private listing, CRUD, and role isolation', async () => {
+  const columns = await pool.query<{ column_name: string }>(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = 'services' AND column_name IN ('description', 'logo_data_url')",
+  );
+  assert.deepEqual(columns.rows.map((row) => row.column_name).sort(), [
+    'description',
+    'logo_data_url',
+  ]);
+  assert.equal((await server.inject('/api/catalog')).statusCode, 401);
+  const adminCookie = await adminLogin();
+  const token = randomBytes(32).toString('hex');
+  const attendant = await pool.query<{ id: string }>(
+    `INSERT INTO users (display_name, email, password_hash, role)
+     VALUES ($1, $2, $3, 'attendant') RETURNING id`,
+    ['Catalog Attendant', `catalog-${process.pid}@example.test`, 'unused-hash'],
+  );
+  const userId = attendant.rows[0]?.id;
+  assert.ok(userId);
+  await pool.query('INSERT INTO sessions (user_id, token_hash) VALUES ($1, $2)', [
+    userId,
+    createHash('sha256').update(token).digest('hex'),
+  ]);
+  const attendantCookie = `hublink_session=${token}`;
+  const ids: string[] = [];
+  try {
+    const common = {
+      name: 'Synthetic link',
+      description: 'Public example',
+      category: 'sheet',
+      credentialType: 'none',
+      targetUrl: 'https://example.test/form',
+      logoDataUrl: null,
+    };
+    for (const method of ['POST', 'PUT', 'DELETE'] as const) {
+      const denied = await server.inject({
+        method,
+        url: method === 'POST' ? '/api/catalog/services' : '/api/catalog/services/partiu',
+        headers: { cookie: attendantCookie },
+        payload: method === 'DELETE' ? undefined : common,
+      });
+      assert.equal(denied.statusCode, 403);
+    }
+    const createdCard = await server.inject({
+      method: 'POST',
+      url: '/api/catalog/services',
+      headers: { cookie: adminCookie },
+      payload: common,
+    });
+    assert.equal(createdCard.statusCode, 201);
+    const item = createdCard.json().service;
+    ids.push(item.id);
+    assert.equal(item.name, common.name);
+    assert.equal(item.hasAction, true);
+    assert.equal(item.hasCredential, false);
+    const list = await server.inject({
+      method: 'GET',
+      url: '/api/catalog',
+      headers: { cookie: attendantCookie },
+    });
+    assert.equal(list.statusCode, 200);
+    assert.deepEqual(
+      list.json().services.find((service: { id: string }) => service.id === item.id),
+      item,
+    );
+    assert.equal(JSON.stringify(list.json()).includes('encrypted_password'), false);
+    const edited = await server.inject({
+      method: 'PUT',
+      url: `/api/catalog/services/${item.id}`,
+      headers: { cookie: adminCookie },
+      payload: { ...common, name: 'Edited link', targetUrl: null },
+    });
+    assert.equal(edited.statusCode, 200);
+    assert.equal(edited.json().service.hasAction, false);
+    const deleted = await server.inject({
+      method: 'DELETE',
+      url: `/api/catalog/services/${item.id}`,
+      headers: { cookie: adminCookie },
+    });
+    assert.equal(deleted.statusCode, 204);
+    ids.pop();
+    assert.equal((await pool.query('SELECT 1 FROM services WHERE id = $1', [item.id])).rowCount, 0);
+    const individual = await server.inject({
+      method: 'POST',
+      url: '/api/catalog/services',
+      headers: { cookie: adminCookie },
+      payload: { name: 'Individual example', category: 'sva', credentialType: 'individual' },
+    });
+    assert.equal(individual.statusCode, 201);
+    const individualId: string = individual.json().service.id;
+    ids.push(individualId);
+    await pool.query(
+      `INSERT INTO vault_credentials (service_id, owner_user_id, encrypted_username,
+        encrypted_password, iv, auth_tag) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [individualId, userId, Buffer.alloc(1), Buffer.alloc(1), Buffer.alloc(12), Buffer.alloc(16)],
+    );
+    const attendantList = await server.inject({
+      method: 'GET',
+      url: '/api/catalog',
+      headers: { cookie: attendantCookie },
+    });
+    const adminList = await server.inject({
+      method: 'GET',
+      url: '/api/catalog',
+      headers: { cookie: adminCookie },
+    });
+    assert.equal(
+      attendantList.json().services.find((service: { id: string }) => service.id === individualId)
+        .hasCredential,
+      true,
+    );
+    assert.equal(
+      adminList.json().services.find((service: { id: string }) => service.id === individualId)
+        .hasCredential,
+      false,
+    );
+  } finally {
+    for (const id of ids) await pool.query('DELETE FROM services WHERE id = $1', [id]);
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+  }
+});
+
+test('catalog rejects invalid URLs, category combinations and logos', async () => {
+  const cookie = await adminLogin();
+  const base = { name: 'Synthetic service', category: 'sva', credentialType: 'shared' };
+  for (const payload of [
+    { ...base, name: 'x' },
+    { ...base, category: 'sheet' },
+    { ...base, targetUrl: 'http://example.test/' },
+    { ...base, targetUrl: 'https://name:secret@example.test/' },
+    { ...base, logoDataUrl: 'data:image/svg+xml;base64,AAAA' },
+    { ...base, logoDataUrl: `data:image/png;base64,${'AAAA'.repeat(166_667)}` },
+    { ...base, username: 'only-one-field' },
+  ]) {
+    const result = await server.inject({
+      method: 'POST',
+      url: '/api/catalog/services',
+      headers: { cookie },
+      payload,
+    });
+    assert.equal(result.statusCode, 400);
+  }
+});
+
+test('catalog atomically creates shared service with encrypted vault credentials and audit', async () => {
+  const adminCookie = await adminLogin();
+  const syntheticPass = `test-shared-${randomBytes(8).toString('hex')}`;
+  const payload = {
+    name: 'Atomic Shared Service',
+    description: 'Service with immediate shared vault credential',
+    category: 'sva',
+    credentialType: 'shared',
+    targetUrl: 'https://example.test/sva',
+    username: 'synthetic_operator',
+    password: syntheticPass,
+  };
+  const response = await server.inject({
+    method: 'POST',
+    url: '/api/catalog/services',
+    headers: { cookie: adminCookie },
+    payload,
+  });
+  assert.equal(response.statusCode, 201);
+  const item = response.json().service;
+  assert.equal(item.name, 'Atomic Shared Service');
+  assert.equal(item.hasCredential, true);
+  try {
+    const credRow = await pool.query<{
+      owner_user_id: string | null;
+      iv: Buffer;
+      auth_tag: Buffer;
+      key_version: number;
+    }>(
+      'SELECT owner_user_id, iv, auth_tag, key_version FROM vault_credentials WHERE service_id = $1',
+      [item.id],
+    );
+    assert.equal(credRow.rowCount, 1);
+    assert.equal(credRow.rows[0]?.owner_user_id, null);
+    assert.equal(credRow.rows[0]?.iv.length, 12);
+    assert.equal(credRow.rows[0]?.auth_tag.length, 16);
+
+    const auditRows = await pool.query<{ action: string; details: string | null }>(
+      'SELECT action, details FROM audit_logs WHERE service_id = $1 ORDER BY created_at ASC',
+      [item.id],
+    );
+    assert.ok(auditRows.rows.some((r) => r.action === 'service_created'));
+    assert.ok(auditRows.rows.some((r) => r.action === 'credential_saved'));
+    for (const row of auditRows.rows) {
+      if (row.details) assert.equal(JSON.stringify(row.details).includes(syntheticPass), false);
+    }
+
+    const reveal = await server.inject({
+      method: 'POST',
+      url: `/api/vault/credentials/${item.id}/reveal`,
+      headers: { cookie: adminCookie },
+      payload: { ownerUserId: null },
+    });
+    assert.equal(reveal.statusCode, 200);
+    assert.deepEqual(reveal.json(), { username: 'synthetic_operator', password: syntheticPass });
+  } finally {
+    await pool.query('DELETE FROM services WHERE id = $1', [item.id]);
+  }
 });

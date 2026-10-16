@@ -47,20 +47,23 @@ test.afterAll(async () => {
   });
 });
 
-test('initial page displays the default identity and empty state', async ({ page }) => {
+test('initial page displays identity and private catalog state', async ({ page }) => {
   await page.goto('/');
   await login(page);
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
     'Tudo o que sua equipe precisa',
   );
   await expect(page.getByText(initialConfig.subtitle)).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Comece pelos seus links' })).toBeVisible();
+  await expect(
+    page
+      .locator('.link-card')
+      .first()
+      .or(page.getByRole('heading', { name: 'Catálogo vazio' })),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Personalizar hub' })).toBeEnabled();
 });
 
-test('edits company, RGB and link logo, saves to API, and persists after reload', async ({
-  page,
-}) => {
+test('edits branding and creates a private card with a logo', async ({ page }) => {
   await page.goto('/');
   await login(page);
   await page.getByRole('button', { name: 'Personalizar hub' }).click();
@@ -69,9 +72,9 @@ test('edits company, RGB and link logo, saves to API, and persists after reload'
   await panel.getByLabel('R', { exact: true }).fill('12');
   await panel.getByLabel('G', { exact: true }).fill('34');
   await panel.getByLabel('B', { exact: true }).fill('56');
-  await panel.getByRole('button', { name: '+ Adicionar link' }).click();
+  await panel.getByRole('button', { name: '+ Adicionar card' }).click();
   const editor = panel.locator('.link-editor');
-  await editor.getByLabel('Nome do link').fill('Portal sintético');
+  await editor.getByLabel('Nome do serviço/card').fill('Portal sintético');
   await editor.getByLabel('Descrição curta').fill('Página pública de teste');
   await editor.getByLabel('Endereço HTTPS').fill('https://example.com/');
   await editor.locator('input[type="file"]').setInputFiles({
@@ -80,7 +83,7 @@ test('edits company, RGB and link logo, saves to API, and persists after reload'
     buffer: logo,
   });
   await expect(editor.getByAltText('Prévia da logo do card')).toBeVisible();
-  await editor.getByRole('button', { name: 'Salvar link' }).click();
+  await editor.getByRole('button', { name: 'Salvar card' }).click();
   await expect(panel.getByText('Alterações pendentes')).toBeVisible();
   await panel.getByRole('button', { name: 'Salvar alterações' }).click();
   await expect(panel.getByText('Alterações salvas na API local.')).toBeVisible();
@@ -91,7 +94,16 @@ test('edits company, RGB and link logo, saves to API, and persists after reload'
   const card = page.getByRole('link', { name: /Portal sintético/ });
   await expect(card).toHaveAttribute('href', 'https://example.com/');
   await expect(card.locator('.card-icon img')).toHaveAttribute('src', /^data:image\/png;base64,/);
-  await expect(page.getByText('1 link', { exact: true })).toBeVisible();
+  const pool = new pg.Pool({
+    connectionString:
+      process.env.E2E_DATABASE_URL ??
+      `postgres://hublink:hublink_dev_password@127.0.0.1:${process.env.HUB_DB_PORT ?? '5439'}/hublink_e2e`,
+  });
+  try {
+    await pool.query('DELETE FROM services WHERE name = $1', ['Portal sintético']);
+  } finally {
+    await pool.end();
+  }
 });
 
 test('Escape closes the panel and restores focus to its trigger', async ({ page }) => {
@@ -106,38 +118,34 @@ test('Escape closes the panel and restores focus to its trigger', async ({ page 
   await expect(trigger).toBeFocused();
 });
 
-test('cards and customization panel fit desktop and mobile viewports', async ({
-  page,
-  request,
-}) => {
-  const response = await request.put(`${apiBase}/api/config`, {
-    data: {
-      ...initialConfig,
-      links: [
-        { id: 'one', title: 'Primeiro', description: '', url: 'https://example.com/' },
-        { id: 'two', title: 'Segundo', description: '', url: 'https://example.org/' },
-      ],
-    },
-  });
-  expect(response.ok()).toBeTruthy();
-
+test('cards and customization panel fit desktop and mobile viewports', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await login(page);
+  await page.getByRole('button', { name: 'Personalizar hub' }).click();
+  const panel = page.getByLabel('Personalização do hub');
+  for (const name of ['Primeiro layout', 'Segundo layout']) {
+    await panel.getByRole('button', { name: '+ Adicionar card' }).click();
+    const editor = panel.locator('.catalog-editor');
+    await editor.getByLabel('Nome do serviço/card').fill(name);
+    await editor.getByLabel('Endereço HTTPS').fill('https://example.test/');
+    await editor.getByRole('button', { name: 'Salvar card' }).click();
+    await expect(panel.getByText('Card salvo no catálogo privado.')).toBeVisible();
+  }
+  await panel.getByRole('button', { name: 'Fechar ajustes' }).click();
   const cards = page.locator('.link-card');
-  await expect(cards).toHaveCount(2);
-  const desktopFirst = await cards.nth(0).boundingBox();
-  const desktopSecond = await cards.nth(1).boundingBox();
+  await expect(cards.first()).toBeVisible();
+  const desktopFirst = await page.getByRole('link', { name: /Primeiro layout/ }).boundingBox();
+  const desktopSecond = await page.getByRole('link', { name: /Segundo layout/ }).boundingBox();
   expect(desktopFirst).not.toBeNull();
   expect(desktopSecond).not.toBeNull();
   expect(desktopSecond!.x).toBeGreaterThan(desktopFirst!.x);
 
   await page.setViewportSize({ width: 375, height: 667 });
   await page.getByRole('button', { name: 'Personalizar hub' }).click();
-  const panel = page.getByLabel('Personalização do hub');
   await expect(panel).toBeVisible();
-  const mobileFirst = await cards.nth(0).boundingBox();
-  const mobileSecond = await cards.nth(1).boundingBox();
+  const mobileFirst = await page.getByRole('link', { name: /Primeiro layout/ }).boundingBox();
+  const mobileSecond = await page.getByRole('link', { name: /Segundo layout/ }).boundingBox();
   const panelBox = await panel.boundingBox();
   expect(mobileFirst).not.toBeNull();
   expect(mobileSecond).not.toBeNull();
@@ -146,6 +154,16 @@ test('cards and customization panel fit desktop and mobile viewports', async ({
   expect(mobileSecond!.y).toBeGreaterThan(mobileFirst!.y);
   expect(panelBox!.width).toBeLessThanOrEqual(375);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  for (const name of ['Primeiro layout', 'Segundo layout']) {
+    page.once('dialog', (dialog) => dialog.accept());
+    await panel
+      .getByText(name, { exact: true })
+      .last()
+      .locator('..')
+      .locator('..')
+      .getByRole('button', { name: 'Excluir' })
+      .click();
+  }
 });
 
 test('exports a version 1 JSON configuration download', async ({ page }) => {
