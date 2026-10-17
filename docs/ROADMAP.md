@@ -4,19 +4,21 @@ Updated October 16, 2026. This roadmap describes local implementation; it does n
 
 ## Delivery sequence
 
-| Slice | Local state         | Scope and limit                                                                                                                             |
-| ----- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| R0    | Delivered           | npm workspaces for web, API, and Chrome MV3 scaffold.                                                                                       |
-| R1    | Delivered           | Configurable public demo, local JSON persistence, logos, import/export, and browser checks.                                                 |
-| R2    | Delivered           | PostgreSQL schema and private contracts for sessions, vault, tickets, and audit.                                                            |
-| R3    | Delivered locally   | Hub login, rolling sessions, attendant administration, and password-reset revocation.                                                       |
-| R4    | Delivered locally   | AES-256-GCM vault, credential ownership checks, audit, and custom service registration.                                                     |
-| R5    | Implemented locally | Private catalog read/write API, card metadata migration, integrated card and shared-vault admin form, and attendant individual-vault entry. |
-| R6    | Implemented locally | Loopback origin and configured extension ID; one-time opening tickets, direct exchange, detection, and manual-login fallback.               |
-| R7    | Implemented locally | Generic assisted autofill after ticket exchange, without automatic submit; installed-extension and supplier validation remain open.         |
-| R7b   | Implemented locally | Dual local Hub origins, content-script presence hint, confirmed bridge before tickets, and individual access dialog refresh.                |
-| R8    | Planned             | On-premise operation, TLS, key custody, backup/restore, monitoring, and rollback.                                                           |
-| R9    | Planned             | Review pilot evidence, support burden, and expansion decisions.                                                                             |
+| Slice  | Local state         | Scope and limit                                                                                                                                                               |
+| ------ | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0     | Delivered           | npm workspaces for web, API, and Chrome MV3 scaffold.                                                                                                                         |
+| R1     | Delivered           | Configurable public demo, local JSON persistence, logos, import/export, and browser checks.                                                                                   |
+| R2     | Delivered           | PostgreSQL schema and private contracts for sessions, vault, tickets, and audit.                                                                                              |
+| R3     | Delivered locally   | Hub login, rolling sessions, attendant administration, and password-reset revocation.                                                                                         |
+| R4     | Delivered locally   | AES-256-GCM vault, credential ownership checks, audit, and custom service registration.                                                                                       |
+| R5     | Implemented locally | Private catalog read/write API, card metadata migration, integrated card and shared-vault admin form, and attendant individual-vault entry.                                   |
+| R6     | Implemented locally | Loopback origin and configured extension ID; one-time opening tickets, direct exchange, detection, and manual-login fallback.                                                 |
+| R7     | Implemented locally | Generic assisted autofill after ticket exchange, without automatic submit; installed-extension and supplier validation remain open.                                           |
+| R7b    | Implemented locally | Dual local Hub origins, content-script presence hint, confirmed bridge before tickets, and individual access dialog refresh.                                                  |
+| UX-011 | Implemented locally | Approved Workspace shell, five task screens, light/dark tokens, responsive grids, accessible search, and reduced-motion-aware entry. Human visual acceptance remains pending. |
+| UX-012 | Implemented locally | Dynamic brand accent and Home subtitle, icon controls in the header, dedicated catalog management, and enhanced identity color/logo editors.                                  |
+| R8     | Planned             | On-premise operation, TLS, key custody, backup/restore, monitoring, and rollback.                                                                                             |
+| R9     | Planned             | Review pilot evidence, support burden, and expansion decisions.                                                                                                               |
 
 ## Completed local slices
 
@@ -42,6 +44,20 @@ The authorized pilot must still validate each configured destination and login f
 
 R7b refreshes the individual access dialog and gives the Hub an immediate extension presence hint on both local origins. The worker accepts external messages only from those origins; the web app confirms the configured extension with PING before issuing a ticket. Installed Chrome behavior and visual acceptance still require browser QA.
 
+## UX-011 — Approved Workspace presentation
+
+TICKET-011 implements the approved Workspace composition in the web client: five visible task destinations, four home shortcuts, a three-column desktop/two-column mobile service grid, contained logos, contextual card actions, accent/case-insensitive search with a polite result count, and exact Lucide 1.17.0 SVG paths. Light/dark theme selection is browser-local with a system-preference fallback. Initial cards enter once with the approved 220 ms motion and capped 35 ms stagger; reduced motion disables it. Identity keeps the existing configuration draft/save and transfer behavior, with a live brand preview.
+
+Access lists metadata and responsible people and retains authorized credential writes; stored-password reveal has been removed from the web interface. Team listing and attendant management reuse `/api/admin/users`; no API contract is added. Administrative destinations remain disabled for attendants. Missing destinations stay non-actionable for attendants, and individual setup, confirmed extension exchange, direct links, and manual fallback retain their existing contracts.
+
+The local component suite covers navigation, search, role boundaries, metadata privacy, keyboard focus, theme persistence, movement, and existing authentication/catalog/extension flows. Isolated Chromium checks cover both themes and all task screens at 320, 390, 560, 561, 780, 781, 1024, and 1440 px. These are synthetic local proofs. Human comparison against the approved reference and installed-extension/supplier acceptance remain pending; the UX milestone does not advance R8 or R9.
+
+## UX-012 — Workspace refinement
+
+TICKET-012 makes the editable identity subtitle visible on Home and applies chosen brand color to Workspace accents, focus rings, selected surfaces, and actions without changing the configuration API. The approved purple remains the visual default for the legacy default-blue configuration. Hexadecimal, RGB text, and native color picker inputs synchronize valid values; incomplete or invalid text does not change the chosen color. Logo upload/removal remains an explicit draft and now has a dedicated preview/dropzone. The theme and sign-out controls are labeled Lucide icon buttons in the account header.
+
+Catalog now renders an authenticated management list rather than duplicating Home cards. Admins can search, add, edit, and delete through the existing catalog routes; attendants see metadata and an Access shortcut without mutation controls. Home cards, ticket exchange, extension fallback, and role checks retain their existing behavior. Local component and browser evidence cover layout and interaction only. Human visual acceptance and installed-extension/supplier validation remain pending.
+
 ## R8–R9 — Operation and review
 
 Before on-premise deployment, confirm capacity, DNS, TLS, proxy, master-key custody, encrypted backups, restore practice, monitoring, updates, and rollback. Test origin binding, revocation, and outage behavior in the actual pilot environment. Distribute the extension with a stable ID and reviewed permissions. Hub revocation does not terminate supplier sessions or alter spreadsheet permissions. After the pilot, evaluate success measures, human intervention, failures by supplier, adapter maintenance cost, and any expansion to more suppliers or browsers. Local synthetic checks cannot substitute for this evidence.
@@ -49,6 +65,6 @@ Before on-premise deployment, confirm capacity, DNS, TLS, proxy, master-key cust
 ## Next-session handoff
 
 1. Read AGENTS.md, README.md, docs/CONTEXT.md, docs/DECISIONS.md, and docs/OPEN_QUESTIONS.md; inspect git status --short --branch and preserve unrelated work.
-2. Review R5 with local integration, component, and isolated browser checks. Keep real credentials and destinations out of tracked examples and logs.
+2. Review UX-011 against the approved Workspace reference in both themes, including identity drafts, team management, and card states. Local synthetic browser proof does not replace human visual acceptance. Keep real credentials and destinations out of tracked examples and logs.
 3. For the next gate, validate the installed extension on authorized supplier forms, review the broad HTTPS permission, and settle the stable extension ID and TLS/origin policy. Keep the human submit and manual-login path.
 4. Preserve loopback ports and the developer's running services. A green build or synthetic test is not deployment or supplier acceptance.

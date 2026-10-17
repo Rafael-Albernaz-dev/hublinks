@@ -1,5 +1,15 @@
 # Project state
 
+TICKET-012 refines the Workspace: configured brand color now drives accent and soft selection colors immediately, while the legacy default blue is presented as the approved purple until a user selects a color. Theme and sign-out controls use labeled Lucide icon buttons beside the account in the header. Home reads the editable identity subtitle. Catalog is now a dedicated searchable management list with URL, category, vault state, add/edit/delete for admins, and an Access shortcut for attendants; the Home card grid is not rendered there. Identity has a dedicated logo dropzone and synchronized hexadecimal, RGB, and native picker inputs with a purple reset. Edits still require an explicit configuration save.
+
+TICKET-011 replaces the orbital hero and unified customization drawer with the approved Workspace presentation. Five horizontal destinations separate Home (Início), Catalog (Catálogo), Access (Acessos), Team (Equipe), and Identity (Identidade). The account header and extension status remain visible; theme and sign-out controls sit discreetly in the footer. Light/dark CSS tokens, exact Lucide SVG geometry, accent/case-insensitive search with an accessible result announcement, responsive grids, and one-time reduced-motion-aware entry are implemented locally.
+
+Administrative navigation is disabled for attendants. Access lists credential metadata and responsible people without requesting stored passwords or exposing a reveal action. Administrators retain shared-credential and team-management operations; attendants retain individual credential setup. Existing `/api/admin/users`, catalog, configuration, vault-write, ticket, and extension contracts are reused. Identity retains live draft previews, upload, RGB editing, explicit save, and JSON transfer. The browser-local theme preference does not change account policy. The approved Workspace interaction colors stay fixed while custom brand colors remain available in Identity previews and persistence.
+
+The earlier TICKET-011 check stopped on formatting in `prompts/011-workspace-design-system-reproduction.md`. That prompt now passes Prettier without changes from this ticket. The TICKET-012 full check passes locally across typecheck, lint, formatting, tests, and builds.
+
+The visual integration uses synthetic API responses only; no accounts, supplier destinations, credentials, schema, or seeds are changed. Browser checks cover both themes at 320/390/560/561/780/781/1024/1440 px and each dedicated screen without horizontal overflow. Human visual acceptance, installed-extension behavior, authorized supplier validation, and production operation remain separate gates.
+
 R7b accepts both local Hub origins (`localhost:5177` and `127.0.0.1:5177`), adds a content-script presence hint, and refreshes the individual access dialog. A confirmed extension PING still gates ticket issuance. The extension ID, real Chrome validation, and production TLS remain separate gates.
 
 Hublink contains a React web app, a loopback Fastify API, and a Chrome MV3 extension scaffold. The detailed SVA research and operational destinations remain outside this portfolio repository.

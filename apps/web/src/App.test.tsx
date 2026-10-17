@@ -27,6 +27,8 @@ let catalogItems: Array<Record<string, unknown>> = [];
 
 beforeEach(() => {
   document.documentElement.removeAttribute('data-hublink-extension');
+  localStorage.clear();
+  document.documentElement.removeAttribute('data-theme');
   saved = structuredClone(apiConfig);
   requests = [];
   authenticated = true;
@@ -246,7 +248,7 @@ describe('API backed customization', () => {
     const user = userEvent.setup();
     render(<App />);
     expect(await screen.findByText('Empresa da API')).not.toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Personalizar hub' }));
+    await user.click(screen.getByRole('button', { name: 'Identidade' }));
     const save = screen.getByRole('button', { name: 'Salvar alterações' });
     expect((save as HTMLButtonElement).disabled).toBe(true);
     await user.clear(screen.getByRole('textbox', { name: 'Nome da empresa' }));
@@ -272,9 +274,9 @@ describe('API backed customization', () => {
     );
     render(<App />);
     expect(await screen.findByText(/Não foi possível conectar à API do Hublink/)).not.toBeNull();
-    expect(
-      (screen.getByRole('button', { name: 'Personalizar hub' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    expect((screen.getByRole('button', { name: 'Identidade' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
   });
 
   it('shows the offline banner for an HTTP error response', async () => {
@@ -288,38 +290,41 @@ describe('API backed customization', () => {
     );
     render(<App />);
     expect(await screen.findByText(/Não foi possível conectar à API do Hublink/)).not.toBeNull();
-    expect(
-      (screen.getByRole('button', { name: 'Personalizar hub' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    expect((screen.getByRole('button', { name: 'Identidade' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
   });
 
-  it('closes with Escape and restores focus to the trigger', async () => {
+  it('keeps navigation keyboard accessible with a current page', async () => {
     const user = userEvent.setup();
     render(<App />);
-    const trigger = await screen.findByRole('button', { name: 'Personalizar hub' });
-    await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(false));
-    await user.click(trigger);
-    const close = screen.getByRole('button', { name: 'Fechar ajustes' });
-    expect(document.activeElement).toBe(close);
-    await user.keyboard('{Escape}');
-    expect(screen.queryByRole('button', { name: 'Fechar ajustes' })).toBeNull();
-    expect(document.activeElement).toBe(trigger);
+    const home = await screen.findByRole('button', { name: 'Início' });
+    home.focus();
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Catálogo' }));
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('button', { name: 'Catálogo' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(home);
   });
 
   it('uploads a private card logo, previews it, and renders it in the card', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
-    await user.click(screen.getByRole('button', { name: 'Personalizar hub' }));
-    await user.click(screen.getByRole('button', { name: '+ Adicionar card' }));
+    await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+    await user.click(screen.getByRole('button', { name: '+ Adicionar serviço' }));
     await user.type(screen.getByRole('textbox', { name: 'Nome do serviço/card' }), 'Novo card');
     await user.type(screen.getByRole('textbox', { name: 'Endereço HTTPS' }), 'https://example.net');
     const image = new File([new Uint8Array([137, 80, 78, 71])], 'card.png', { type: 'image/png' });
     await user.upload(screen.getByLabelText('Enviar logo') as HTMLInputElement, image);
     expect(await screen.findByAltText('Prévia da logo do card')).not.toBeNull();
     await user.click(screen.getByRole('button', { name: 'Salvar card' }));
+    await user.click(screen.getByRole('button', { name: 'Início' }));
     const card = screen.getByRole('link', { name: /Novo card/ });
-    expect(card.querySelector('.card-icon img')?.getAttribute('src')).toMatch(
+    expect(card.querySelector('.hb-logo img')?.getAttribute('src')).toMatch(
       /^data:image\/png;base64,/,
     );
     expect(catalogItems.find((item) => item.id === 'new-card')?.logoDataUrl).toMatch(
@@ -339,7 +344,7 @@ describe('API backed customization', () => {
     );
     render(<App />);
     await screen.findByText('Empresa da API');
-    fireEvent.click(screen.getByRole('button', { name: 'Personalizar hub' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Identidade' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nome da empresa' }), {
       target: { value: 'Alterada' },
     });
@@ -368,32 +373,28 @@ describe('API backed customization', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar no Hublink' }));
     expect(await screen.findByRole('link', { name: /PARTIU!/ })).not.toBeNull();
     expect(screen.getByText('Administrador')).not.toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Sair' }));
+    await user.click(screen.getByRole('button', { name: 'Sair da conta' }));
     expect(await screen.findByRole('button', { name: 'Entrar no Hublink' })).not.toBeNull();
     expect(screen.queryByRole('link', { name: /PARTIU!/ })).toBeNull();
   });
 
-  it('renders vault credentials and allows an admin to reveal them', async () => {
+  it('lists credential metadata without revealing or requesting stored passwords', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
-    await user.click(screen.getByRole('button', { name: 'Personalizar hub' }));
-    expect(await screen.findByText('Cofre de Credenciais (SVA)')).not.toBeNull();
-    await waitFor(() => expect(screen.getAllByText('PARTIU!').length).toBeGreaterThan(0));
-    const revealBtn = await screen.findByRole('button', { name: 'Revelar' });
-    await user.click(revealBtn);
-    expect(await screen.findByText('partiu_mock_user')).not.toBeNull();
-    expect(await screen.findByText('partiu_mock_password')).not.toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Ocultar' }));
-    expect(screen.queryByText('partiu_mock_user')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Acessos' }));
+    expect(await screen.findByText('Cifrada no cofre')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Revelar' })).toBeNull();
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    expect(requests.some((item) => item.url.endsWith('/reveal'))).toBe(false);
   });
 
   it('lets an admin create an individual catalog card', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
-    await user.click(screen.getByRole('button', { name: 'Personalizar hub' }));
-    const trigger = await screen.findByRole('button', { name: '+ Adicionar card' });
+    await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+    const trigger = await screen.findByRole('button', { name: '+ Adicionar serviço' });
     await user.click(trigger);
     await user.type(
       screen.getByRole('textbox', { name: 'Nome do serviço/card' }),
@@ -424,9 +425,9 @@ describe('API backed customization', () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
-    await user.click(screen.getByRole('button', { name: 'Personalizar hub' }));
-    expect(await screen.findByText('Cofre de Credenciais (SVA)')).not.toBeNull();
-    expect(screen.queryByRole('button', { name: '+ Adicionar card' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Acessos' }));
+    expect(await screen.findByRole('heading', { name: 'Acessos da equipe' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: '+ Adicionar serviço' })).toBeNull();
   });
 
   it('shows pending individual status and keeps catalog actions admin-only', async () => {
@@ -445,11 +446,19 @@ describe('API backed customization', () => {
       },
     ];
     render(<App />);
-    expect(await screen.findByText('Senha pendente')).not.toBeNull();
-    expect(screen.getByTitle('Em configuração').getAttribute('href')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Cadastrar/Alterar minha senha' })).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Personalizar hub' }));
-    expect(screen.queryByRole('button', { name: '+ Adicionar card' })).toBeNull();
+    expect(
+      await screen.findByRole('button', { name: 'Sem destino Individual Service' }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Sem destino Individual Service' }).getAttribute('href'),
+    ).toBeNull();
+    expect(
+      screen
+        .getByRole('button', { name: 'Sem destino Individual Service' })
+        .getAttribute('aria-disabled'),
+    ).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Catálogo' }));
+    expect(screen.queryByRole('button', { name: '+ Adicionar serviço' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull();
   });
 
@@ -457,8 +466,8 @@ describe('API backed customization', () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
-    await user.click(screen.getByRole('button', { name: 'Personalizar hub' }));
-    await user.click(screen.getByRole('button', { name: '+ Adicionar card' }));
+    await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+    await user.click(screen.getByRole('button', { name: '+ Adicionar serviço' }));
     const type = screen.getByRole('combobox', { name: 'Tipo de Acesso / Cofre' });
     expect(screen.queryByLabelText('Usuário do serviço')).toBeNull();
     await user.selectOptions(type, 'shared');
@@ -490,7 +499,7 @@ describe('API backed customization', () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
-    await user.click(screen.getByRole('button', { name: 'Personalizar hub' }));
+    await user.click(screen.getByRole('button', { name: 'Acessos' }));
     expect(await screen.findByText('Individual Service')).not.toBeNull();
     await user.click(screen.getByRole('button', { name: 'Cadastrar' }));
     expect(screen.getByRole('textbox', { name: 'Usuário do serviço' })).not.toBeNull();
@@ -514,7 +523,7 @@ describe('API backed customization', () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Sistema Individual');
-    await user.click(screen.getByRole('button', { name: 'Cadastrar/Alterar minha senha' }));
+    await user.click(screen.getByRole('button', { name: 'Cadastrar Sistema Individual' }));
     expect(
       await screen.findByRole('heading', { name: 'Configurar Acesso Pessoal' }),
     ).not.toBeNull();
@@ -523,5 +532,350 @@ describe('API backed customization', () => {
     expect(screen.getByText('Cofre individual · AES-256-GCM')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Ver senha' })).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Salvar e Acessar Sistema ↗' })).not.toBeNull();
+  });
+});
+
+describe('Workspace design system', () => {
+  it('renders the shell and all five dedicated destinations', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    expect(screen.getByRole('heading', { name: 'Um bom dia começa aqui.' })).not.toBeNull();
+    expect(screen.getByRole('contentinfo')).not.toBeNull();
+    const destinations = [
+      ['Início', 'Um bom dia começa aqui.'],
+      ['Catálogo', 'Catálogo de Serviços'],
+      ['Acessos', 'Acessos da equipe'],
+      ['Equipe', 'Equipe e permissões'],
+      ['Identidade', 'Identidade do seu hub'],
+    ];
+    for (const [name, heading] of destinations) {
+      const button = screen.getByRole('button', { name });
+      await user.click(button);
+      expect(button.getAttribute('aria-current')).toBe('page');
+      expect(screen.getByRole('heading', { name: heading })).not.toBeNull();
+      expect(document.querySelectorAll('.hb-nav [aria-current="page"]')).toHaveLength(1);
+    }
+  });
+
+  it('filters names and categories without accents or case and announces results', async () => {
+    catalogItems.push({
+      ...catalogItems[0],
+      id: 'gestao',
+      name: 'Gestão ERP',
+      category: 'sistemas',
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole('link', { name: 'Abrir Gestão ERP' });
+    const input = screen.getByRole('textbox', { name: 'Buscar serviços no Workspace' });
+    await user.type(input, 'GESTAO');
+    expect(screen.getByRole('link', { name: 'Abrir Gestão ERP' })).not.toBeNull();
+    expect(screen.queryByRole('link', { name: 'Abrir PARTIU!' })).toBeNull();
+    expect(screen.getByText('1 serviços encontrados').getAttribute('aria-live')).toBe('polite');
+    await user.clear(input);
+    await user.type(input, 'SISTEMAS');
+    expect(screen.getByRole('link', { name: 'Abrir Gestão ERP' })).not.toBeNull();
+    await user.clear(input);
+    await user.type(input, 'inexistente');
+    expect(screen.getByText('Nenhum serviço encontrado.')).not.toBeNull();
+  });
+
+  it('persists the local theme selection', async () => {
+    localStorage.setItem('hublink-theme', 'light');
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Mudar para tema escuro' }));
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(localStorage.getItem('hublink-theme')).toBe('dark');
+    await user.click(screen.getByRole('button', { name: 'Mudar para tema claro' }));
+    expect(document.documentElement.dataset.theme).toBe('light');
+  });
+
+  it('keeps administrative destinations disabled for attendants', async () => {
+    signedInUser = { ...admin, role: 'attendant' };
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    expect((screen.getByRole('button', { name: 'Equipe' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect((screen.getByRole('button', { name: 'Identidade' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(requests.some((item) => item.url === '/api/admin/users')).toBe(false);
+  });
+
+  it('opens direct links safely without requesting a ticket', async () => {
+    catalogItems = [{ ...catalogItems[0], credentialType: 'none' }];
+    render(<App />);
+    const link = await screen.findByRole('link', { name: 'Abrir PARTIU!' });
+    expect(link.getAttribute('href')).toBe('https://example.test/');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(requests.some((item) => item.url === '/api/vault/tickets')).toBe(false);
+  });
+});
+
+describe('Workspace interaction boundaries', () => {
+  it('keeps the individual dialog focused and restores focus after Escape', async () => {
+    catalogItems = [
+      { ...catalogItems[0], id: 'individual', credentialType: 'individual', hasCredential: false },
+    ];
+    const user = userEvent.setup();
+    render(<App />);
+    const trigger = await screen.findByRole('button', { name: 'Cadastrar PARTIU!' });
+    await user.click(trigger);
+    const close = screen.getByRole('button', { name: 'Fechar' });
+    expect(document.activeElement).toBe(close);
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancelar' }));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('animates once with the approved stagger and never animates filtering or navigation', async () => {
+    catalogItems = Array.from({ length: 8 }, (_, index) => ({
+      ...catalogItems[0],
+      id: String(index),
+      name: 'Serviço ' + index,
+    }));
+    const animate = vi.fn();
+    const previous = HTMLElement.prototype.animate;
+    HTMLElement.prototype.animate = animate;
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ matches: false })),
+    );
+    try {
+      const user = userEvent.setup();
+      render(<App />);
+      await screen.findByRole('link', { name: 'Abrir Serviço 0' });
+      await waitFor(() => expect(animate).toHaveBeenCalledTimes(8));
+      expect(animate.mock.calls.map((call) => (call[1] as { delay: number }).delay)).toEqual([
+        0, 35, 70, 105, 140, 175, 175, 175,
+      ]);
+      expect(animate.mock.calls[0]?.[1]).toEqual({
+        duration: 220,
+        delay: 0,
+        easing: 'cubic-bezier(.2,.7,.2,1)',
+        fill: 'backwards',
+      });
+      await user.type(screen.getByRole('textbox', { name: 'Buscar serviços no Workspace' }), '0');
+      await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+      await user.click(screen.getByRole('button', { name: 'Início' }));
+      expect(animate).toHaveBeenCalledTimes(8);
+    } finally {
+      HTMLElement.prototype.animate = previous;
+    }
+  });
+
+  it('does not animate when reduced motion is preferred', async () => {
+    const animate = vi.fn();
+    const previous = HTMLElement.prototype.animate;
+    HTMLElement.prototype.animate = animate;
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({ matches: query.includes('reduced-motion') })),
+    );
+    try {
+      render(<App />);
+      await screen.findByRole('link', { name: 'Abrir PARTIU!' });
+      expect(animate).not.toHaveBeenCalled();
+    } finally {
+      HTMLElement.prototype.animate = previous;
+    }
+  });
+
+  it('does not display another attendant’s individual metadata or shared management', async () => {
+    signedInUser = { ...admin, id: 'attendant', role: 'attendant' };
+    vaultItems.push({
+      ...vaultItems[0],
+      serviceId: 'other-private',
+      serviceName: 'Other private service',
+      credentialType: 'individual',
+      ownerUserId: 'another-user',
+      ownerName: 'Other user',
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    await user.click(screen.getByRole('button', { name: 'Acessos' }));
+    await screen.findByText('Cifrada no cofre');
+    expect(screen.queryByText('Other private service')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Gerenciar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Revelar' })).toBeNull();
+  });
+
+  it('creates attendants and resets passwords through the existing API contract', async () => {
+    const originalFetch = globalThis.fetch;
+    const people = [
+      { ...admin, createdAt: '2026-10-16T00:00:00Z' },
+      {
+        ...admin,
+        id: 'team-member',
+        displayName: 'Pessoa sintética',
+        role: 'attendant',
+        createdAt: '2026-10-16T00:00:00Z',
+      },
+    ];
+    const operations: Array<{ url: string; method: string; body: unknown }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, options?: RequestInit) => {
+        if (url.startsWith('/api/admin/users')) {
+          operations.push({
+            url,
+            method: options?.method ?? 'GET',
+            body: options?.body ? JSON.parse(options.body as string) : null,
+          });
+          return { ok: true, json: async () => ({ users: people }) };
+        }
+        return originalFetch(url, options);
+      }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    await user.click(screen.getByRole('button', { name: 'Equipe' }));
+    await screen.findByText('Pessoa sintética');
+    expect(screen.getAllByText('Administrador').length).toBeGreaterThan(0);
+    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Nova pessoa');
+    await user.type(screen.getByRole('textbox', { name: 'E-mail' }), 'new@example.test');
+    await user.type(screen.getByLabelText('Senha inicial'), 'synthetic-password');
+    await user.click(screen.getByRole('button', { name: 'Cadastrar atendente' }));
+    expect(await screen.findByText('Atendente cadastrado.')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Redefinir senha' }));
+    await user.type(screen.getByLabelText('Nova senha'), 'synthetic-new-password');
+    await user.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
+    await waitFor(() =>
+      expect(
+        operations.some((item) => item.method === 'POST' && item.url === '/api/admin/users'),
+      ).toBe(true),
+    );
+    expect(
+      operations.some((item) => item.url === '/api/admin/users/team-member/reset-password'),
+    ).toBe(true);
+  });
+});
+
+describe('Workspace UX refinements', () => {
+  it('keeps theme and logout icon buttons in the header', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    const header = document.querySelector('.hb-header')!;
+    const theme = screen.getByRole('button', { name: 'Mudar para tema escuro' });
+    const logout = screen.getByRole('button', { name: 'Sair da conta' });
+    expect(header.contains(theme)).toBe(true);
+    expect(header.contains(logout)).toBe(true);
+    expect(theme.querySelector('svg.lucide')).not.toBeNull();
+    expect(logout.querySelector('svg.lucide')).not.toBeNull();
+    expect(document.querySelector('.hb-footer')?.contains(logout)).toBe(false);
+    await user.click(theme);
+    expect(
+      screen.getByRole('button', { name: 'Mudar para tema claro' }).getAttribute('title'),
+    ).toBe('Tema claro');
+    await user.click(logout);
+    expect(await screen.findByRole('button', { name: 'Entrar no Hublink' })).not.toBeNull();
+  });
+
+  it('shows the identity subtitle immediately at Home and persists it only after Save', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByText(apiConfig.subtitle)).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Identidade' }));
+    const field = screen.getByRole('textbox', { name: 'Texto de apresentação' });
+    await user.clear(field);
+    await user.type(field, 'Uma mensagem da equipe');
+    await user.click(screen.getByRole('button', { name: 'Início' }));
+    expect(screen.getByText('Uma mensagem da equipe')).not.toBeNull();
+    expect(
+      requests.filter((item) => item.method === 'PUT' && item.url === '/api/config'),
+    ).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Identidade' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+    await waitFor(() => expect(saved.subtitle).toBe('Uma mensagem da equipe'));
+  });
+
+  it('falls back to the approved Home subtitle when the configured text is empty', async () => {
+    saved = { ...apiConfig, subtitle: '' };
+    render(<App />);
+    expect(await screen.findByText('Serviços, consultas e acessos da equipe.')).not.toBeNull();
+  });
+
+  it('keeps Home cards out of Catalog and filters management records', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole('link', { name: 'Abrir PARTIU!' });
+    await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+    expect(screen.queryByRole('link', { name: 'Abrir PARTIU!' })).toBeNull();
+    expect(document.querySelector('.hb-grid')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Catálogo de Serviços' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: '+ Adicionar serviço' })).not.toBeNull();
+    expect(screen.getByText('example.test')).not.toBeNull();
+    expect(screen.getByText('Sem destino configurado')).not.toBeNull();
+    const filter = screen.getByRole('textbox', { name: 'Buscar no catálogo' });
+    await user.type(filter, 'partiu');
+    expect(document.querySelectorAll('.catalog-management-record')).toHaveLength(1);
+    expect(screen.getByText('1 serviços encontrados no catálogo').getAttribute('aria-live')).toBe(
+      'polite',
+    );
+    expect(screen.getAllByRole('button', { name: 'Editar' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Excluir' })).toHaveLength(1);
+  });
+
+  it('shows attendants a read-only catalog with an Access shortcut', async () => {
+    signedInUser = { ...admin, id: 'attendant', role: 'attendant' };
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+    expect(screen.queryByRole('button', { name: '+ Adicionar serviço' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Ir para Acessos' }));
+    expect(screen.getByRole('heading', { name: 'Acessos da equipe' })).not.toBeNull();
+  });
+
+  it('updates accent and both color fields from valid hexadecimal and RGB entries', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    const shell = document.querySelector('.site-shell') as HTMLElement;
+    expect(shell.style.getPropertyValue('--hb-accent')).toBe('');
+    await user.click(screen.getByRole('button', { name: 'Identidade' }));
+    const hex = screen.getByRole('textbox', { name: 'Hexadecimal' });
+    const rgb = screen.getByRole('textbox', { name: 'RGB' });
+    fireEvent.change(hex, { target: { value: '#11AA33' } });
+    await waitFor(() => expect(shell.style.getPropertyValue('--hb-accent')).toBe('rgb(17 170 51)'));
+    expect((rgb as HTMLInputElement).value).toBe('17, 170, 51');
+    expect(shell.style.getPropertyValue('--hb-soft')).toContain('rgb(17 170 51)');
+    fireEvent.change(rgb, { target: { value: 'rgb(200, 30, 70)' } });
+    await waitFor(() => expect(shell.style.getPropertyValue('--hb-accent')).toBe('rgb(200 30 70)'));
+    expect((hex as HTMLInputElement).value).toBe('#C81E46');
+    expect((screen.getByLabelText('Seletor visual de cor') as HTMLInputElement).value).toBe(
+      '#c81e46',
+    );
+    fireEvent.change(rgb, { target: { value: '300, 30, 70' } });
+    expect(rgb.getAttribute('aria-invalid')).toBe('true');
+    expect(shell.style.getPropertyValue('--hb-accent')).toBe('rgb(200 30 70)');
+    await user.click(screen.getByRole('button', { name: 'Restaurar roxo padrão' }));
+    expect(shell.style.getPropertyValue('--hb-accent')).toBe('');
+    expect((hex as HTMLInputElement).value).toBe('#7137D1');
+  });
+
+  it('previews and removes the company logo through its dedicated card', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    await user.click(screen.getByRole('button', { name: 'Identidade' }));
+    const upload = screen.getByLabelText('Enviar nova logo') as HTMLInputElement;
+    const image = new File([new Uint8Array([137, 80, 78, 71])], 'brand.png', { type: 'image/png' });
+    await user.upload(upload, image);
+    expect(await screen.findByAltText('Logo enviada')).not.toBeNull();
+    expect(screen.getByText(/PNG, JPG ou WebP · até 1 MB/)).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Remover logo' }));
+    expect(screen.queryByAltText('Logo enviada')).toBeNull();
   });
 });

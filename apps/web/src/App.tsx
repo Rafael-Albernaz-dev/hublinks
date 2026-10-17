@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import {
   DEFAULT_CONFIG,
@@ -311,6 +311,200 @@ function CatalogEditor({
   );
 }
 
+/* SVG geometry from the approved Lucide 1.17.0 bundle.
+ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---
+
+The following Lucide icons are derived from the Feather project:
+
+airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+
+The MIT License (MIT) (for the icons listed above)
+
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+const iconNodes = {
+  LayoutDashboard: [
+    ['rect', { width: '7', height: '9', x: '3', y: '3', rx: '1' }],
+    ['rect', { width: '7', height: '5', x: '14', y: '3', rx: '1' }],
+    ['rect', { width: '7', height: '9', x: '14', y: '12', rx: '1' }],
+    ['rect', { width: '7', height: '5', x: '3', y: '16', rx: '1' }],
+  ],
+  Grid2x2: [
+    ['path', { d: 'M12 3v18' }],
+    ['path', { d: 'M3 12h18' }],
+    ['rect', { x: '3', y: '3', width: '18', height: '18', rx: '2' }],
+  ],
+  KeyRound: [
+    [
+      'path',
+      {
+        d: 'M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z',
+      },
+    ],
+    ['circle', { cx: '16.5', cy: '7.5', r: '.5', fill: 'currentColor' }],
+  ],
+  Users: [
+    ['path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }],
+    ['path', { d: 'M16 3.128a4 4 0 0 1 0 7.744' }],
+    ['path', { d: 'M22 21v-2a4 4 0 0 0-3-3.87' }],
+    ['circle', { cx: '9', cy: '7', r: '4' }],
+  ],
+  Palette: [
+    [
+      'path',
+      {
+        d: 'M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z',
+      },
+    ],
+    ['circle', { cx: '13.5', cy: '6.5', r: '.5', fill: 'currentColor' }],
+    ['circle', { cx: '17.5', cy: '10.5', r: '.5', fill: 'currentColor' }],
+    ['circle', { cx: '6.5', cy: '12.5', r: '.5', fill: 'currentColor' }],
+    ['circle', { cx: '8.5', cy: '7.5', r: '.5', fill: 'currentColor' }],
+  ],
+  Search: [
+    ['path', { d: 'm21 21-4.34-4.34' }],
+    ['circle', { cx: '11', cy: '11', r: '8' }],
+  ],
+  ArrowUpRight: [
+    ['path', { d: 'M7 7h10v10' }],
+    ['path', { d: 'M7 17 17 7' }],
+  ],
+  Settings2: [
+    ['path', { d: 'M14 17H5' }],
+    ['path', { d: 'M19 7h-9' }],
+    ['circle', { cx: '17', cy: '17', r: '3' }],
+    ['circle', { cx: '7', cy: '7', r: '3' }],
+  ],
+  LockKeyhole: [
+    ['circle', { cx: '12', cy: '16', r: '1' }],
+    ['rect', { x: '3', y: '10', width: '18', height: '12', rx: '2' }],
+    ['path', { d: 'M7 10V7a5 5 0 0 1 10 0v3' }],
+  ],
+  Link: [
+    ['path', { d: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71' }],
+    ['path', { d: 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' }],
+  ],
+  UserRound: [
+    ['circle', { cx: '12', cy: '8', r: '5' }],
+    ['path', { d: 'M20 21a8 8 0 0 0-16 0' }],
+  ],
+  Sun: [
+    ['circle', { cx: '12', cy: '12', r: '4' }],
+    ['path', { d: 'M12 2v2' }],
+    ['path', { d: 'M12 20v2' }],
+    ['path', { d: 'm4.93 4.93 1.41 1.41' }],
+    ['path', { d: 'm17.66 17.66 1.41 1.41' }],
+    ['path', { d: 'M2 12h2' }],
+    ['path', { d: 'M20 12h2' }],
+    ['path', { d: 'm6.34 17.66-1.41 1.41' }],
+    ['path', { d: 'm19.07 4.93-1.41 1.41' }],
+  ],
+  Moon: [
+    [
+      'path',
+      {
+        d: 'M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401',
+      },
+    ],
+  ],
+  LogOut: [
+    ['path', { d: 'm16 17 5-5-5-5' }],
+    ['path', { d: 'M21 12H9' }],
+    ['path', { d: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' }],
+  ],
+} as const;
+function Icon({ name }: { name: keyof typeof iconNodes }) {
+  return (
+    <svg
+      className="lucide"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {iconNodes[name].map(([tag, props], index) => createElement(tag, { ...props, key: index }))}
+    </svg>
+  );
+}
+const pages = [
+  { id: 'inicio', label: 'Início', icon: 'LayoutDashboard' },
+  { id: 'catalogo', label: 'Catálogo', icon: 'Grid2x2' },
+  { id: 'cofre', label: 'Acessos', icon: 'KeyRound' },
+  { id: 'equipe', label: 'Equipe', icon: 'Users' },
+  { id: 'identidade', label: 'Identidade', icon: 'Palette' },
+] as const;
+type Page = (typeof pages)[number]['id'];
+const WORKSPACE_PURPLE: RgbColor = { r: 113, g: 55, b: 209 };
+const colorEquals = (a: RgbColor, b: RgbColor) => a.r === b.r && a.g === b.g && a.b === b.b;
+const rgbField = (color: RgbColor) => [color.r, color.g, color.b].join(', ');
+function parseRgbField(input: string): RgbColor | null {
+  const value = input.trim();
+  const channelText = /^rgb\([^)]+\)$/i.test(value) ? value.slice(4, -1) : value;
+  const match = /^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})$/.exec(channelText);
+  if (!match || match.slice(1).some((part) => Number(part) > 255)) return null;
+  return { r: Number(match[1]), g: Number(match[2]), b: Number(match[3]) };
+}
+function parseHexField(input: string): RgbColor | null {
+  return /^#?[\da-f]{6}$/i.test(input.trim())
+    ? hexToRgb(input.trim().startsWith('#') ? input.trim() : '#' + input.trim())
+    : null;
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR');
+}
+function initialTheme(): 'light' | 'dark' {
+  try {
+    const saved = localStorage.getItem('hublink-theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch {
+    /* Storage may be disabled. */
+  }
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -329,9 +523,6 @@ export function App() {
   const [editingVaultKey, setEditingVaultKey] = useState<string | null>(null);
   const [vaultUsername, setVaultUsername] = useState('');
   const [vaultPassword, setVaultPassword] = useState('');
-  const [revealedCreds, setRevealedCreds] = useState<
-    Record<string, { username: string; password: string }>
-  >({});
   const [vaultNotice, setVaultNotice] = useState('');
   const [vaultBusy, setVaultBusy] = useState(false);
   const [catalog, setCatalog] = useState<CatalogService[]>([]);
@@ -357,9 +548,17 @@ export function App() {
   const [persisted, setPersisted] = useState<HubConfig | null>(null);
   const [apiState, setApiState] = useState<'loading' | 'online' | 'offline'>('loading');
   const [saving, setSaving] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const [editing, setEditing] = useState(false);
+  const [page, setPage] = useState<Page>('inicio');
+  const [query, setQuery] = useState('');
+  const [catalogQuery, setCatalogQuery] = useState('');
+  const [colorChosen, setColorChosen] = useState(false);
+  const [hexDraft, setHexDraft] = useState('#7137D1');
+  const [rgbDraft, setRgbDraft] = useState('113, 55, 209');
+  const [draggingLogo, setDraggingLogo] = useState(false);
+  const [theme, setTheme] = useState(initialTheme);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const entered = useRef(false);
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
@@ -479,6 +678,7 @@ export function App() {
         const loaded = parseHubConfig(await response.json());
         if (!controller.signal.aborted) {
           setConfig(loaded);
+          setColorChosen(false);
           setPersisted(loaded);
           setApiState('online');
         }
@@ -516,9 +716,9 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!editing || currentUser?.role !== 'admin') return;
+    if (page !== 'equipe' || currentUser?.role !== 'admin') return;
     void refreshUsers();
-  }, [editing, currentUser]);
+  }, [page, currentUser]);
 
   async function refreshUsers() {
     try {
@@ -586,9 +786,10 @@ export function App() {
       if (!response.ok) throw new Error('Could not log out');
       setCurrentUser(null);
       setConfig(DEFAULT_CONFIG);
+      setColorChosen(false);
       setPersisted(null);
       setApiState('loading');
-      setEditing(false);
+      setPage('inicio');
       setManagedUsers([]);
     } catch {
       setNotice('Não foi possível sair. Tente novamente.');
@@ -665,9 +866,9 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!editing || !currentUser) return;
+    if (page !== 'cofre' || !currentUser) return;
     void loadVaultCredentials();
-  }, [editing, currentUser]);
+  }, [page, currentUser]);
 
   async function saveCatalogService(
     input: Omit<CatalogService, 'id' | 'hasAction' | 'hasCredential'> & {
@@ -769,62 +970,89 @@ export function App() {
     }
   }
 
-  async function toggleRevealCredential(serviceId: string, ownerUserId: string | null) {
-    const key = `${serviceId}:${ownerUserId ?? 'shared'}`;
-    if (revealedCreds[key]) {
-      setRevealedCreds((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-      return;
+  useEffect(() => {
+    if (!showExtensionGuide && !individualModal) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    const focusable = () =>
+      Array.from(
+        dialog?.querySelectorAll<HTMLElement>(
+          'button, a[href], input, select, textarea, [tabindex="0"]',
+        ) ?? [],
+      ).filter((node) => !node.hasAttribute('disabled'));
+    focusable()[0]?.focus();
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setShowExtensionGuide(false);
+        setExtensionModal(null);
+        setIndividualModal(null);
+        setIndividualUsername('');
+        setIndividualPassword('');
+        setIndividualError('');
+      }
+      if (event.key === 'Tab') {
+        const nodes = focusable();
+        const next = event.shiftKey ? nodes.at(-1) : nodes[0];
+        if (
+          (event.shiftKey && document.activeElement === nodes[0]) ||
+          (!event.shiftKey && document.activeElement === nodes.at(-1))
+        ) {
+          event.preventDefault();
+          next?.focus();
+        }
+      }
     }
-    setVaultBusy(true);
-    setVaultNotice('');
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previous?.focus();
+    };
+  }, [showExtensionGuide, individualModal]);
+
+  useEffect(() => {
+    if (currentUser) return;
+    setPage('inicio');
+    setManagedUsers([]);
+    setVaultCredentials([]);
+    setEditingVaultKey(null);
+    setVaultUsername('');
+    setVaultPassword('');
+    setAdminPassword('');
+    setResetPassword('');
+    setIndividualModal(null);
+    setIndividualUsername('');
+    setIndividualPassword('');
+  }, [currentUser]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
     try {
-      const response = await fetch(`/api/vault/credentials/${serviceId}/reveal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerUserId }),
-      });
-      if (response.status === 401) {
-        setCurrentUser(null);
-        return;
-      }
-      if (!response.ok) {
-        const err = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error || 'Erro ao revelar credencial.');
-      }
-      const data = (await response.json()) as { username: string; password: string };
-      setRevealedCreds((prev) => ({ ...prev, [key]: data }));
-    } catch (cause) {
-      setVaultNotice(
-        cause instanceof Error ? cause.message : 'Não foi possível revelar a credencial.',
-      );
-    } finally {
-      setVaultBusy(false);
+      localStorage.setItem('hublink-theme', theme);
+    } catch {
+      /* Storage may be disabled. */
     }
-  }
-
+  }, [theme]);
   useEffect(() => {
-    if (editing) closeRef.current?.focus();
-  }, [editing]);
-
-  useEffect(() => {
-    if (!editing) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') closePanel();
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [editing]);
-
+    if (!catalog.length || entered.current || !gridRef.current) return;
+    entered.current = true;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    Array.from(gridRef.current.children).forEach((node, index) => {
+      if (node instanceof HTMLElement && node.animate)
+        node.animate(
+          [
+            { opacity: 0, transform: 'translateY(9px)' },
+            { opacity: 1, transform: 'translateY(0)' },
+          ],
+          {
+            duration: 220,
+            delay: Math.min(index, 5) * 35,
+            easing: 'cubic-bezier(.2,.7,.2,1)',
+            fill: 'backwards',
+          },
+        );
+    });
+  }, [catalog, page]);
   const isDirty = persisted !== null && JSON.stringify(config) !== JSON.stringify(persisted);
-
-  function closePanel() {
-    setEditing(false);
-    triggerRef.current?.focus();
-  }
 
   async function saveConfig() {
     if (apiState !== 'online' || !isDirty || saving) return;
@@ -854,17 +1082,39 @@ export function App() {
     }
   }
 
+  const isLegacyDefault = colorEquals(config.color, DEFAULT_CONFIG.color) && !colorChosen;
+  const visualColor = isLegacyDefault ? WORKSPACE_PURPLE : config.color;
+  const customAccent = !colorEquals(visualColor, WORKSPACE_PURPLE) ? rgbToCss(visualColor) : null;
   const style = {
-    '--brand': rgbToCss(config.color),
-    '--brand-ink': brandInk(config.color),
-    '--brand-text': brandText(config.color),
+    '--brand': rgbToCss(visualColor),
+    '--brand-ink': brandInk(visualColor),
+    '--brand-text': brandText(visualColor),
+    ...(customAccent
+      ? {
+          '--hb-accent': customAccent,
+          '--hb-on': brandInk(visualColor),
+          '--hb-monogram': brandInk(visualColor),
+          '--hb-soft': 'color-mix(in srgb, ' + customAccent + ' 15%, var(--hb-panel))',
+        }
+      : {}),
   } as CSSProperties;
-
-  function updateColor(channel: keyof RgbColor, value: string) {
-    const number = Number(value);
-    if (value !== '' && Number.isInteger(number) && number >= 0 && number <= 255) {
-      setConfig((current) => ({ ...current, color: { ...current.color, [channel]: number } }));
-    }
+  useEffect(() => {
+    setHexDraft(rgbToHex(visualColor).toUpperCase());
+    setRgbDraft(rgbField(visualColor));
+  }, [visualColor.r, visualColor.g, visualColor.b]);
+  function chooseColor(color: RgbColor) {
+    setColorChosen(true);
+    setConfig((current) => ({ ...current, color }));
+  }
+  function editHex(value: string) {
+    setHexDraft(value);
+    const parsed = parseHexField(value);
+    if (parsed) chooseColor(parsed);
+  }
+  function editRgb(value: string) {
+    setRgbDraft(value);
+    const parsed = parseRgbField(value);
+    if (parsed) chooseColor(parsed);
   }
 
   function uploadLogo(file: File | undefined) {
@@ -967,6 +1217,7 @@ export function App() {
         <div className="extension-overlay" role="presentation">
           <div
             className="extension-dialog"
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="extension-dialog-title"
@@ -1020,6 +1271,7 @@ export function App() {
         <div className="hublink-modal-overlay" role="presentation">
           <div
             className="hublink-modal-card"
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="individual-dialog-title"
@@ -1042,7 +1294,7 @@ export function App() {
                 {individualModal.logoDataUrl ? (
                   <img src={individualModal.logoDataUrl} alt="" />
                 ) : (
-                  '🔑'
+                  <Icon name="KeyRound" />
                 )}
               </div>
               <div>
@@ -1164,9 +1416,18 @@ export function App() {
           para carregar e gerenciar a configuração.
         </div>
       )}
-      <header className="site-header">
-        <a className="brand" href="#inicio" aria-label="Voltar ao início do hub">
-          <span className="brand-mark">
+
+      <header className="hb-header">
+        <a
+          className="hb-brand"
+          href="#inicio"
+          onClick={(e) => {
+            e.preventDefault();
+            setPage('inicio');
+          }}
+          aria-label="Voltar ao início do hub"
+        >
+          <span className="hb-monogram">
             {config.logoDataUrl ? (
               <img src={config.logoDataUrl} alt="" />
             ) : (
@@ -1174,429 +1435,539 @@ export function App() {
             )}
           </span>
           <span>
-            <strong>{config.companyName || 'Sua empresa'}</strong>
-            <small>Hub de links</small>
+            {config.companyName || 'Sua empresa'}
+            <small className="hb-brand-sub">HUB DA EQUIPE</small>
           </span>
         </a>
-        <div className="header-actions">
-          <span className="demo-badge">Demonstração local</span>
-          <button
-            type="button"
-            className="extension-status"
-            onClick={() => {
-              setExtensionModal(null);
-              setShowExtensionGuide(true);
-            }}
-          >
-            {extensionState === 'detected'
-              ? 'Extensão ativa'
-              : extensionState === 'checking'
-                ? 'Verificando extensão'
-                : 'Instalar extensão'}
-          </button>
-          <span className="user-badge">
-            {currentUser.displayName}{' '}
+        <button
+          type="button"
+          className="extension-status"
+          onClick={() => {
+            setExtensionModal(null);
+            setShowExtensionGuide(true);
+          }}
+        >
+          {extensionState === 'detected'
+            ? 'Extensão ativa'
+            : extensionState === 'checking'
+              ? 'Verificando extensão'
+              : 'Instalar extensão'}
+        </button>
+        <div className="header-user">
+          <span className="hb-account">
+            {currentUser.displayName}
             <small>{currentUser.role === 'admin' ? 'Admin' : 'Atendente'}</small>
           </span>
-          <button
-            className="button button-plain"
-            type="button"
-            disabled={authBusy}
-            onClick={() => void logout()}
-          >
-            Sair
-          </button>
-          <button
-            className="button button-outline"
-            type="button"
-            ref={triggerRef}
-            disabled={apiState !== 'online'}
-            onClick={() => (editing ? closePanel() : setEditing(true))}
-            aria-expanded={editing}
-            aria-controls="config-panel"
-          >
-            Personalizar hub
-          </button>
+          <div className="account-actions">
+            <button
+              className="hb-icon-button"
+              type="button"
+              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+              aria-label={theme === 'light' ? 'Mudar para tema escuro' : 'Mudar para tema claro'}
+              title={theme === 'light' ? 'Tema escuro' : 'Tema claro'}
+            >
+              <Icon name={theme === 'light' ? 'Moon' : 'Sun'} />
+            </button>
+            <button
+              className="hb-icon-button"
+              type="button"
+              disabled={authBusy}
+              onClick={() => void logout()}
+              aria-label="Sair da conta"
+              title="Sair"
+            >
+              <Icon name="LogOut" />
+            </button>
+          </div>
         </div>
       </header>
-
-      <main id="inicio" className={editing ? 'content-grid with-editor' : 'content-grid'}>
-        <div className="content-main">
-          <section className="hero" aria-labelledby="hero-title">
-            <div className="hero-copy">
-              <span className="eyebrow">UM ESPAÇO COM A SUA IDENTIDADE</span>
-              <h1 id="hero-title">
-                Tudo o que sua equipe precisa, <em>em um só lugar.</em>
-              </h1>
-              <p>{config.subtitle}</p>
-              <div className="hero-bottom">
-                <span className="hero-dot" /> Seus links, organizados para o dia a dia.
-              </div>
+      <nav className="hb-nav" aria-label="Telas do Workspace">
+        {pages.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            aria-current={page === item.id ? 'page' : undefined}
+            disabled={
+              (item.id === 'equipe' || item.id === 'identidade') &&
+              (currentUser.role !== 'admin' || (item.id === 'identidade' && apiState !== 'online'))
+            }
+            onClick={() => setPage(item.id)}
+          >
+            <Icon name={item.icon} />
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      <main className="hb-main" id="inicio">
+        <section hidden={page !== 'inicio'} aria-label="Início">
+          <div className="hb-title-row">
+            <div>
+              <span className="hb-eyebrow">SEU ESPAÇO DE TRABALHO</span>
+              <h1>Um bom dia começa aqui.</h1>
+              <p>{config.subtitle || 'Serviços, consultas e acessos da equipe.'}</p>
             </div>
-            <div className="hero-art" aria-hidden="true">
-              <div className="art-orbit orbit-one" />
-              <div className="art-orbit orbit-two" />
-              <div className="art-tile tile-one" />
-              <div className="art-tile tile-two" />
-              <div className="art-center">
-                {config.logoDataUrl ? (
-                  <img src={config.logoDataUrl} alt="" />
-                ) : (
-                  config.companyName.slice(0, 1).toUpperCase()
-                )}
-              </div>
+          </div>
+          <div className="hb-shortcuts">
+            {pages.slice(1).map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                className="hb-shortcut"
+                disabled={
+                  (item.id === 'equipe' || item.id === 'identidade') &&
+                  (currentUser.role !== 'admin' ||
+                    (item.id === 'identidade' && apiState !== 'online'))
+                }
+                onClick={() => setPage(item.id)}
+              >
+                <Icon name={item.icon} />
+                <span>
+                  <b>{item.label}</b>
+                  <small>
+                    {
+                      [
+                        catalog.length + ' serviços',
+                        'Individuais e equipe',
+                        'Pessoas e permissões',
+                        'Marca e aparência',
+                      ][index]
+                    }
+                  </small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+        {page === 'inicio' && (
+          <section aria-label="Serviços">
+            <div className="hb-section-head">
+              <h2>Seus serviços</h2>
+              <label className="hb-search">
+                <Icon name="Search" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label="Buscar serviços no Workspace"
+                  placeholder="Buscar serviço"
+                />
+              </label>
             </div>
-          </section>
-
-          <section className="links-section" aria-labelledby="links-heading">
-            <div className="section-heading">
-              <div>
-                <span className="eyebrow">ACESSOS RÁPIDOS</span>
-                <h2 id="links-heading">Seus links</h2>
-                <p>Escolha um destino para abrir em uma nova aba.</p>
-              </div>
-              <span className="link-count">
-                {catalog.length} {catalog.length === 1 ? 'acesso' : 'acessos'}
-              </span>
-            </div>
+            <p className="visually-hidden" role="status" aria-live="polite">
+              {
+                catalog.filter((service) =>
+                  normalizeSearch(service.name + ' ' + service.category).includes(
+                    normalizeSearch(query),
+                  ),
+                ).length
+              }{' '}
+              serviços encontrados
+            </p>
             {catalogError && (
               <p role="alert" className="form-error">
                 {catalogError}
               </p>
             )}
-            {openingNotice && (
-              <p role="status" className="notice">
-                {openingNotice}
+            <div className="hb-grid" ref={gridRef}>
+              {catalog.map((service) => {
+                const missing = !service.hasAction || !service.targetUrl;
+                const pending = service.credentialType === 'individual' && !service.hasCredential;
+                const action = missing
+                  ? currentUser.role === 'admin'
+                    ? 'Configurar'
+                    : 'Sem destino'
+                  : pending
+                    ? 'Cadastrar'
+                    : 'Abrir';
+                const state = missing
+                  ? 'Sem destino'
+                  : pending
+                    ? 'Acesso pendente'
+                    : service.credentialType === 'none'
+                      ? 'Link direto'
+                      : service.credentialType === 'shared'
+                        ? 'Compartilhado'
+                        : 'Individual';
+                const icon = missing
+                  ? 'Settings2'
+                  : pending
+                    ? 'KeyRound'
+                    : service.credentialType === 'none'
+                      ? 'Link'
+                      : 'LockKeyhole';
+                return (
+                  <a
+                    key={service.id}
+                    hidden={
+                      !normalizeSearch(service.name + ' ' + service.category).includes(
+                        normalizeSearch(query),
+                      )
+                    }
+                    className="hb-service"
+                    href={missing ? undefined : service.targetUrl!}
+                    role={missing || pending ? 'button' : undefined}
+                    tabIndex={missing ? (currentUser.role === 'admin' ? 0 : -1) : undefined}
+                    aria-disabled={missing && currentUser.role !== 'admin'}
+                    aria-label={action + ' ' + service.name}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onKeyDown={(e) => {
+                      if ((missing || pending) && e.key === ' ') {
+                        e.preventDefault();
+                        e.currentTarget.click();
+                      }
+                      if (missing && e.key === 'Enter') {
+                        e.preventDefault();
+                        e.currentTarget.click();
+                      }
+                    }}
+                    onClick={(e) => {
+                      if (missing) {
+                        e.preventDefault();
+                        if (currentUser.role === 'admin') {
+                          setPage('catalogo');
+                          setCatalogQuery('');
+                          setEditingCatalogId(service.id);
+                          setAddingCatalog(false);
+                        }
+                        return;
+                      }
+                      if (pending) {
+                        e.preventDefault();
+                        setIndividualModal(service);
+                        setIndividualUsername('');
+                        setIndividualPassword('');
+                        setIndividualError('');
+                        return;
+                      }
+                      if (service.credentialType !== 'none') {
+                        e.preventDefault();
+                        void openVaultService(service);
+                      }
+                    }}
+                  >
+                    <span className="hb-service-head">
+                      <span className="hb-logo">
+                        {service.logoDataUrl ? (
+                          <img src={service.logoDataUrl} alt="" />
+                        ) : (
+                          service.name.slice(0, 2).toUpperCase()
+                        )}
+                      </span>
+                      <Icon name={missing ? 'Settings2' : 'ArrowUpRight'} />
+                    </span>
+                    <strong className="hb-service-name">{service.name}</strong>
+                    <span className="hb-service-desc">
+                      {service.description ||
+                        (missing ? 'Destino ainda não configurado' : 'Acesso da equipe')}
+                    </span>
+                    <span className="hb-service-bottom">
+                      <span className={'hb-state' + (pending && !missing ? ' hb-pending' : '')}>
+                        <Icon name={icon} />
+                        {state}
+                      </span>
+                      <span className="hb-service-action">
+                        {openingServiceId === service.id ? 'Abrindo…' : action}
+                        <Icon name="ArrowUpRight" />
+                      </span>
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+            {!catalog.length && !catalogError && (
+              <div className="empty-state">
+                <h3>Catálogo vazio</h3>
+                <p>O administrador pode adicionar cards na tela Catálogo.</p>
+              </div>
+            )}
+            {catalog.length > 0 &&
+              !catalog.some((service) =>
+                normalizeSearch(service.name + ' ' + service.category).includes(
+                  normalizeSearch(query),
+                ),
+              ) && <p>Nenhum serviço encontrado.</p>}
+          </section>
+        )}
+        {page === 'catalogo' && (
+          <section aria-labelledby="catalog-management-title" className="catalog-management">
+            <div className="hb-page-intro">
+              <h1 id="catalog-management-title">Catálogo de Serviços</h1>
+              <p>Configuração de destinos, categorias e credenciais dos cards da equipe.</p>
+            </div>
+            <div className="catalog-toolbar">
+              <label className="hb-search">
+                <Icon name="Search" />
+                <input
+                  aria-label="Buscar no catálogo"
+                  placeholder="Buscar serviço"
+                  value={catalogQuery}
+                  onChange={(event) => setCatalogQuery(event.target.value)}
+                />
+              </label>
+              {currentUser.role === 'admin' && (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => {
+                    setAddingCatalog(true);
+                    setEditingCatalogId(null);
+                  }}
+                >
+                  + Adicionar serviço
+                </button>
+              )}
+            </div>
+            <p className="visually-hidden" role="status" aria-live="polite">
+              {
+                catalog.filter((service) =>
+                  normalizeSearch(service.name + ' ' + service.category).includes(
+                    normalizeSearch(catalogQuery),
+                  ),
+                ).length
+              }{' '}
+              serviços encontrados no catálogo
+            </p>
+            {catalogError && (
+              <p role="alert" className="form-error">
+                {catalogError}
               </p>
             )}
-            {catalog.length ? (
-              <div className="link-grid">
-                {catalog.map((service, index) => (
-                  <div className="catalog-card" key={service.id}>
-                    <a
-                      className={`link-card${!service.hasAction || !service.targetUrl ? ' link-card-disabled' : ''}`}
-                      href={service.hasAction ? (service.targetUrl ?? undefined) : undefined}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={
-                        !service.hasAction || !service.targetUrl ? 'Em configuração' : undefined
-                      }
-                      aria-disabled={!service.hasAction || !service.targetUrl}
-                      onClick={(event) => {
-                        if (
-                          service.credentialType === 'none' ||
-                          !service.hasAction ||
-                          !service.targetUrl
-                        )
-                          return;
-                        event.preventDefault();
-                        void openVaultService(service);
-                      }}
-                    >
-                      <span className="card-top">
-                        <span className="card-icon">
+            {addingCatalog && currentUser.role === 'admin' && (
+              <div className="catalog-form-panel">
+                <h2>Novo serviço</h2>
+                <CatalogEditor
+                  busy={vaultBusy}
+                  onSave={saveCatalogService}
+                  onCancel={() => setAddingCatalog(false)}
+                />
+              </div>
+            )}
+            <div className="catalog-management-list">
+              {catalog
+                .filter((service) =>
+                  normalizeSearch(service.name + ' ' + service.category).includes(
+                    normalizeSearch(catalogQuery),
+                  ),
+                )
+                .map((service) => (
+                  <div className="catalog-management-record" key={service.id}>
+                    {editingCatalogId === service.id && currentUser.role === 'admin' ? (
+                      <div className="catalog-form-panel">
+                        <h2>Editar {service.name}</h2>
+                        <CatalogEditor
+                          service={service}
+                          busy={vaultBusy}
+                          onSave={saveCatalogService}
+                          onCancel={() => setEditingCatalogId(null)}
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <span className="hb-logo catalog-record-logo">
                           {service.logoDataUrl ? (
                             <img src={service.logoDataUrl} alt="" />
                           ) : (
-                            String(index + 1).padStart(2, '0')
+                            service.name.slice(0, 2).toUpperCase()
                           )}
                         </span>
-                        <span className="card-arrow" aria-hidden="true">
-                          ↗
-                        </span>
-                      </span>
-                      <span className="card-content">
-                        <strong>{service.name}</strong>
-                        <span>
-                          {service.description ||
-                            (service.targetUrl
+                        <div className="catalog-record-details">
+                          <strong>{service.name}</strong>
+                          <small>Categoria: {service.category}</small>
+                          <span className={service.targetUrl ? '' : 'hb-pending'}>
+                            {service.targetUrl
                               ? new URL(service.targetUrl).hostname
-                              : 'Em configuração')}
-                        </span>
-                      </span>
-                      <span className="credential-badge">
-                        {service.credentialType === 'none'
-                          ? 'Sem cofre'
-                          : service.credentialType === 'shared'
-                            ? 'Compartilhado'
-                            : 'Individual'}
-                      </span>
-                      {service.credentialType === 'individual' && !service.hasCredential && (
-                        <span className="credential-badge credential-pending">Senha pendente</span>
-                      )}
-                    </a>
-                    {service.credentialType === 'individual' && (
-                      <button
-                        type="button"
-                        className="text-button"
-                        onClick={() => {
-                          setIndividualModal(service);
-                          setIndividualUsername('');
-                          setIndividualPassword('');
-                          setIndividualError('');
-                        }}
-                      >
-                        Cadastrar/Alterar minha senha
-                      </button>
+                              : 'Sem destino configurado'}
+                          </span>
+                        </div>
+                        <div className="catalog-record-status">
+                          <span>
+                            {service.credentialType === 'none'
+                              ? 'Sem cofre'
+                              : service.credentialType === 'shared'
+                                ? 'Compartilhado'
+                                : 'Individual'}
+                          </span>
+                          <small>
+                            {service.credentialType === 'none'
+                              ? 'Link direto'
+                              : service.hasCredential
+                                ? 'Credencial cadastrada'
+                                : 'Acesso pendente'}
+                          </small>
+                        </div>
+                        {currentUser.role === 'admin' && (
+                          <div className="row-actions">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCatalogId(service.id);
+                                setAddingCatalog(false);
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={vaultBusy}
+                              onClick={() => void deleteCatalogService(service)}
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 ))}
-              </div>
-            ) : (
-              <div className="empty-state">
-                <div className="empty-icon">+</div>
-                <h3>Catálogo vazio</h3>
-                <p>O administrador pode adicionar cards no painel de personalização.</p>
+              {!catalog.length && !catalogError && (
+                <p className="catalog-empty">Nenhum serviço cadastrado.</p>
+              )}
+              {catalog.length > 0 &&
+                !catalog.some((service) =>
+                  normalizeSearch(service.name + ' ' + service.category).includes(
+                    normalizeSearch(catalogQuery),
+                  ),
+                ) && <p className="catalog-empty">Nenhum serviço encontrado.</p>}
+            </div>
+            {currentUser.role === 'attendant' && (
+              <div className="catalog-attendant-note">
+                <p>
+                  O catálogo é gerenciado pelos administradores. Seus acessos individuais ficam na
+                  tela Acessos.
+                </p>
+                <button type="button" onClick={() => setPage('cofre')}>
+                  Ir para Acessos
+                </button>
               </div>
             )}
           </section>
-          <footer className="site-footer">
-            <span>Hublink · modelo configurável</span>
-            <span>Configuração nesta API local</span>
-          </footer>
-        </div>
+        )}
+        {page === 'cofre' && (
+          <section aria-labelledby="access-title">
+            <div className="hb-page-intro">
+              <h1 id="access-title">Acessos da equipe</h1>
+              <p>Credenciais por serviço e responsável. Senhas não aparecem nesta lista.</p>
+            </div>{' '}
+            <div className="setting-group vault-group">
+              <div className="managed-vault">
+                {vaultCredentials
+                  .filter(
+                    (c) =>
+                      c.credentialType !== 'none' &&
+                      (currentUser.role === 'admin' ||
+                        c.credentialType === 'shared' ||
+                        c.ownerUserId === null ||
+                        c.ownerUserId === currentUser.id),
+                  )
+                  .map((c) => {
+                    const key = `${c.serviceId}:${c.credentialType === 'individual' ? (c.ownerUserId ?? currentUser.id) : 'shared'}`;
+                    const isEditingThis = editingVaultKey === key;
+                    const canManage =
+                      c.credentialType === 'shared'
+                        ? currentUser.role === 'admin'
+                        : currentUser.role === 'admin'
+                          ? true
+                          : c.ownerUserId === null || c.ownerUserId === currentUser.id;
 
-        {editing && (
-          <aside id="config-panel" className="config-panel" aria-label="Personalização do hub">
-            <div className="panel-heading">
-              <div>
-                <span className="eyebrow">PERSONALIZAÇÃO</span>
-                <h2>Deixe com a sua cara</h2>
-              </div>
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Fechar ajustes"
-                ref={closeRef}
-                onClick={closePanel}
-              >
-                ×
-              </button>
-            </div>
-            <p className="panel-intro">
-              Ajuste a aparência e gerencie o catálogo privado da equipe.
-            </p>
-
-            <div className="setting-group">
-              <h3>Identidade</h3>
-              <label>
-                Nome da empresa
-                <input
-                  value={config.companyName}
-                  maxLength={60}
-                  onChange={(event) =>
-                    setConfig((current) => ({ ...current, companyName: event.target.value }))
-                  }
-                  onBlur={() =>
-                    setConfig((current) => ({
-                      ...current,
-                      companyName: current.companyName.trim() || DEFAULT_CONFIG.companyName,
-                    }))
-                  }
-                />
-              </label>
-              <label>
-                Texto de apresentação
-                <textarea
-                  value={config.subtitle}
-                  maxLength={160}
-                  rows={2}
-                  onChange={(event) =>
-                    setConfig((current) => ({ ...current, subtitle: event.target.value }))
-                  }
-                />
-              </label>
-              <div className="logo-setting">
-                <span className="setting-label">Logo</span>
-                <div className="logo-actions">
-                  <span className="logo-preview">
-                    {config.logoDataUrl ? (
-                      <img src={config.logoDataUrl} alt="Logo atual" />
-                    ) : (
-                      config.companyName.slice(0, 1).toUpperCase()
-                    )}
-                  </span>
-                  <div>
-                    <label className="button button-small" htmlFor="logo-upload">
-                      Enviar imagem
-                    </label>
-                    <input
-                      id="logo-upload"
-                      className="visually-hidden"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={(event) => uploadLogo(event.target.files?.[0])}
-                    />
-                    <small>PNG, JPG ou WebP · até 1 MB</small>
-                    {config.logoDataUrl && (
-                      <button
-                        className="text-button"
-                        type="button"
-                        onClick={() => setConfig((current) => ({ ...current, logoDataUrl: null }))}
-                      >
-                        Remover logo
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="setting-group">
-              <h3>
-                Cor da marca <span>RGB</span>
-              </h3>
-              <div className="color-row">
-                <label className="color-picker-label" aria-label="Escolher cor">
-                  <input
-                    type="color"
-                    value={rgbToHex(config.color)}
-                    onChange={(event) =>
-                      setConfig((current) => ({ ...current, color: hexToRgb(event.target.value) }))
-                    }
-                  />
-                </label>
-                <div className="rgb-fields">
-                  {(['r', 'g', 'b'] as const).map((channel) => (
-                    <label key={channel}>
-                      {channel.toUpperCase()}
-                      <input
-                        type="number"
-                        min="0"
-                        max="255"
-                        value={config.color[channel]}
-                        onChange={(event) => updateColor(channel, event.target.value)}
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="setting-group catalog-group">
-              <div className="group-title">
-                <h3>Catálogo e Cofre de Acessos</h3>
-                <span>{catalog.length}</span>
-              </div>
-              {currentUser.role === 'admin' && (
-                <>
-                  <div className="configured-links">
-                    {catalog.map((service) => (
-                      <div className="configured-link" key={service.id}>
-                        {editingCatalogId === service.id ? (
-                          <CatalogEditor
-                            key={service.id}
-                            service={service}
-                            busy={vaultBusy}
-                            onSave={saveCatalogService}
-                            onCancel={() => setEditingCatalogId(null)}
-                          />
-                        ) : (
-                          <>
-                            <div>
-                              <strong>{service.name}</strong>
-                              <small>
-                                {service.credentialType === 'none'
-                                  ? 'Sem cofre'
-                                  : service.credentialType === 'shared'
-                                    ? 'Compartilhado'
-                                    : 'Individual'}{' '}
-                                ·{' '}
-                                {service.hasCredential
-                                  ? 'Credencial cadastrada'
-                                  : 'Sem credencial para esta sessão'}
-                              </small>
+                    return (
+                      <div className="configured-link" key={key}>
+                        <div>
+                          <Icon name={c.credentialId ? 'LockKeyhole' : 'KeyRound'} />
+                          <strong>{c.serviceName}</strong>
+                          <span className="credential-badge">
+                            {c.credentialType === 'shared' ? 'Compartilhada' : 'Individual'}
+                          </span>
+                          <small>
+                            Responsável:{' '}
+                            {c.credentialType === 'shared'
+                              ? 'Equipe'
+                              : c.ownerName || currentUser.displayName}
+                          </small>
+                          <small>{c.credentialId ? 'Cifrada no cofre' : 'Não cadastrada'}</small>
+                        </div>
+                        {isEditingThis ? (
+                          <form
+                            onSubmit={(e) =>
+                              void handleSaveVaultCredential(e, c.serviceId, c.ownerUserId)
+                            }
+                          >
+                            <label>
+                              Usuário do serviço
+                              <input
+                                required
+                                value={vaultUsername}
+                                onChange={(e) => setVaultUsername(e.target.value)}
+                                placeholder="Ex: operador@sva.local"
+                              />
+                            </label>
+                            <label>
+                              Senha do serviço
+                              <input
+                                required
+                                type="password"
+                                value={vaultPassword}
+                                onChange={(e) => setVaultPassword(e.target.value)}
+                                placeholder="Senha de acesso"
+                              />
+                            </label>
+                            <div className="form-actions">
+                              <button
+                                type="submit"
+                                className="button button-small"
+                                disabled={vaultBusy}
+                              >
+                                Salvar no cofre
+                              </button>
+                              <button
+                                type="button"
+                                className="button button-small button-plain"
+                                onClick={() => {
+                                  setEditingVaultKey(null);
+                                  setVaultUsername('');
+                                  setVaultPassword('');
+                                }}
+                              >
+                                Cancelar
+                              </button>
                             </div>
-                            <div className="row-actions">
+                          </form>
+                        ) : (
+                          <div className="row-actions">
+                            {canManage && (
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setEditingCatalogId(service.id);
-                                  setAddingCatalog(false);
+                                  setEditingVaultKey(key);
+                                  setVaultUsername('');
+                                  setVaultPassword('');
                                 }}
                               >
-                                Editar
+                                {c.credentialId ? 'Gerenciar' : 'Cadastrar'}
                               </button>
-                              <button
-                                type="button"
-                                disabled={vaultBusy}
-                                onClick={() => void deleteCatalogService(service)}
-                              >
-                                Excluir
-                              </button>
-                            </div>
-                          </>
+                            )}
+                          </div>
                         )}
                       </div>
-                    ))}
-                  </div>
-                  {addingCatalog ? (
-                    <CatalogEditor
-                      busy={vaultBusy}
-                      onSave={saveCatalogService}
-                      onCancel={() => setAddingCatalog(false)}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="button button-add"
-                      onClick={() => {
-                        setAddingCatalog(true);
-                        setEditingCatalogId(null);
-                      }}
-                    >
-                      + Adicionar card
-                    </button>
-                  )}
-                </>
-              )}
-              {currentUser.role === 'attendant' && (
-                <p className="setting-help">
-                  Credenciais individuais podem ser cadastradas abaixo.
+                    );
+                  })}
+              </div>
+              {vaultNotice && (
+                <p className="notice" aria-live="polite">
+                  {vaultNotice}
                 </p>
               )}
             </div>
-
-            <div className="setting-group transfer-group">
-              <h3>Levar configuração</h3>
-              <p className="setting-help">
-                Exporte para reutilizar ou importe um arquivo Hublink. O arquivo pode conter a logo
-                e os links.
-              </p>
-              <div className="transfer-actions">
-                <button type="button" className="button button-small" onClick={exportConfig}>
-                  Exportar JSON
-                </button>
-                <label htmlFor="config-import" className="button button-small">
-                  Importar JSON
-                </label>
-                <input
-                  id="config-import"
-                  className="visually-hidden"
-                  type="file"
-                  accept="application/json,.json"
-                  onChange={(event) => {
-                    void importConfig(event.target.files?.[0]);
-                    event.target.value = '';
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                className="reset-button"
-                onClick={() => {
-                  if (window.confirm('Restaurar a configuração de exemplo?')) {
-                    setConfig(DEFAULT_CONFIG);
-                    setNotice('Exemplo restaurado.');
-                  }
-                }}
-              >
-                Restaurar exemplo
-              </button>
-            </div>
+          </section>
+        )}
+        {page === 'equipe' && currentUser.role === 'admin' && (
+          <section aria-labelledby="team-title">
+            <div className="hb-page-intro">
+              <h1 id="team-title">Equipe e permissões</h1>
+              <p>Cadastro e gestão de pessoas separados da identidade visual.</p>
+            </div>{' '}
             {currentUser.role === 'admin' && (
               <div className="setting-group admin-group">
-                <h3>Gerenciar Atendentes</h3>
+                <h3>Adicionar pessoa</h3>
                 <form onSubmit={(event) => void createAttendant(event)}>
                   <label>
                     Nome
@@ -1631,196 +2002,284 @@ export function App() {
                   </button>
                 </form>
                 <div className="managed-users">
-                  {managedUsers
-                    .filter((user) => user.role === 'attendant')
-                    .map((user) => (
-                      <div className="configured-link" key={user.id}>
-                        <strong>{user.displayName}</strong>
-                        <small>{user.email}</small>
-                        {resetId === user.id ? (
-                          <form onSubmit={(event) => void changePassword(event, user.id)}>
-                            <label>
-                              Nova senha
-                              <input
-                                required
-                                type="password"
-                                minLength={8}
-                                value={resetPassword}
-                                onChange={(event) => setResetPassword(event.target.value)}
-                              />
-                            </label>
-                            <button className="button button-small" type="submit">
-                              Salvar nova senha
-                            </button>
-                            <button
-                              className="button button-small"
-                              type="button"
-                              onClick={() => {
-                                setResetId(null);
-                                setResetPassword('');
-                              }}
-                            >
-                              Cancelar
-                            </button>
-                          </form>
-                        ) : (
-                          <button
-                            className="text-button"
-                            type="button"
-                            onClick={() => setResetId(user.id)}
-                          >
-                            Redefinir senha
+                  {managedUsers.map((user) => (
+                    <div className="configured-link" key={user.id}>
+                      <Icon name="UserRound" />
+                      <strong>{user.displayName}</strong>
+                      <span>{user.role === 'admin' ? 'Administrador' : 'Atendente'}</span>
+                      <small>{user.email}</small>
+                      {user.role !== 'attendant' ? null : resetId === user.id ? (
+                        <form onSubmit={(event) => void changePassword(event, user.id)}>
+                          <label>
+                            Nova senha
+                            <input
+                              required
+                              type="password"
+                              minLength={8}
+                              value={resetPassword}
+                              onChange={(event) => setResetPassword(event.target.value)}
+                            />
+                          </label>
+                          <button className="button button-small" type="submit">
+                            Salvar nova senha
                           </button>
-                        )}
-                      </div>
-                    ))}
+                          <button
+                            className="button button-small"
+                            type="button"
+                            onClick={() => {
+                              setResetId(null);
+                              setResetPassword('');
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                        </form>
+                      ) : (
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => setResetId(user.id)}
+                        >
+                          Redefinir senha
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
                 <p className="notice" aria-live="polite">
                   {adminNotice}
                 </p>
               </div>
             )}
-            <div className="setting-group vault-group">
-              <h3>Cofre de Credenciais (SVA)</h3>
-              <p className="setting-help">
-                Credenciais cifradas reversivelmente com AES-256-GCM. Compartilhadas são
-                administradas pela equipe; individuais pertencem a cada atendente.
-              </p>
-              <div className="managed-vault">
-                {vaultCredentials.map((c) => {
-                  const key = `${c.serviceId}:${c.credentialType === 'individual' ? (c.ownerUserId ?? currentUser.id) : 'shared'}`;
-                  const isEditingThis = editingVaultKey === key;
-                  const isRevealed = Boolean(revealedCreds[key]);
-                  const canManage =
-                    c.credentialType === 'shared'
-                      ? currentUser.role === 'admin'
-                      : currentUser.role === 'admin'
-                        ? true
-                        : c.ownerUserId === null || c.ownerUserId === currentUser.id;
-                  const canReveal =
-                    currentUser.role === 'admin' ||
-                    (c.credentialType === 'individual' && c.ownerUserId === currentUser.id);
-
-                  return (
-                    <div className="configured-link" key={key}>
-                      <div>
-                        <strong>{c.serviceName}</strong>
-                        <span className="credential-badge">
-                          {c.credentialType === 'shared' ? 'Compartilhada' : 'Individual'}
-                        </span>
-                        {c.ownerName && <small>Atendente: {c.ownerName}</small>}
-                        <small>{c.credentialId ? 'Cifrada no cofre' : 'Não cadastrada'}</small>
-                      </div>
-                      {isEditingThis ? (
-                        <form
-                          onSubmit={(e) =>
-                            void handleSaveVaultCredential(e, c.serviceId, c.ownerUserId)
+          </section>
+        )}
+        {page === 'identidade' && currentUser.role === 'admin' && (
+          <section aria-labelledby="identity-title">
+            <div className="hb-page-intro">
+              <h1 id="identity-title">Identidade do seu hub</h1>
+              <p>Uma marca horizontal para o cabeçalho. Um símbolo para espaços compactos.</p>
+            </div>
+            <div className="hb-identity-grid">
+              <div className="hb-identity-preview" aria-label="Prévia da marca" style={style}>
+                <span className="logo-preview">
+                  {config.logoDataUrl ? (
+                    <img src={config.logoDataUrl} alt="Prévia da logo" />
+                  ) : (
+                    config.companyName.slice(0, 1).toUpperCase()
+                  )}
+                </span>
+                <strong>{config.companyName}</strong>
+                <p>{config.subtitle}</p>
+              </div>
+              <div>
+                {' '}
+                <div className="setting-group">
+                  <h3>Identidade</h3>
+                  <label>
+                    Nome da empresa
+                    <input
+                      value={config.companyName}
+                      maxLength={60}
+                      onChange={(event) =>
+                        setConfig((current) => ({ ...current, companyName: event.target.value }))
+                      }
+                      onBlur={() =>
+                        setConfig((current) => ({
+                          ...current,
+                          companyName: current.companyName.trim() || DEFAULT_CONFIG.companyName,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Texto de apresentação
+                    <textarea
+                      value={config.subtitle}
+                      maxLength={160}
+                      rows={2}
+                      onChange={(event) =>
+                        setConfig((current) => ({ ...current, subtitle: event.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="setting-group identity-logo-card">
+                  <h3>Logo da empresa</h3>
+                  <div
+                    className={'logo-dropzone' + (draggingLogo ? ' is-dragging' : '')}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setDraggingLogo(true);
+                    }}
+                    onDragLeave={() => setDraggingLogo(false)}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      setDraggingLogo(false);
+                      uploadLogo(event.dataTransfer.files[0]);
+                    }}
+                  >
+                    <span className="logo-dropzone-preview">
+                      {config.logoDataUrl ? (
+                        <img src={config.logoDataUrl} alt="Logo enviada" />
+                      ) : (
+                        <span>{config.companyName.slice(0, 1).toUpperCase()}</span>
+                      )}
+                    </span>
+                    <div className="logo-dropzone-actions">
+                      <label className="button button-primary" htmlFor="logo-upload">
+                        Enviar nova logo
+                      </label>
+                      <input
+                        id="logo-upload"
+                        className="visually-hidden"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(event) => {
+                          uploadLogo(event.target.files?.[0]);
+                          event.target.value = '';
+                        }}
+                      />
+                      {config.logoDataUrl && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() =>
+                            setConfig((current) => ({ ...current, logoDataUrl: null }))
                           }
                         >
-                          <label>
-                            Usuário do serviço
-                            <input
-                              required
-                              value={vaultUsername}
-                              onChange={(e) => setVaultUsername(e.target.value)}
-                              placeholder="Ex: operador@sva.local"
-                            />
-                          </label>
-                          <label>
-                            Senha do serviço
-                            <input
-                              required
-                              type="password"
-                              value={vaultPassword}
-                              onChange={(e) => setVaultPassword(e.target.value)}
-                              placeholder="Senha de acesso"
-                            />
-                          </label>
-                          <div className="form-actions">
-                            <button
-                              type="submit"
-                              className="button button-small"
-                              disabled={vaultBusy}
-                            >
-                              Salvar no cofre
-                            </button>
-                            <button
-                              type="button"
-                              className="button button-small button-plain"
-                              onClick={() => {
-                                setEditingVaultKey(null);
-                                setVaultUsername('');
-                                setVaultPassword('');
-                              }}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </form>
-                      ) : (
-                        <div className="row-actions">
-                          {canManage && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingVaultKey(key);
-                                setVaultUsername('');
-                                setVaultPassword('');
-                              }}
-                            >
-                              {c.credentialId ? 'Alterar' : 'Cadastrar'}
-                            </button>
-                          )}
-                          {c.credentialId && canReveal && (
-                            <button
-                              type="button"
-                              disabled={vaultBusy}
-                              onClick={() =>
-                                void toggleRevealCredential(c.serviceId, c.ownerUserId)
-                              }
-                            >
-                              {isRevealed ? 'Ocultar' : 'Revelar'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {isRevealed && revealedCreds[key] && (
-                        <div className="vault-revealed">
-                          <div>
-                            <strong>Usuário:</strong> {revealedCreds[key].username}
-                          </div>
-                          <div>
-                            <strong>Senha:</strong> {revealedCreds[key].password}
-                          </div>
-                        </div>
+                          Remover logo
+                        </button>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-              {vaultNotice && (
+                    <small>
+                      Arraste uma imagem ou escolha um arquivo. PNG, JPG ou WebP · até 1 MB
+                    </small>
+                  </div>
+                </div>
+                <div className="setting-group identity-color-card">
+                  <h3>Cor da marca</h3>
+                  <div
+                    className="color-showcase"
+                    style={{ background: rgbToCss(visualColor), color: brandInk(visualColor) }}
+                  >
+                    <strong>Hublink</strong>
+                    <span>Prévia de contraste</span>
+                    <label className="color-picker-label">
+                      <span>Escolher cor</span>
+                      <input
+                        type="color"
+                        aria-label="Seletor visual de cor"
+                        value={rgbToHex(visualColor)}
+                        onChange={(event) => chooseColor(hexToRgb(event.target.value))}
+                      />
+                    </label>
+                  </div>
+                  <div className="color-inputs">
+                    <label>
+                      Hexadecimal
+                      <input
+                        aria-label="Hexadecimal"
+                        type="text"
+                        spellCheck={false}
+                        maxLength={7}
+                        value={hexDraft}
+                        aria-invalid={hexDraft.length > 0 && !parseHexField(hexDraft)}
+                        onChange={(event) => editHex(event.target.value)}
+                        onBlur={() => setHexDraft(rgbToHex(visualColor).toUpperCase())}
+                        placeholder="#7137D1"
+                      />
+                    </label>
+                    <label>
+                      RGB
+                      <input
+                        aria-label="RGB"
+                        type="text"
+                        value={rgbDraft}
+                        aria-invalid={rgbDraft.length > 0 && !parseRgbField(rgbDraft)}
+                        onChange={(event) => editRgb(event.target.value)}
+                        onBlur={() => setRgbDraft(rgbField(visualColor))}
+                        placeholder="113, 55, 209"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="reset-color"
+                    onClick={() => chooseColor(WORKSPACE_PURPLE)}
+                  >
+                    Restaurar roxo padrão
+                  </button>
+                </div>
+                <div className="setting-group transfer-group">
+                  <h3>Levar configuração</h3>
+                  <p className="setting-help">
+                    Exporte para reutilizar ou importe um arquivo Hublink. O arquivo pode conter a
+                    logo e os links.
+                  </p>
+                  <div className="transfer-actions">
+                    <button type="button" className="button button-small" onClick={exportConfig}>
+                      Exportar JSON
+                    </button>
+                    <label htmlFor="config-import" className="button button-small">
+                      Importar JSON
+                    </label>
+                    <input
+                      id="config-import"
+                      className="visually-hidden"
+                      type="file"
+                      accept="application/json,.json"
+                      onChange={(event) => {
+                        void importConfig(event.target.files?.[0]);
+                        event.target.value = '';
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="reset-button"
+                    onClick={() => {
+                      if (window.confirm('Restaurar a configuração de exemplo?')) {
+                        setConfig(DEFAULT_CONFIG);
+                        setColorChosen(false);
+                        setNotice('Exemplo restaurado.');
+                      }
+                    }}
+                  >
+                    Restaurar exemplo
+                  </button>
+                </div>
+                <div className="save-actions">
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    disabled={!isDirty || saving}
+                    onClick={() => void saveConfig()}
+                  >
+                    {saving ? 'Salvando...' : 'Salvar alterações'}
+                  </button>
+                  {isDirty && <span>Alterações pendentes</span>}
+                </div>
                 <p className="notice" aria-live="polite">
-                  {vaultNotice}
+                  {notice}
                 </p>
-              )}
+              </div>
             </div>
-            <div className="save-actions">
-              <button
-                type="button"
-                className="button button-primary"
-                disabled={!isDirty || saving}
-                onClick={() => void saveConfig()}
-              >
-                {saving ? 'Salvando...' : 'Salvar alterações'}
-              </button>
-              {isDirty && <span>Alterações pendentes</span>}
-            </div>
-            <p className="notice" aria-live="polite">
-              {notice}
-            </p>
-          </aside>
+          </section>
+        )}
+        {openingNotice && (
+          <p role="status" className="notice">
+            {openingNotice}
+          </p>
+        )}
+        {page !== 'cofre' && vaultNotice && (
+          <p role="status" className="notice">
+            {vaultNotice}
+          </p>
         )}
       </main>
+      <footer className="hb-footer">
+        {config.companyName} · Hublink<span>Serviços e acessos da equipe</span>
+      </footer>
     </div>
   );
 }
