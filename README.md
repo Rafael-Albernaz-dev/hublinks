@@ -17,8 +17,8 @@
 
 - 🎨 **Dynamic White-Label Branding:**
   - Fully customizable organization name, subtitle, and brand logo upload.
-  - Interactive primary theme color picker with real-time CSS variable updates across all components.
-  - Built-in preview modes for desktop and mobile layouts.
+  - Brand color picker with a live identity preview and explicit saving to the local configuration API.
+  - Responsive Workspace layouts for desktop, tablet, and mobile, with light and dark themes.
 
 - 📂 **Customizable Service Catalog:**
   - Organize access cards across flexible categories (_CRM, ERP, Financial, Communication, Tools, Other_).
@@ -31,7 +31,7 @@
   - **Individual Vault:** Personal credentials stored and managed on-demand by individual team members directly on card interaction.
 
 - 🛡️ **Zero-Knowledge Frontend:**
-  - Frontend web clients **never receive, hold, or display plaintext passwords** for vault cards.
+  - Stored supplier passwords are never fetched for display by the web client. Authorized forms accept new credential values only for saving; they do not reveal existing vault passwords.
   - The catalog API sends only visual metadata and a boolean `hasCredential` status for the authenticated user.
 
 - 🧩 **Chrome MV3 Companion Extension:**
@@ -39,6 +39,30 @@
   - Deterministic extension key producing a permanent ID (`nhodfnpljikjfeoihaimabljdenmfbio`) for zero-configuration local development.
   - Strict dual-origin binding (`http://localhost:5177` and `http://127.0.0.1:5177`).
   - Universal assisted autofill: Dispatches native reactive input events for modern SPAs, detects human verification challenges (reCAPTCHA, Cloudflare Turnstile, hCaptcha, 2FA/OTP), and **strictly never auto-submits**.
+
+---
+
+## Workspace Navigation and Appearance
+
+The authenticated portal follows the approved Workspace design, with five visible destinations:
+
+| Screen     | Purpose                                                                                                       | Access                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Início     | Four task shortcuts, instant service search, and private catalog cards                                        | All authenticated users                                                            |
+| Catálogo   | Dedicated searchable management list with destination, category, vault status, and administrator forms        | All users can browse; only administrators manage cards                             |
+| Acessos    | Credential status and responsible person, with authorized save/update forms                                   | Administrators manage shared access; attendants manage their own individual access |
+| Equipe     | Administrator/attendant listing, attendant creation, and attendant password reset                             | Administrators only                                                                |
+| Identidade | Live brand preview, company name, subtitle, logo dropzone, synchronized hex/RGB color, and JSON import/export | Administrators only                                                                |
+
+Search ignores accents and case and matches service names and categories. The result count is announced through a polite live region. Cards offer **Abrir**, **Cadastrar**, or **Configurar** according to the destination, credential status, and user role. Direct links open with `noopener noreferrer`; vault opening retains the confirmed extension bridge, single-use ticket, and manual-login fallback. Passwords are never listed or revealed in Acessos. Team management continues to use the existing `/api/admin/users` routes; this interface adds no administrator-provisioning endpoint.
+
+The light and dark themes use the approved CSS tokens and Lucide 1.17.0 SVG geometry at 16 px with a 1.6 stroke. Icon buttons beside the account in the header switch the theme and sign out. The theme choice remains browser-local under `hublink-theme`; system preference supplies the initial theme when no choice is saved. A chosen brand color updates the Workspace accent, selected surfaces, focus outlines, actions, and identity preview immediately. The purple Workspace accent remains the default. The legacy blue `DEFAULT_CONFIG.color` is treated as an uncustomized default in this frontend; an explicit color choice can be saved through the existing configuration API.
+
+Home displays four shortcuts and three service columns on desktop. At 780 px and below, both Home grids use two columns. Catálogo has a separate searchable management list and administrator actions; it does not render the Home card grid. At 560 px and below, the five navigation destinations stay in one row with icons above labels, the search field is at least 46 px tall, and main touch targets are at least 44 px. Cards enter once per initial catalog load (220 ms, 35 ms stagger capped at five steps); filtering and navigation do not replay the animation. Reduced-motion preference disables entry animation, transitions, and transforms.
+
+The Home introduction displays the current identity subtitle, with the approved sentence as its empty-text fallback. Identity provides a logo preview/dropzone with PNG, JPG, or WebP upload (up to 1 MB) and removal, plus synchronized `#RRGGBB`, `r, g, b` / `rgb(r, g, b)`, and native color inputs. Invalid color text stays in its field until corrected or blurred and does not change the accent. **Restaurar roxo padrão** selects `#7137D1`. Identity edits and imported JSON remain drafts until **Salvar alterações**. `/api/config` retains its existing local public-demo boundary; JSON links do not publish private catalog cards. An unavailable configuration API blocks identity editing. Private cards still come from authenticated `/api/catalog`, and server authorization remains authoritative for every sensitive operation.
+
+Browser validation uses isolated synthetic API responses, including both themes at 320, 390, 560, 561, 780, 781, 1024, and 1440 px. This establishes local layout behavior; it does not establish installed-extension, supplier-login, production, or human visual acceptance.
 
 ---
 
@@ -161,9 +185,9 @@ Hublink enforces comprehensive automated quality gates across all workspaces:
 npm run check
 
 # Individual workspace test suites
-npm run test:api          # Fastify routes, auth, vault encryption (29 tests)
-npm run test:extension    # Universal autofill & JSDOM reactive tests (9 tests)
-npm run test:web          # React portal, accessibility, modal workflows (24 tests)
+npm run test -w @hublink/api          # Fastify routes, auth, vault encryption
+npm run test -w @hublink/extension    # Assisted autofill and DOM tests
+npm run test -w @hublink/web          # Workspace, accessibility, and modal workflows
 
 # TypeScript typechecking & linting
 npm run typecheck
@@ -185,8 +209,8 @@ hublink/
 │   ├── api/          # Fastify backend, PostgreSQL pool, scrypt auth, AES-256-GCM vault
 │   │   ├── migrations/   # Incremental SQL migrations (001_initial, 002_categories, 003_metadata)
 │   │   └── src/          # API routes, auth, vault encryption, server lifecycle
-│   ├── web/          # React 19 + Vite dashboard, brand customizer, responsive modals
-│   │   └── src/          # App component, catalog view, customization modal, theme.css
+│   ├── web/          # React 19 + Vite Workspace, five task screens, responsive modals
+│   │   └── src/          # App component, private catalog, dedicated task screens, theme.css
 │   └── extension/    # Chrome MV3 companion extension
 │       ├── static/       # Manifest V3 (deterministic RSA key) & popup UI
 │       └── src/          # content.ts presence marker, background.ts bridge, autofill.ts
