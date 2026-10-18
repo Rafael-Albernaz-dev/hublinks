@@ -2,10 +2,65 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hublink</title>
+    <style>
+      body {
+        width: 300px;
+        margin: 0;
+        padding: 20px;
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+        background: #18181b;
+        color: #fafafa;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 22px;
+      }
+      #api-status {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: #3f3f46;
+      }
+      #api-status[data-state='online'] {
+        background: #14532d;
+      }
+      #api-status[data-state='offline'] {
+        background: #7f1d1d;
+      }
+      button {
+        width: 100%;
+        padding: 10px;
+        border: 0;
+        border-radius: 8px;
+        background: #c4b5fd;
+        color: #18181b;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:focus-visible {
+        outline: 2px solid white;
+        outline-offset: 3px;
+      }
+      small {
+        display: block;
+        margin: 14px 0;
+        color: #d4d4d8;
+      }
+    </style>
   </head>
-  <body style="font: 14px system-ui; min-width: 240px; padding: 12px">
-    <strong>Hublink</strong>
-    <p>Abertura assistida ainda não está configurada.</p>
+  <body>
+    <h1>Hublink</h1>
+    <div id="api-status" role="status" aria-live="polite">Verificando API local…</div>
+    <p id="tab-status" role="status" aria-live="polite">Verificando aba ativa…</p>
+    <small
+      >O Hublink nunca envia formulários automaticamente. Revise os dados, resolva CAPTCHA ou 2FA e
+      envie manualmente.</small
+    >
+    <button id="open-hublink" type="button">Abrir Hublink Workspace</button>
+    <script src="popup.js"></script>
   </body>
 </html>

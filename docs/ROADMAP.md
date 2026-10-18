@@ -1,24 +1,30 @@
 # Hublink roadmap
 
-Updated October 16, 2026. This roadmap describes local implementation; it does not authorize production deployment or supplier access. The detailed SVA research document stays outside this repository.
+Updated October 18, 2026. This roadmap describes local implementation; it does not authorize production deployment or supplier access. The detailed SVA research document stays outside this repository.
+
+> [!NOTE]
+> The visual presentation from UX-011 and UX-012 is a working scaffold and has **not** been approved for production deployment; human visual acceptance and future styling adjustments remain pending before deploy.
 
 ## Delivery sequence
 
-| Slice  | Local state         | Scope and limit                                                                                                                                                               |
-| ------ | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R0     | Delivered           | npm workspaces for web, API, and Chrome MV3 scaffold.                                                                                                                         |
-| R1     | Delivered           | Configurable public demo, local JSON persistence, logos, import/export, and browser checks.                                                                                   |
-| R2     | Delivered           | PostgreSQL schema and private contracts for sessions, vault, tickets, and audit.                                                                                              |
-| R3     | Delivered locally   | Hub login, rolling sessions, attendant administration, and password-reset revocation.                                                                                         |
-| R4     | Delivered locally   | AES-256-GCM vault, credential ownership checks, audit, and custom service registration.                                                                                       |
-| R5     | Implemented locally | Private catalog read/write API, card metadata migration, integrated card and shared-vault admin form, and attendant individual-vault entry.                                   |
-| R6     | Implemented locally | Loopback origin and configured extension ID; one-time opening tickets, direct exchange, detection, and manual-login fallback.                                                 |
-| R7     | Implemented locally | Generic assisted autofill after ticket exchange, without automatic submit; installed-extension and supplier validation remain open.                                           |
-| R7b    | Implemented locally | Dual local Hub origins, content-script presence hint, confirmed bridge before tickets, and individual access dialog refresh.                                                  |
-| UX-011 | Implemented locally | Approved Workspace shell, five task screens, light/dark tokens, responsive grids, accessible search, and reduced-motion-aware entry. Human visual acceptance remains pending. |
-| UX-012 | Implemented locally | Dynamic brand accent and Home subtitle, icon controls in the header, dedicated catalog management, and enhanced identity color/logo editors.                                  |
-| R8     | Planned             | On-premise operation, TLS, key custody, backup/restore, monitoring, and rollback.                                                                                             |
-| R9     | Planned             | Review pilot evidence, support burden, and expansion decisions.                                                                                                               |
+| Slice    | Local state         | Scope and limit                                                                                                                                                                |
+| -------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| R0       | Delivered           | npm workspaces for web, API, and Chrome MV3 scaffold.                                                                                                                          |
+| R1       | Delivered           | Configurable public demo, local JSON persistence, logos, import/export, and browser checks.                                                                                    |
+| R2       | Delivered           | PostgreSQL schema and private contracts for sessions, vault, tickets, and audit.                                                                                               |
+| R3       | Delivered locally   | Hub login, rolling sessions, attendant administration, and password-reset revocation.                                                                                          |
+| R4       | Delivered locally   | AES-256-GCM vault, credential ownership checks, audit, and custom service registration.                                                                                        |
+| R5       | Implemented locally | Private catalog read/write API, card metadata migration, integrated card and shared-vault admin form, and attendant individual-vault entry.                                    |
+| R6       | Implemented locally | Loopback origin and configured extension ID; one-time opening tickets, direct exchange, detection, and manual-login fallback.                                                  |
+| R7       | Implemented locally | Generic assisted autofill after ticket exchange, without automatic submit; installed-extension and supplier validation remain open.                                            |
+| R7b      | Implemented locally | Dual local Hub origins, content-script presence hint, confirmed bridge before tickets, and individual access dialog refresh.                                                   |
+| UX-011   | Scaffold pending QA | Approved Workspace shell, five task screens, light/dark tokens, responsive grids, accessible search, and reduced-motion-aware entry. Visual design acceptance remains pending. |
+| UX-012   | Scaffold pending QA | Dynamic brand accent and Home subtitle, icon controls in the header, dedicated catalog management, and enhanced identity color/logo editors. Visual acceptance pending.        |
+| ARCH-013 | Implemented locally | Frontend extraction preserved; API stage 2 splits types, validators, services, and five route modules with compatible server creation.                                         |
+| SEC-014  | Implemented locally | Native API headers and per-IP sliding rate limits, updated Workspace E2E, and PostgreSQL 16 CI running npm run check.                                                          |
+| EXT-015  | Implemented locally | Four-second SPA wait with URL revalidation, accessible challenge toast, and local API/tab status popup with Workspace shortcut.                                                |
+| R8       | Planned             | On-premise operation, TLS, key custody, backup/restore, monitoring, and rollback.                                                                                              |
+| R9       | Planned             | Review pilot evidence, support burden, and expansion decisions.                                                                                                                |
 
 ## Completed local slices
 
@@ -58,9 +64,29 @@ TICKET-012 makes the editable identity subtitle visible on Home and applies chos
 
 Catalog now renders an authenticated management list rather than duplicating Home cards. Admins can search, add, edit, and delete through the existing catalog routes; attendants see metadata and an Access shortcut without mutation controls. Home cards, ticket exchange, extension fallback, and role checks retain their existing behavior. Local component and browser evidence cover layout and interaction only. Human visual acceptance and installed-extension/supplier validation remain pending.
 
+## ARCH-013 — API modularization delivered locally
+
+TICKET-013 extracted the frontend into views, components, dialogs/editors, icons, and domain hooks. TICKET-014 completes backend stage 2: `server.ts` is a 71-line lifecycle orchestrator; `types/`, `validators/`, `services/{session,audit,security}.ts`, and `routes/{auth,admin,catalog,vault,config}.ts` own the extracted contracts and handlers. `createServer(configPath?, pool?, options?)` retains both existing arguments and adds optional rate-limit overrides. Transactions, ticket/session row locks, AAD, configured extension origin, and configuration writes retain their existing contracts. A new repository abstraction and CSS modularization are not part of this ticket.
+
+## SEC-014 — Local hardening and continuous quality gates
+
+TICKET-014 adds strict JSON API CSP and defensive HTTP headers without dependencies. Sliding in-memory limits default to 20 login attempts and 30 ticket requests per IP per minute, with 429 and `Retry-After`. Limits are scoped to each server instance, reset on restart, and are not distributed abuse protection. Tests cover headers on success/errors/preflight, limits, IP/instance isolation, expiry, and blocked ticket issuance.
+
+GitHub Actions runs `npm ci` and `npm run check` on Node 24 with PostgreSQL 16 and synthetic keys. The vault reads `VAULT_MASTER_KEY`; `HUB_MASTER_KEY` is also present for the dispatch contract. Seven updated Playwright scenarios are executed separately from `check`, using the existing isolated database/API setup. They use actual Workspace selectors, including the inline service editor's Cancel action. A service modal Escape/focus requirement cannot be established without a separately scoped web change. CI configuration is not evidence of a hosted Actions run or deployment.
+
+## EXT-015 — Companion resilience and status delivered locally
+
+The synchronous engine remains available. A MutationObserver retries recognition for at most four seconds and disconnects on fill, timeout, or failed destination authorization. Every attempt rechecks the API-confirmed destination. An accessible dismissible toast guides review, human CAPTCHA/Turnstile/2FA completion, and manual submission without exposing credentials.
+
+The bundled toolbar popup reports local API health and active-tab context, and focuses an existing local Workspace tab/window or opens it. It does not request account information or credentials. Existing worker URL checks, manifest permissions, and no-storage/no-auto-submit contracts remain intact. Synthetic tests cover SPA rendering, timeout/observer cleanup, navigation rejection, toast, and popup online/offline/open/focus behavior. Installed-extension and supplier proof remain pending. Search launchers, context menus, retries, and clipboard fallback are outside this delivery.
+
 ## R8–R9 — Operation and review
 
 Before on-premise deployment, confirm capacity, DNS, TLS, proxy, master-key custody, encrypted backups, restore practice, monitoring, updates, and rollback. Test origin binding, revocation, and outage behavior in the actual pilot environment. Distribute the extension with a stable ID and reviewed permissions. Hub revocation does not terminate supplier sessions or alter spreadsheet permissions. After the pilot, evaluate success measures, human intervention, failures by supplier, adapter maintenance cost, and any expansion to more suppliers or browsers. Local synthetic checks cannot substitute for this evidence.
+
+## TICKET-014 local validation
+
+`npm run check` passes typecheck (including E2E), zero-warning lint, formatting, API 32/32 tests, extension 17/17, unchanged web 41/41, and all workspace builds. Seven updated Chromium E2E scenarios pass separately with synthetic data. The temporary validation harness uses API 3178, web 5187, and dedicated databases to preserve developer services on 3177/5177. The GitHub Actions workflow has been configured but has not been observed running remotely. The service editor cancellation scenario reflects the existing inline UI, rather than proving a nonexistent service dialog Escape/focus contract.
 
 ## Next-session handoff
 
