@@ -54,6 +54,9 @@ export async function initializeDatabase(pool: pg.Pool): Promise<void> {
     const needsVisualBackfill = !visualColumn.rows[0]?.present;
     await client.query(await readFile(visualMigrationPath, 'utf8'));
     await client.query(await readFile(usersActiveMigrationPath, 'utf8'));
+    await client.query(
+      await readFile(resolve(dirname(migrationPath), '005_user_personal_layer.sql'), 'utf8'),
+    );
     const existingServices = await client.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM services',
     );

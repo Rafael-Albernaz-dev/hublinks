@@ -140,6 +140,7 @@ export function waitForAndExecuteAutofill(
   creds: AutofillCredentials,
   timeoutMs = 4000,
   isAuthorized: () => boolean = () => true,
+  showNotifications = true,
 ): Promise<AutofillResult> {
   return new Promise((resolve) => {
     let observer: MutationObserver | undefined = undefined;
@@ -150,7 +151,7 @@ export function waitForAndExecuteAutofill(
       done = true;
       observer?.disconnect();
       clearTimeout(timeout);
-      renderAutofillToast(doc, result);
+      if (showNotifications) renderAutofillToast(doc, result);
       resolve(result);
     };
     const attempt = () => {
@@ -189,7 +190,11 @@ export function waitForAndExecuteAutofill(
   });
 }
 
-type FillMessage = AutofillCredentials & { type: 'HUBLINK_AUTOFILL'; targetUrl: string };
+type FillMessage = AutofillCredentials & {
+  type: 'HUBLINK_AUTOFILL';
+  targetUrl: string;
+  showToastNotifications?: boolean;
+};
 
 export function matchesAuthorizedLocation(actual: string, target: string): boolean {
   try {
@@ -238,8 +243,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
         creds.username = username;
         creds.password = password;
         sendResponse(
-          await waitForAndExecuteAutofill(document, creds, 4000, () =>
-            matchesAuthorizedLocation(location.href, targetUrl),
+          await waitForAndExecuteAutofill(
+            document,
+            creds,
+            4000,
+            () => matchesAuthorizedLocation(location.href, targetUrl),
+            input.showToastNotifications !== false,
           ),
         );
       } catch {

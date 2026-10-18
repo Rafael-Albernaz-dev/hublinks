@@ -1,3 +1,5 @@
+import type { PreferencesModel } from './usePreferences';
+import type { UserThemeOverrides } from '../types';
 import type { CSSProperties } from 'react';
 import { useEffect } from 'react';
 import type { HubConfig, RgbColor } from '../config';
@@ -13,6 +15,8 @@ import type { WorkspaceState } from './useWorkspaceState';
 export function useIdentity(
   state: Pick<
     WorkspaceState,
+    | 'globalConfig'
+    | 'setGlobalConfig'
     | 'currentUser'
     | 'setConfig'
     | 'setColorChosen'
@@ -28,9 +32,12 @@ export function useIdentity(
     | 'setHexDraft'
     | 'setRgbDraft'
   >,
+  personal: PreferencesModel,
 ) {
   const {
     currentUser,
+    globalConfig,
+    setGlobalConfig,
     setConfig,
     setColorChosen,
     setPersisted,
@@ -47,21 +54,37 @@ export function useIdentity(
   } = state;
 
   useEffect(() => {
+    setConfig(DEFAULT_CONFIG);
+    setPersisted(null);
+    setApiState('loading');
     if (!currentUser) return;
+    const pendingPreferences = personal.loadPreferences();
     const controller = new AbortController();
     async function load() {
       try {
         const response = await fetch('/api/config', { signal: controller.signal });
         if (!response.ok) throw new Error('API unavailable');
-        const loaded = parseHubConfig(await response.json());
+        const global = parseHubConfig(await response.json());
+        const preferences = await pendingPreferences;
+        const loaded =
+          currentUser?.role === 'attendant' ? { ...global, ...preferences.themeOverrides } : global;
         if (!controller.signal.aborted) {
+          setGlobalConfig(global);
           setConfig(loaded);
           setColorChosen(false);
           setPersisted(loaded);
           setApiState('online');
         }
       } catch {
-        if (!controller.signal.aborted) setApiState('offline');
+        const preferences = await pendingPreferences;
+        if (!controller.signal.aborted) {
+          setConfig(
+            currentUser?.role === 'attendant'
+              ? { ...DEFAULT_CONFIG, ...preferences.themeOverrides }
+              : DEFAULT_CONFIG,
+          );
+          setApiState('offline');
+        }
       }
     }
     void load();
@@ -80,6 +103,42 @@ export function useIdentity(
     setSaving(true);
     setNotice('');
     try {
+      if (currentUser?.role === 'attendant') {
+        const overrides: UserThemeOverrides = {};
+        for (const key of Object.keys(candidate) as Array<keyof HubConfig>) {
+          if (
+            key === 'version' ||
+            key === 'links' ||
+            key === 'homeLayout' ||
+            key === 'showShortcutCards'
+          )
+            continue;
+          if (JSON.stringify(candidate[key]) !== JSON.stringify(globalConfig[key]))
+            Object.assign(overrides, { [key]: candidate[key] });
+        }
+        // Null explicitly clears an inherited optional color/text setting.
+        for (const key of [
+          'textColor',
+          'backgroundColor',
+          'brandPrimaryColor',
+          'brandSecondaryColor',
+        ] as const) {
+          if (globalConfig[key] && !candidate[key]) overrides[key] = null;
+        }
+        for (const key of [
+          'headerTagline',
+          'homeEyebrow',
+          'homeTitle',
+          'brandPrimaryText',
+          'brandSecondaryText',
+        ] as const) {
+          if (globalConfig[key] && !candidate[key]) overrides[key] = '';
+        }
+        await personal.updatePreferences({ themeOverrides: overrides });
+        setPersisted(candidate);
+        setNotice('Personalização pessoal salva.');
+        return;
+      }
       const response = await fetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -87,12 +146,26 @@ export function useIdentity(
       });
       if (!response.ok) throw new Error('A API não conseguiu salvar a configuração.');
       const result = (await response.json()) as { config: unknown };
-      setPersisted(parseHubConfig(result.config));
+      const saved = parseHubConfig(result.config);
+      setGlobalConfig(saved);
+      setPersisted(saved);
+      await personal.loadPreferences();
       setNotice('Alterações salvas na API local.');
     } catch {
       setNotice('Não foi possível salvar as alterações na API local.');
     } finally {
       setSaving(false);
+    }
+  }
+  async function resetPersonalPreferences() {
+    try {
+      await personal.updatePreferences({}, true);
+      setConfig(globalConfig);
+      setPersisted(globalConfig);
+      setColorChosen(false);
+      setNotice('Padrão da empresa restaurado.');
+    } catch {
+      setNotice('Não foi possível restaurar o padrão da empresa.');
     }
   }
   const isLegacyDefault = colorEquals(config.color, DEFAULT_CONFIG.color) && !colorChosen;
@@ -178,6 +251,7 @@ export function useIdentity(
   }
   return {
     isDirty,
+    resetPersonalPreferences,
     saveConfig,
     isLegacyDefault,
     visualColor,

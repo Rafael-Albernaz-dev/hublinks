@@ -74,12 +74,14 @@ export function Header({
         </a>
         <button
           type="button"
-          className="extension-status"
+          className={'extension-status is-' + extensionState}
           onClick={() => {
             setExtensionModal(null);
             setShowExtensionGuide(true);
           }}
         >
+          <span className="extension-status-dot" aria-hidden="true" />
+          <Icon name={extensionState === 'detected' ? 'Shield' : 'Sparkles'} />
           {extensionState === 'detected'
             ? 'Extensão ativa'
             : extensionState === 'checking'
@@ -92,6 +94,18 @@ export function Header({
             <small>{currentUser.role === 'admin' ? 'Admin' : 'Usuário'}</small>
           </span>
           <div className="account-actions">
+            <button
+              className="hb-icon-button"
+              type="button"
+              aria-label="Central da Extensão e inicialização"
+              title="Extensão e inicialização"
+              onClick={() => {
+                setExtensionModal(null);
+                setShowExtensionGuide(true);
+              }}
+            >
+              <Icon name="Settings2" />
+            </button>
             <button
               className="hb-icon-button"
               type="button"

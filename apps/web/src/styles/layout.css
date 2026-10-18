@@ -1,0 +1,431 @@
+.site-shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--hb-bg);
+  color: var(--hb-ink);
+}
+.hb-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 21px 32px;
+  min-height: 85px;
+  background: var(--hb-panel);
+  border-bottom: 1px solid var(--hb-line);
+}
+.hb-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -0.8px;
+  margin-right: auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hb-brand > span:last-child {
+  min-width: 0;
+}
+.hb-brand-sub {
+  display: block;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 1.7px;
+  color: var(--hb-sub);
+  margin-top: -1px;
+}
+.hb-monogram {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 11px;
+  background: var(--hb-accent);
+  color: var(--hb-monogram);
+  font-size: 28px;
+  line-height: 1;
+}
+.hb-monogram img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 4px;
+}
+.extension-status {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  padding: 6px 7px;
+  border-radius: 5px;
+  color: var(--hb-sub);
+}
+.hb-account {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.account-actions {
+  display: flex;
+  gap: 6px;
+}
+.account-actions button {
+  font-size: 11px;
+}
+.hb-nav {
+  display: flex;
+  gap: 5px;
+  padding: 10px 32px;
+  background: var(--hb-panel);
+  border-bottom: 1px solid var(--hb-line);
+}
+.hb-nav button {
+  border: 0;
+  background: transparent;
+  color: var(--hb-sub);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  min-height: 38px;
+}
+.hb-nav button[aria-current='page'] {
+  background: var(--hb-soft);
+  color: var(--hb-accent);
+  font-weight: 600;
+}
+.hb-main {
+  padding: 30px 32px 20px;
+  flex: 1;
+  min-width: 0;
+}
+.hb-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+.hb-eyebrow,
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  color: var(--hb-accent);
+  font-weight: 650;
+}
+.hb-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0 28px;
+}
+.hb-shortcut {
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 10px;
+  padding: 14px 12px;
+  border-radius: var(--hb-radius);
+  min-width: 0;
+}
+.hb-shortcut > svg {
+  color: var(--hb-accent);
+}
+.hb-shortcut b {
+  font-size: 12px;
+  font-weight: 600;
+  display: block;
+}
+.hb-shortcut small {
+  font-size: 10px;
+  display: block;
+}
+.hb-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+  margin: 20px 0 15px;
+}
+.hb-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--hb-sub);
+  padding: 16px 32px;
+  border-top: 1px solid var(--hb-line);
+  margin-top: auto;
+}
+.hb-page-intro {
+  margin-bottom: 24px;
+}
+.notice:empty {
+  display: none;
+}
+.form-error,
+.api-error {
+  color: var(--hb-pending);
+}
+.auth-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.auth-card {
+  display: grid;
+  gap: 18px;
+  max-width: 440px;
+  width: 100%;
+  padding: 32px;
+  border: 1px solid var(--hb-line);
+  border-radius: var(--hb-radius);
+  background: var(--hb-panel);
+}
+.auth-mark {
+  color: var(--hb-accent);
+  font-size: 28px;
+}
+.hb-footer .account-actions {
+  margin-left: auto;
+}
+/* Workspace refinements: compact account controls and dedicated management. */
+.header-user {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.header-user .hb-account {
+  margin-right: 3px;
+}
+.account-actions {
+  display: flex;
+  gap: 6px;
+}
+.hb-icon-button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--hb-sub);
+  border-color: transparent;
+  background: transparent;
+}
+.hb-icon-button:hover {
+  color: var(--hb-accent);
+  background: var(--hb-soft);
+}
+
+.hb-home-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.hb-layout-switcher,
+.hb-filter-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hb-layout-switcher button,
+.hb-filter-pills button,
+.hb-carousel-controls > button {
+  padding: 8px 12px;
+  border: 1px solid var(--hb-ink);
+  border-radius: 12px;
+  color: var(--hb-ink);
+  background: var(--hb-panel);
+}
+.hb-layout-switcher button[aria-pressed='true'],
+.hb-filter-pills button[aria-pressed='true'] {
+  background: var(--hb-accent);
+  color: var(--hb-on);
+}
+
+.hb-header .extension-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--hb-ink);
+  border-radius: 12px;
+  background: var(--hb-panel);
+  color: var(--hb-ink);
+  font-weight: 650;
+  line-height: 1.4;
+}
+.hb-header .extension-status.is-missing {
+  border-color: var(--hb-accent);
+  background: color-mix(in srgb, var(--hb-accent) 16%, var(--hb-panel));
+}
+.extension-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.extension-status.is-missing .extension-status-dot {
+  background: #b45309;
+  animation: extension-attention 2s ease-in-out infinite;
+}
+.hb-header .extension-status.is-detected {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #047857;
+}
+.extension-status.is-checking .extension-status-dot {
+  background: var(--hb-ink);
+}
+.hb-header .account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hb-header .account-actions .hb-icon-button {
+  border: 1px solid var(--hb-ink);
+  border-radius: 10px;
+  background: var(--hb-panel);
+  color: var(--hb-ink);
+  min-width: 36px;
+  min-height: 36px;
+  transition:
+    background 150ms,
+    transform 150ms;
+}
+.hb-header .account-actions .hb-icon-button:hover,
+.hb-header .extension-status:hover {
+  background: color-mix(in srgb, var(--hb-accent) 18%, var(--hb-panel));
+  color: var(--hb-ink);
+  transform: translateY(-1px);
+}
+.hb-header .account-actions .hb-icon-button:focus-visible,
+.hb-header .extension-status:focus-visible {
+  outline: 3px solid var(--hb-ink);
+  outline-offset: 3px;
+}
+.extension-center {
+  display: grid;
+  gap: 16px;
+}
+.extension-center button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.extension-steps {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+}
+.extension-steps li {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--hb-line);
+  border-radius: 12px;
+  background: var(--hb-bg);
+}
+.extension-copy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.extension-options {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--hb-line);
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 0;
+}
+.extension-options legend {
+  padding: 0 6px;
+  font-weight: 650;
+}
+.extension-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.extension-options input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--hb-accent);
+}
+.extension-connection {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--hb-bg);
+  color: var(--hb-ink);
+}
+.extension-connection.is-detected {
+  background: #d1fae5;
+  color: #065f46;
+}
+@keyframes extension-attention {
+  50% {
+    box-shadow: 0 0 0 5px #b4530926;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .extension-status.is-missing .extension-status-dot {
+    animation: none;
+  }
+  .hb-header .account-actions .hb-icon-button {
+    transition: none;
+  }
+}
+@media (max-width: 560px) {
+  .hb-header .extension-status {
+    font-size: 11px;
+    padding: 7px 9px;
+    gap: 5px;
+  }
+  .hb-header .account-actions {
+    gap: 5px;
+  }
+}
+
+@media (max-width: 560px) {
+  .hb-header .hb-brand {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .site-shell .hb-header .header-user {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .site-shell .hb-header .hb-account {
+    max-width: none;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .site-shell .hb-header .account-actions {
+    gap: 6px;
+  }
+}

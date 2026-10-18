@@ -5,6 +5,28 @@ Updated October 18, 2026. This roadmap describes local implementation; it does n
 > [!NOTE]
 > The visual presentation from UX-011 and UX-012 is a working scaffold and has **not** been approved for production deployment; human visual acceptance and future styling adjustments remain pending before deploy.
 
+## Phase 2 — Slice C / TICKET-017
+
+The Extension Center in the Workspace header replaces the passive installation dialog. It downloads an authenticated ZIP, provides copy actions for `chrome://extensions` and the repository-relative `apps/extension/dist` path, explains extraction and Load unpacked, checks the actual extension bridge, and exposes startup, New Tab, and fill-notification options. The relative source path is a development convenience; downloaded ZIP users select their extracted folder. Manual destination opening remains available when launched from a service. Browser-wide theme, extension options, and sign-out controls have distinct surfaces, visible focus, and state indicators; attention animation respects reduced motion.
+
+Build first with `npm run build`. `GET /api/extension/package` requires an active session and returns `hublink-chrome-extension.zip` with `Cache-Control: no-store`. The deterministic in-memory ZIP Store writer uses native Node CRC32 and includes only manifest.json, background.js, autofill.js, content.js, popup.html, and popup.js from the compiled extension. Missing artifacts return 503 with build guidance; static-only files cannot form an installable package. Runtime API requests never compile source or include project configuration/secrets.
+
+Startup and New Tab options are off by default and explicitly enabled per Chrome profile. Startup opens or focuses the fixed local Workspace. New Tab redirects only Chrome's New Tab URLs, rechecking the tab before update and preserving typed destinations and `about:blank` application popups. It uses tab events, without an unconditional manifest new-tab override or modification of Chrome's startup policies. Profile startup/restore timing, competing New Tab extensions, and managed browser policies require installed-Chrome validation.
+
+The only added permission is `storage`; host permissions and official Hub origins are unchanged. `chrome.storage.local` stores exactly three boolean flags: `openOnStartup`, `openOnNewTab`, and `showToastNotifications`. Unknown fields, non-booleans, credentials, tokens, tickets, cached shortcuts, and configurable Workspace URLs are rejected. This follows the ticket's stricter security gate over its broader storage examples. Settings messages accept PING, GET_SETTINGS, UPDATE_SETTINGS, and UPDATE_EXTENSION_SETTINGS; updates carry a `settings` object. External messages require an authorized Hub origin/tab; internal settings messages require the extension's own popup URL and identity. A page DOM marker alone never establishes a connection.
+
+The 340px popup shows API and active-tab status, opens/focuses the Workspace, copies its fixed URL, and edits the same three options. It fetches `/api/catalog` with the current authenticated session and `no-store` while open. Only safe HTTPS metadata is rendered, never cached in extension storage. Direct links open their configured destination; services with a vault return to the Workspace for a user-initiated ticket. Missing session/API leaves guidance to open the Workspace. Shortcut loading from the extension origin still needs installed-Chrome cookie/origin verification.
+
+Disabling notifications suppresses only the injected visual toast. Ticket validation, double destination checks, bounded SPA waiting, challenge detection, manual CAPTCHA/2FA, and human form submission remain unchanged. No supplier login or installation success is inferred from synthetic tests.
+
+## Phase 2 — Slice B / TICKET-016
+
+Implemented locally: two-layer company preset and personal account preferences, owner-only personal services, company Home defaults, Grid/List/Carousel with accessible page dots, drag/drop and keyboard order changes, optional task shortcuts, and combined Home search/category/vault/personal filters. The server protects global writes and private personal services across catalog, vault, and ticket paths. `PUT /api/config` now requires admin authentication. Preferences use authenticated account-scoped endpoints plus a validated per-user network fallback cache.
+
+Migration 005 runs idempotently during initialization. Admins configure global branding/defaults; users can restore the company preset by deleting all personal preferences. Saved layout/shortcut values become explicit account preferences until reset. Team management remains admin-only; crypto primitives and companion source are unchanged.
+
+Slice C / TICKET-017 is now implemented locally as described above. Human visual acceptance, installed Chrome companion checks, supplier authentication, remote infrastructure, and deployment remain open gates.
+
 ## Delivery sequence
 
 | Slice    | Local state         | Scope and limit                                                                                                                                                                |
@@ -94,3 +116,11 @@ Before on-premise deployment, confirm capacity, DNS, TLS, proxy, master-key cust
 2. Review UX-011 against the approved Workspace reference in both themes, including identity drafts, team management, and card states. Local synthetic browser proof does not replace human visual acceptance. Keep real credentials and destinations out of tracked examples and logs.
 3. For the next gate, validate the installed extension on authorized supplier forms, review the broad HTTPS permission, and settle the stable extension ID and TLS/origin policy. Keep the human submit and manual-login path.
 4. Preserve loopback ports and the developer's running services. A green build or synthetic test is not deployment or supplier acceptance.
+
+## TICKET-016 local validation
+
+`npm run check` passed with 37 API tests, 17 unchanged extension tests, 50 web tests, zero-warning lint, formatting, typechecks, and workspace builds. The seven existing Playwright E2E scenarios pass with preference reset added to their authenticated setup. Validation used dedicated `hublink_ticket016_test` and `hublink_ticket016_e2e` databases, API 3178, and web 5187 to preserve development ports. A temporary synthetic Chromium scenario checked all three layouts at 390 and 1440 px in both themes, found no document overflow, and verified at least 4.5:1 text contrast on the new layout selectors. Source checksums confirm the extension and AES-256-GCM primitive are unchanged. Browser cache/build artifacts are generated by the required suites. Human visual acceptance, supplier authentication, and deployment are not established.
+
+## TICKET-017 local verification
+
+The full check passes with 38 API tests, 24 extension tests, and 53 web tests, plus typechecking, zero-warning lint, formatting, and builds. Seven existing Chromium E2E scenarios pass separately. Validation uses dedicated `hublink_ticket017_test` and `hublink_ticket017_e2e` databases and temporary API 3178/Web 5187 servers, preserving developer ports. Two additional temporary Chromium scenarios verify the Extension Center/navbar in both themes at 390 and 1440 px, focus restoration, a real authenticated ZIP download, and the compiled 340px popup with synthetic Chrome APIs. Active/missing status buttons and the popup's primary action meet 4.5:1 text contrast in those checks. Python's ZIP reader also validates all six packaged files and CRCs. These proofs do not establish installed-Chrome startup/New Tab behavior, extension-origin cookie availability, or supplier login.

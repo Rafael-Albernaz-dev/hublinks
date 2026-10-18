@@ -122,18 +122,16 @@ export function CatalogView({
                 <option value="pending">Pendente</option>
               </select>
             </div>
-            {currentUser.role === 'admin' && (
-              <button
-                type="button"
-                className="button button-primary"
-                onClick={() => {
-                  setAddingCatalog(true);
-                  setEditingCatalogId(null);
-                }}
-              >
-                + Adicionar serviço
-              </button>
-            )}
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => {
+                setAddingCatalog(true);
+                setEditingCatalogId(null);
+              }}
+            >
+              + Adicionar serviço
+            </button>
           </div>
           <p className="visually-hidden" role="status" aria-live="polite">
             {filteredCatalog.length} serviços encontrados no catálogo
@@ -143,7 +141,7 @@ export function CatalogView({
               {catalogError}
             </p>
           )}
-          {addingCatalog && currentUser.role === 'admin' && (
+          {addingCatalog && (
             <ModalDialog
               titleId="catalog-add-dialog-title"
               chip="Catálogo privado"
@@ -153,68 +151,74 @@ export function CatalogView({
               onClose={() => setAddingCatalog(false)}
             >
               <CatalogEditor
+                currentUser={currentUser}
                 busy={vaultBusy}
                 onSave={saveCatalogService}
                 onCancel={() => setAddingCatalog(false)}
               />
             </ModalDialog>
           )}
-          {editingService && currentUser.role === 'admin' && (
-            <ModalDialog
-              titleId="catalog-edit-dialog-title"
-              chip="Catálogo privado"
-              title={`Editar ${editingService.name}`}
-              description="Atualize os dados do serviço, destino HTTPS ou credencial compartilhada."
-              icon="Edit"
-              logoDataUrl={editingService.logoDataUrl}
-              onClose={() => setEditingCatalogId(null)}
-            >
-              <CatalogEditor
-                service={editingService}
-                busy={vaultBusy}
-                onSave={saveCatalogService}
-                onCancel={() => setEditingCatalogId(null)}
-              />
-            </ModalDialog>
-          )}
-          {deletingService && currentUser.role === 'admin' && (
-            <ModalDialog
-              titleId="catalog-delete-dialog-title"
-              chip="Exclusão de serviço"
-              title={`Excluir ${deletingService.name}`}
-              description={
-                <>
-                  Tem certeza que deseja excluir <strong>{deletingService.name}</strong> do
-                  catálogo? As credenciais associadas a este serviço também serão removidas.
-                </>
-              }
-              icon="Trash"
-              logoDataUrl={deletingService.logoDataUrl}
-              onClose={() => setDeletingService(null)}
-            >
-              <div className="hublink-modal-actions">
-                <button
-                  type="button"
-                  className="button button-danger"
-                  disabled={vaultBusy}
-                  onClick={async () => {
-                    const target = deletingService;
-                    setDeletingService(null);
-                    await deleteCatalogService(target);
-                  }}
-                >
-                  Confirmar exclusão
-                </button>
-                <button
-                  type="button"
-                  className="button button-plain"
-                  onClick={() => setDeletingService(null)}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </ModalDialog>
-          )}
+          {editingService &&
+            ((currentUser.role === 'admin' && !editingService.ownerUserId) ||
+              editingService.ownerUserId === currentUser.id) && (
+              <ModalDialog
+                titleId="catalog-edit-dialog-title"
+                chip="Catálogo privado"
+                title={`Editar ${editingService.name}`}
+                description="Atualize os dados do serviço, destino HTTPS ou credencial compartilhada."
+                icon="Edit"
+                logoDataUrl={editingService.logoDataUrl}
+                onClose={() => setEditingCatalogId(null)}
+              >
+                <CatalogEditor
+                  currentUser={currentUser}
+                  service={editingService}
+                  busy={vaultBusy}
+                  onSave={saveCatalogService}
+                  onCancel={() => setEditingCatalogId(null)}
+                />
+              </ModalDialog>
+            )}
+          {deletingService &&
+            ((currentUser.role === 'admin' && !deletingService.ownerUserId) ||
+              deletingService.ownerUserId === currentUser.id) && (
+              <ModalDialog
+                titleId="catalog-delete-dialog-title"
+                chip="Exclusão de serviço"
+                title={`Excluir ${deletingService.name}`}
+                description={
+                  <>
+                    Tem certeza que deseja excluir <strong>{deletingService.name}</strong> do
+                    catálogo? As credenciais associadas a este serviço também serão removidas.
+                  </>
+                }
+                icon="Trash"
+                logoDataUrl={deletingService.logoDataUrl}
+                onClose={() => setDeletingService(null)}
+              >
+                <div className="hublink-modal-actions">
+                  <button
+                    type="button"
+                    className="button button-danger"
+                    disabled={vaultBusy}
+                    onClick={async () => {
+                      const target = deletingService;
+                      setDeletingService(null);
+                      await deleteCatalogService(target);
+                    }}
+                  >
+                    Confirmar exclusão
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-plain"
+                    onClick={() => setDeletingService(null)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </ModalDialog>
+            )}
 
           {filteredCatalog.length > 0 ? (
             <div className="hb-table-wrap">
@@ -226,7 +230,7 @@ export function CatalogView({
                     <th scope="col">Destino HTTPS</th>
                     <th scope="col">Cofre</th>
                     <th scope="col">Status</th>
-                    {currentUser.role === 'admin' && <th scope="col">Ações</th>}
+                    <th scope="col">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -243,6 +247,9 @@ export function CatalogView({
                           </span>
                           <div className="catalog-record-details">
                             <strong>{service.name}</strong>
+                            <span className="hb-badge">
+                              {service.ownerUserId ? 'Pessoal' : 'Padrão da equipe'}
+                            </span>
                             {service.description && <small>{service.description}</small>}
                           </div>
                         </div>
@@ -284,8 +291,9 @@ export function CatalogView({
                               : 'Acesso pendente'}
                         </span>
                       </td>
-                      {currentUser.role === 'admin' && (
-                        <td>
+                      <td>
+                        {((currentUser.role === 'admin' && !service.ownerUserId) ||
+                          service.ownerUserId === currentUser.id) && (
                           <div className="row-actions">
                             <button
                               type="button"
@@ -304,8 +312,8 @@ export function CatalogView({
                               Excluir
                             </button>
                           </div>
-                        </td>
-                      )}
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -322,8 +330,8 @@ export function CatalogView({
           {currentUser.role === 'attendant' && (
             <div className="catalog-attendant-note">
               <p>
-                O catálogo é gerenciado pelos administradores. Seus acessos individuais ficam na
-                tela Acessos.
+                Os serviços da equipe são protegidos. Você pode adicionar e gerenciar seus próprios
+                serviços pessoais.
               </p>
               <button type="button" onClick={() => setPage('cofre')}>
                 Ir para Acessos

@@ -1,4 +1,6 @@
 /* eslint-disable no-useless-assignment -- Intentional best-effort release of plaintext references. */
+import { getExtensionSettings, respondToSettings } from './settings';
+import { openWorkspace, isNewTab, WORKSPACE_URL } from './workspace';
 const ALLOWED_ORIGINS = new Set(['http://127.0.0.1:5177', 'http://localhost:5177']);
 const API_ORIGIN = 'http://127.0.0.1:3177';
 
@@ -79,10 +81,7 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
     sendResponse({ status: 'error' });
     return;
   }
-  if (message.type === 'PING') {
-    sendResponse({ status: 'ok', version: '0.1.0' });
-    return;
-  }
+  if (respondToSettings(message, sendResponse)) return true;
   const input = message as Partial<OpenService>;
   if (
     input.type !== 'OPEN_SERVICE' ||
@@ -139,8 +138,10 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
         return;
       }
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['autofill.js'] });
+      const settings = await getExtensionSettings();
       const fill = (await chrome.tabs.sendMessage(tab.id, {
         type: 'HUBLINK_AUTOFILL',
+        showToastNotifications: settings.showToastNotifications,
         targetUrl,
         username,
         password,
@@ -159,4 +160,28 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
     }
   })();
   return true;
+});
+
+chrome.runtime.onMessage?.addListener((message: unknown, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('popup.html')) return;
+  if (respondToSettings(message, sendResponse)) return true;
+});
+chrome.runtime.onStartup?.addListener(() => {
+  void (async () => {
+    if ((await getExtensionSettings()).openOnStartup) await openWorkspace();
+  })().catch(() => undefined);
+});
+async function redirectNewTab(tab: chrome.tabs.Tab): Promise<void> {
+  if (tab.id === undefined || !isNewTab(tab) || !(await getExtensionSettings()).openOnNewTab)
+    return;
+  // A user may already have typed a destination while storage was being read.
+  const current = await chrome.tabs.get(tab.id);
+  if (isNewTab(current)) await chrome.tabs.update(tab.id, { url: WORKSPACE_URL });
+}
+chrome.tabs.onCreated?.addListener((tab) => {
+  void redirectNewTab(tab).catch(() => undefined);
+});
+// onCreated may arrive before Chrome exposes the initial URL.
+chrome.tabs.onUpdated?.addListener((_id, change, tab) => {
+  if (change.url && isNewTab({ url: change.url })) void redirectNewTab(tab).catch(() => undefined);
 });

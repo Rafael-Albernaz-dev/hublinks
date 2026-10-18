@@ -2,7 +2,13 @@ import { useRef, useState } from 'react';
 import type { Page } from '../components/pages';
 import type { HubConfig } from '../config';
 import { DEFAULT_CONFIG } from '../config';
-import type { CatalogService, ManagedUser, User, VaultCredentialMeta } from '../types';
+import type {
+  CatalogService,
+  ManagedUser,
+  User,
+  VaultCredentialMeta,
+  ExtensionSettings,
+} from '../types';
 export function useWorkspaceState() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -25,6 +31,11 @@ export function useWorkspaceState() {
   const [vaultBusy, setVaultBusy] = useState(false);
   const [catalog, setCatalog] = useState<CatalogService[]>([]);
   const [catalogError, setCatalogError] = useState('');
+  const [extensionSettings, setExtensionSettings] = useState<ExtensionSettings>({
+    openOnStartup: false,
+    openOnNewTab: false,
+    showToastNotifications: true,
+  });
   const [extensionState, setExtensionState] = useState<'checking' | 'detected' | 'missing'>(
     document.documentElement.getAttribute('data-hublink-extension') === 'active'
       ? 'detected'
@@ -42,6 +53,7 @@ export function useWorkspaceState() {
   const [individualSaving, setIndividualSaving] = useState(false);
   const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
   const [addingCatalog, setAddingCatalog] = useState(false);
+  const [globalConfig, setGlobalConfig] = useState<HubConfig>(DEFAULT_CONFIG);
   const [config, setConfig] = useState<HubConfig>(DEFAULT_CONFIG);
   const [persisted, setPersisted] = useState<HubConfig | null>(null);
   const [apiState, setApiState] = useState<'loading' | 'online' | 'offline'>('loading');
@@ -100,6 +112,8 @@ export function useWorkspaceState() {
     setCatalog,
     catalogError,
     setCatalogError,
+    extensionSettings,
+    setExtensionSettings,
     extensionState,
     setExtensionState,
     extensionModal,
@@ -126,6 +140,8 @@ export function useWorkspaceState() {
     setEditingCatalogId,
     addingCatalog,
     setAddingCatalog,
+    globalConfig,
+    setGlobalConfig,
     config,
     setConfig,
     persisted,

@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { DEFAULT_CONFIG } from './config';
 import extensionManifest from '../../extension/static/manifest.json';
+import { defaultPreferences } from './hooks/usePreferences';
+import type { UserPreferences } from './types';
 import type { HubConfig } from './config';
 
 const apiConfig = {
@@ -12,6 +14,7 @@ const apiConfig = {
   companyName: 'Empresa da API',
   links: [{ id: 'site', title: 'Site público', description: '', url: 'https://example.com/' }],
 };
+let preferences: UserPreferences = structuredClone(defaultPreferences);
 let saved: HubConfig = apiConfig;
 let requests: Array<{ url: string; method: string; body?: unknown }> = [];
 let authenticated = true;
@@ -29,6 +32,7 @@ beforeEach(() => {
   document.documentElement.removeAttribute('data-hublink-extension');
   localStorage.clear();
   document.documentElement.removeAttribute('data-theme');
+  preferences = structuredClone(defaultPreferences);
   saved = structuredClone(apiConfig);
   requests = [];
   authenticated = true;
@@ -79,6 +83,12 @@ beforeEach(() => {
         method,
         body: options?.body ? JSON.parse(options.body as string) : undefined,
       });
+      if (url === '/api/me/preferences') {
+        if (method === 'DELETE') preferences = structuredClone(defaultPreferences);
+        if (method === 'PUT')
+          preferences = { ...preferences, ...JSON.parse(options?.body as string) };
+        return { ok: true, json: async () => ({ preferences }) };
+      }
       if (url === '/api/auth/me')
         return {
           ok: authenticated,
@@ -115,6 +125,7 @@ beforeEach(() => {
         const service = {
           ...body,
           id: 'new-card',
+          ownerUserId: body.scope === 'personal' ? signedInUser.id : null,
           hasAction: Boolean(body.targetUrl),
           hasCredential: Boolean(body.username && body.password),
         };
@@ -212,11 +223,9 @@ describe('extension bridge', () => {
     expect(await screen.findByRole('button', { name: 'Instalar extensão' })).not.toBeNull();
     fireEvent.click(await screen.findByRole('link', { name: /PARTIU!/ }));
     expect(
-      await screen.findByRole('dialog', { name: 'Extensão do Hublink necessária' }),
+      await screen.findByRole('dialog', { name: 'Central da Extensão & Inicialização no Chrome' }),
     ).not.toBeNull();
-    expect(
-      screen.getByRole('link', { name: 'Como instalar / Baixar extensão' }).getAttribute('href'),
-    ).toBe('chrome://extensions');
+    expect(screen.getByRole('button', { name: 'Baixar pacote da extensão (.zip)' })).not.toBeNull();
     fireEvent.click(
       screen.getByRole('button', { name: 'Abrir destino mesmo assim (login manual)' }),
     );
@@ -248,13 +257,13 @@ describe('extension bridge', () => {
     expect(requests.some((item) => item.url === '/api/vault/tickets')).toBe(true);
   });
 
-  it('shows the content-script marker immediately but confirms the bridge before a ticket', async () => {
+  it('requires a confirmed bridge even when a content-script marker is present', async () => {
     document.documentElement.setAttribute('data-hublink-extension', 'active');
     render(<App />);
-    expect(await screen.findByRole('button', { name: 'Extensão ativa' })).not.toBeNull();
+    expect(await screen.findByRole('button', { name: 'Instalar extensão' })).not.toBeNull();
     fireEvent.click(await screen.findByRole('link', { name: /PARTIU!/ }));
     expect(
-      await screen.findByRole('dialog', { name: 'Extensão do Hublink necessária' }),
+      await screen.findByRole('dialog', { name: 'Central da Extensão & Inicialização no Chrome' }),
     ).not.toBeNull();
     expect(requests.some((item) => item.url === '/api/vault/tickets')).toBe(false);
   });
@@ -285,6 +294,7 @@ describe('API backed customization', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
+        if (url === '/api/me/preferences') return { ok: true, json: async () => ({ preferences }) };
         if (url === '/api/auth/me') return { ok: true, json: async () => ({ user: admin }) };
         throw new Error('offline');
       }),
@@ -354,6 +364,7 @@ describe('API backed customization', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, options?: RequestInit) => {
+        if (url === '/api/me/preferences') return { ok: true, json: async () => ({ preferences }) };
         if (url === '/api/auth/me') return { ok: true, json: async () => ({ user: admin }) };
         if (url === '/api/admin/users') return { ok: true, json: async () => ({ users: [] }) };
         if (options?.method === 'PUT') return { ok: false };
@@ -476,7 +487,7 @@ describe('API backed customization', () => {
         .getAttribute('aria-disabled'),
     ).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: 'Catálogo' }));
-    expect(screen.queryByRole('button', { name: '+ Adicionar serviço' })).toBeNull();
+    expect(screen.getByRole('button', { name: '+ Adicionar serviço' })).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull();
   });
 
@@ -621,7 +632,7 @@ describe('Workspace design system', () => {
     );
     expect(
       (screen.getByRole('button', { name: 'Personalização' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    ).toBe(false);
     expect(requests.some((item) => item.url === '/api/admin/users')).toBe(false);
   });
 
@@ -862,13 +873,13 @@ describe('Workspace UX refinements', () => {
     expect(screen.getAllByRole('button', { name: 'Excluir' })).toHaveLength(1);
   });
 
-  it('shows attendants a read-only catalog with an Access shortcut', async () => {
+  it('keeps team cards read-only for attendants and offers personal creation', async () => {
     signedInUser = { ...admin, id: 'attendant', role: 'attendant' };
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
     await user.click(screen.getByRole('button', { name: 'Catálogo' }));
-    expect(screen.queryByRole('button', { name: '+ Adicionar serviço' })).toBeNull();
+    expect(screen.getByRole('button', { name: '+ Adicionar serviço' })).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Ir para Acessos' }));
@@ -931,5 +942,344 @@ describe('Workspace UX refinements', () => {
     expect(await screen.findByText('Favicon capturado de github.com')).not.toBeNull();
     expect(screen.getByText('Favicon automático')).not.toBeNull();
     expect(screen.getByAltText('Favicon capturado de github.com')).not.toBeNull();
+  });
+});
+
+describe('Personal user layer and Home organization', () => {
+  it('switches layouts, navigates carousel dots and combines search with filters', async () => {
+    const user = userEvent.setup();
+    catalogItems.push(
+      ...Array.from({ length: 5 }, (_, index) => ({
+        ...catalogItems[0],
+        id: `extra-${index}`,
+        name: `Sheet ${index}`,
+        category: 'sheet',
+        credentialType: 'none',
+        ownerUserId: index === 0 ? admin.id : null,
+      })),
+    );
+    const { container } = render(<App />);
+    await screen.findByText('Empresa da API');
+    await user.click(screen.getByRole('button', { name: 'Lista' }));
+    await waitFor(() => expect(container.querySelectorAll('.hb-service-row')).toHaveLength(7));
+    await user.click(screen.getByRole('button', { name: 'Carrossel' }));
+    await waitFor(() => expect(container.querySelector('.hb-carousel')).not.toBeNull());
+    expect(
+      screen.getByRole('button', { name: 'Ir para página 1' }).getAttribute('aria-current'),
+    ).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Ir para página 3' }));
+    expect(container.querySelectorAll('.hb-carousel .hb-service')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Próximo slide' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+    await user.click(screen.getByRole('button', { name: 'Slide anterior' }));
+    expect(
+      screen.getByRole('button', { name: 'Ir para página 2' }).getAttribute('aria-current'),
+    ).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Grade' }));
+    await user.click(screen.getByRole('button', { name: 'Planilhas' }));
+    expect(screen.getByText('5 serviços encontrados')).not.toBeNull();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Buscar serviços no Workspace' }),
+      'Sheet 0',
+    );
+    expect(screen.getByText('1 serviços encontrados')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'SVA' }));
+    expect(screen.getByText('0 serviços encontrados')).not.toBeNull();
+    await user.clear(screen.getByRole('textbox', { name: 'Buscar serviços no Workspace' }));
+    await user.click(screen.getByRole('button', { name: 'Pessoais' }));
+    expect(screen.getByText('1 serviços encontrados')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Abrir Sheet 0' }).getAttribute('rel')).toBe(
+      'noopener noreferrer',
+    );
+  });
+
+  it('persists drag order, keyboard reordering and shortcut visibility across remounts', async () => {
+    const user = userEvent.setup();
+    let view = render(<App />);
+    await screen.findByText('Empresa da API');
+    fireEvent.dragStart(screen.getByRole('button', { name: 'Configurar Sem destino' }));
+    fireEvent.dragOver(screen.getByRole('link', { name: 'Abrir PARTIU!' }));
+    fireEvent.drop(screen.getByRole('link', { name: 'Abrir PARTIU!' }));
+    await waitFor(() => expect(preferences.cardOrder).toEqual(['pending', 'partiu']));
+    expect(view.container.querySelector('.hb-service')?.getAttribute('aria-label')).toBe(
+      'Configurar Sem destino',
+    );
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Configurar Sem destino' }), {
+      key: 'ArrowRight',
+      altKey: true,
+    });
+    await waitFor(() => expect(preferences.cardOrder).toEqual(['partiu', 'pending']));
+    await user.click(screen.getByRole('button', { name: 'Ocultar atalhos' }));
+    await waitFor(() => expect(view.container.querySelector('.hb-shortcuts')).toBeNull());
+    expect(JSON.parse(localStorage.getItem('hublink:preferences:admin')!).showShortcutCards).toBe(
+      false,
+    );
+    view.unmount();
+    view = render(<App />);
+    await screen.findByText('Empresa da API');
+    expect(
+      screen.getByRole('button', { name: 'Mostrar atalhos' }).getAttribute('aria-pressed'),
+    ).toBe('false');
+    await user.click(screen.getByRole('button', { name: 'Mostrar atalhos' }));
+    await waitFor(() => expect(view.container.querySelector('.hb-shortcuts')).not.toBeNull());
+  });
+
+  it('lets attendants create, edit and delete only their own cards and saves a personal theme', async () => {
+    signedInUser = { ...admin, id: 'attendant', role: 'attendant' };
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+    expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull();
+    expect(screen.getAllByText('Padrão da equipe')).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: '+ Adicionar serviço' }));
+    expect(screen.queryByRole('option', { name: 'Cofre Compartilhado (equipe)' })).toBeNull();
+    await user.type(screen.getByLabelText('Nome do serviço/card'), 'My personal card');
+    await user.click(screen.getByRole('button', { name: 'Salvar card' }));
+    await screen.findByText('My personal card');
+    expect(screen.getAllByRole('button', { name: 'Editar' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Excluir' })).toHaveLength(1);
+    expect(
+      requests.find((item) => item.method === 'POST' && item.url === '/api/catalog/services')?.body,
+    ).toMatchObject({ scope: 'personal', credentialType: 'none' });
+    await user.click(screen.getByRole('button', { name: 'Editar' }));
+    await user.clear(screen.getByLabelText('Nome do serviço/card'));
+    await user.type(screen.getByLabelText('Nome do serviço/card'), 'Edited personal card');
+    await user.click(screen.getByRole('button', { name: 'Salvar card' }));
+    await screen.findByText('Edited personal card');
+    await user.click(screen.getByRole('button', { name: 'Excluir' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Excluir Edited personal card' })).getByRole(
+        'button',
+        { name: 'Confirmar exclusão' },
+      ),
+    );
+    await waitFor(() => expect(screen.queryByText('Edited personal card')).toBeNull());
+    await user.click(screen.getByRole('button', { name: 'Personalização' }));
+    expect(screen.getByRole('note').textContent).toContain('Personalização pessoal');
+    const company = screen.getByRole('textbox', { name: 'Nome da empresa' });
+    await user.clear(company);
+    await user.type(company, 'My own hub');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+    await screen.findByText('Personalização pessoal salva.');
+    expect(preferences.themeOverrides).toMatchObject({ companyName: 'My own hub' });
+    expect(saved.companyName).toBe('Empresa da API');
+    expect(requests.some((item) => item.method === 'PUT' && item.url === '/api/config')).toBe(
+      false,
+    );
+    await user.click(screen.getByRole('button', { name: 'Restaurar padrão da empresa' }));
+    await screen.findByText('Padrão da empresa restaurado.');
+    expect(
+      (screen.getByRole('textbox', { name: 'Nome da empresa' }) as HTMLInputElement).value,
+    ).toBe('Empresa da API');
+    expect(preferences.themeOverrides).toBeNull();
+    expect((screen.getByRole('button', { name: 'Equipe' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('removes shared credential fields when an admin chooses personal scope', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+    await user.click(screen.getByRole('button', { name: '+ Adicionar serviço' }));
+    await user.selectOptions(screen.getByLabelText('Tipo de Acesso / Cofre'), 'shared');
+    await user.selectOptions(screen.getByLabelText('Escopo'), 'personal');
+    expect(screen.queryByLabelText('Senha do serviço')).toBeNull();
+    expect(screen.queryByRole('option', { name: 'Cofre Compartilhado (equipe)' })).toBeNull();
+  });
+
+  it('uses only the current user cache offline and rejects denied preference writes', async () => {
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    localStorage.setItem(
+      'hublink:preferences:admin',
+      JSON.stringify({ ...defaultPreferences, homeLayout: 'list' }),
+    );
+    localStorage.setItem(
+      'hublink:preferences:someone-else',
+      JSON.stringify({ ...defaultPreferences, showShortcutCards: false }),
+    );
+    vi.mocked(fetch).mockImplementation(async (...args) => {
+      if (args[0] === '/api/me/preferences') {
+        if (args[1]?.method) return { ok: false, status: 403 } as Response;
+        throw new TypeError('Offline');
+      }
+      return original(...args);
+    });
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await screen.findByText('Empresa da API');
+    expect(container.querySelector('.hb-service-list')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Ocultar atalhos' })).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Grade' }));
+    await waitFor(() => expect(requests.some((item) => item.url === '/api/config')).toBe(true));
+    expect(container.querySelector('.hb-service-list')).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem('hublink:preferences:admin')!).homeLayout).toBe('list');
+  });
+});
+
+it('replays account-only preference changes after a network outage', async () => {
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  let offline = false;
+  vi.mocked(fetch).mockImplementation(async (...args) => {
+    if (args[0] === '/api/me/preferences' && offline) throw new TypeError('Offline');
+    return original(...args);
+  });
+  const user = userEvent.setup();
+  const { container } = render(<App />);
+  await screen.findByText('Empresa da API');
+  offline = true;
+  await user.click(screen.getByRole('button', { name: 'Lista' }));
+  await waitFor(() => expect(container.querySelector('.hb-service-list')).not.toBeNull());
+  await user.click(screen.getByRole('button', { name: 'Ocultar atalhos' }));
+  await waitFor(() => expect(container.querySelector('.hb-shortcuts')).toBeNull());
+  expect(preferences.homeLayout).toBe('grid');
+  expect(localStorage.getItem('hublink:preferences:admin:pending')).not.toBeNull();
+  offline = false;
+  fireEvent(window, new Event('online'));
+  await waitFor(() =>
+    expect(preferences).toMatchObject({ homeLayout: 'list', showShortcutCards: false }),
+  );
+  expect(localStorage.getItem('hublink:preferences:admin:pending')).toBeNull();
+});
+
+it('edits company Home defaults through the admin preset', async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await screen.findByText('Empresa da API');
+  await user.click(screen.getByRole('button', { name: 'Personalização' }));
+  await user.selectOptions(screen.getByLabelText('Organização da Home'), 'carousel');
+  await user.click(screen.getByRole('checkbox', { name: 'Mostrar atalhos' }));
+  await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+  await screen.findByText('Alterações salvas na API local.');
+  expect(saved).toMatchObject({ homeLayout: 'carousel', showShortcutCards: false });
+  expect(requests.some((item) => item.method === 'PUT' && item.url === '/api/me/preferences')).toBe(
+    false,
+  );
+});
+
+describe('extension center and startup settings', () => {
+  it('downloads the ZIP without navigation and copies installation instructions', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (...args) =>
+      args[0] === '/api/extension/package'
+        ? ({ ok: true, blob: async () => new Blob(['PK']) } as Response)
+        : original(...args),
+    );
+    const create = vi.fn().mockReturnValue('blob:extension-zip'),
+      revoke = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: create });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revoke });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    try {
+      render(<App />);
+      const install = await screen.findByRole('button', { name: 'Instalar extensão' });
+      expect(install.classList.contains('is-missing')).toBe(true);
+      await user.click(install);
+      const dialog = screen.getByRole('dialog', {
+        name: 'Central da Extensão & Inicialização no Chrome',
+      });
+      expect(
+        within(dialog)
+          .getByRole('checkbox', { name: 'Abrir o Hublink automaticamente ao iniciar o Chrome' })
+          .hasAttribute('disabled') ||
+          within(dialog)
+            .getByRole('checkbox', { name: 'Abrir o Hublink automaticamente ao iniciar o Chrome' })
+            .closest('fieldset')!.disabled,
+      ).toBe(true);
+      await user.click(screen.getByRole('button', { name: 'Copiar endereço chrome://extensions' }));
+      expect(writeText).toHaveBeenCalledWith('chrome://extensions');
+      await user.click(
+        screen.getByRole('button', { name: 'Copiar caminho local (apps/extension/dist)' }),
+      );
+      expect(writeText).toHaveBeenCalledWith('apps/extension/dist');
+      await user.click(screen.getByRole('button', { name: 'Baixar pacote da extensão (.zip)' }));
+      await screen.findByText(/Pacote baixado/);
+      expect(create).toHaveBeenCalled();
+      expect(click).toHaveBeenCalled();
+      const anchor = click.mock.instances[0] as HTMLAnchorElement;
+      expect(anchor.download).toBe('hublink-chrome-extension.zip');
+      expect(anchor.href).toBe('blob:extension-zip');
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(install);
+    } finally {
+      click.mockRestore();
+    }
+  });
+  it('reads and updates all three flags through a confirmed extension bridge', async () => {
+    const settings = { openOnStartup: false, openOnNewTab: false, showToastNotifications: true };
+    const messages: unknown[] = [];
+    vi.stubGlobal('chrome', {
+      runtime: {
+        sendMessage: (
+          _id: string,
+          msg: { type: string; settings?: object },
+          callback: (value: unknown) => void,
+        ) => {
+          messages.push(msg);
+          Object.assign(settings, msg.settings);
+          callback({ status: 'ok', settings: { ...settings } });
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    const active = await screen.findByRole('button', { name: 'Extensão ativa' });
+    expect(active.classList.contains('is-detected')).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Central da Extensão e inicialização' }));
+    for (const [label, key, value] of [
+      ['Abrir o Hublink automaticamente ao iniciar o Chrome', 'openOnStartup', true],
+      ['Abrir o Hublink ao criar uma Nova Guia', 'openOnNewTab', true],
+      ['Mostrar avisos visuais de preenchimento assistido', 'showToastNotifications', false],
+    ] as const) {
+      await user.click(screen.getByRole('checkbox', { name: label }));
+      await waitFor(() =>
+        expect(messages).toContainEqual({
+          type: 'UPDATE_EXTENSION_SETTINGS',
+          settings: { [key]: value },
+        }),
+      );
+      expect((screen.getByRole('checkbox', { name: label }) as HTMLInputElement).checked).toBe(
+        value,
+      );
+    }
+    await user.click(screen.getByRole('button', { name: 'Verificar conexão agora' }));
+    await screen.findByText('Conexão confirmada.');
+    expect(requests.some((request) => request.url === '/api/vault/tickets')).toBe(false);
+  });
+  it('reports a failed package download and can reconnect after installation', async () => {
+    const user = userEvent.setup();
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (...args) =>
+      args[0] === '/api/extension/package'
+        ? ({ ok: false, json: async () => ({ error: 'Execute npm run build.' }) } as Response)
+        : original(...args),
+    );
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Instalar extensão' }));
+    await user.click(screen.getByRole('button', { name: 'Baixar pacote da extensão (.zip)' }));
+    await screen.findByText('Execute npm run build.');
+    vi.stubGlobal('chrome', {
+      runtime: {
+        sendMessage: (_id: string, _msg: unknown, callback: (reply: unknown) => void) =>
+          callback({
+            status: 'ok',
+            settings: { openOnStartup: false, openOnNewTab: false, showToastNotifications: true },
+          }),
+      },
+    });
+    await user.click(screen.getByRole('button', { name: 'Verificar conexão agora' }));
+    await screen.findByText('Conexão confirmada.');
+    expect(
+      screen.getByRole('button', { name: 'Extensão ativa' }).classList.contains('is-detected'),
+    ).toBe(true);
   });
 });

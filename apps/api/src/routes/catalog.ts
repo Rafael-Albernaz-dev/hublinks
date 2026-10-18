@@ -1,358 +1,56 @@
 import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../types/index.js';
-import { randomUUID } from 'node:crypto';
-import type { CatalogRow, CatalogItem, CatalogCredentialType } from '../types/index.js';
 import { catalogInput } from '../validators/index.js';
-import { activeSession, adminSession } from '../services/session.js';
-import { encryptCredential } from '../vault.js';
+import { activeSession } from '../services/session.js';
+import {
+  listCatalogServices,
+  createCatalogService,
+  updateCatalogService,
+  deleteCatalogService,
+} from '../services/catalog.js';
+import { discoverServiceFavicon } from '../services/favicon.js';
 
 export function registerCatalogRoutes(server: FastifyInstance, context: ApiContext): void {
   const { pool } = context;
-  function catalogItem(row: CatalogRow): CatalogItem {
-    return {
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      category: row.category,
-      credentialType: row.credential_type,
-      targetUrl: row.target_url,
-      hasAction: row.has_action,
-      logoDataUrl: row.logo_data_url,
-      hasCredential: row.has_credential,
-    };
-  }
-
-  async function readCatalogItem(serviceId: string, userId: string) {
-    const result = await pool.query<CatalogRow>(
-      `SELECT s.id, s.name, s.description, s.category, s.credential_type, s.target_url,
-              s.has_action, s.logo_data_url,
-              EXISTS (SELECT 1 FROM vault_credentials vc WHERE vc.service_id = s.id
-                AND ((s.credential_type = 'shared' AND vc.owner_user_id IS NULL)
-                  OR (s.credential_type = 'individual' AND vc.owner_user_id = $2))) AS has_credential
-       FROM services s WHERE s.id = $1`,
-      [serviceId, userId],
-    );
-    return result.rows[0] ? catalogItem(result.rows[0]) : null;
-  }
-
   server.get('/api/catalog', async (request, reply) => {
     const session = await activeSession(pool, request, reply);
     if (!session) return;
-    const result = await pool.query<CatalogRow>(
-      `SELECT s.id, s.name, s.description, s.category, s.credential_type, s.target_url,
-              s.has_action, s.logo_data_url,
-              EXISTS (SELECT 1 FROM vault_credentials vc WHERE vc.service_id = s.id
-                AND ((s.credential_type = 'shared' AND vc.owner_user_id IS NULL)
-                  OR (s.credential_type = 'individual' AND vc.owner_user_id = $1))) AS has_credential
-       FROM services s ORDER BY s.created_at ASC, s.id ASC`,
-      [session.id],
-    );
-    return { services: result.rows.map(catalogItem) };
+    return { services: await listCatalogServices(pool, session.id) };
   });
 
   server.post('/api/catalog/services', async (request, reply) => {
-    const session = await adminSession(pool, request, reply);
+    const session = await activeSession(pool, request, reply);
     if (!session) return;
     const input = catalogInput(request.body);
     if (!input) return reply.code(400).send({ error: 'Dados do card inválidos.' });
-    const id = randomUUID();
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(
-        `INSERT INTO services (id, name, description, category, credential_type, target_url, has_action, logo_data_url)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [
-          id,
-          input.name,
-          input.description,
-          input.category,
-          input.credentialType,
-          input.targetUrl,
-          input.targetUrl !== null,
-          input.logoDataUrl,
-        ],
-      );
-      await client.query(
-        `INSERT INTO audit_logs (user_id, action, service_id, ip_address, details)
-         VALUES ($1, 'service_created', $2, $3, $4)`,
-        [
-          session.id,
-          id,
-          request.ip,
-          JSON.stringify({ category: input.category, credentialType: input.credentialType }),
-        ],
-      );
-      if (input.credential) {
-        const enc = encryptCredential(
-          input.credential.username,
-          input.credential.password,
-          id,
-          null,
-          1,
-        );
-        await client.query(
-          `INSERT INTO vault_credentials (service_id, owner_user_id, encrypted_username,
-            encrypted_password, iv, auth_tag, key_version) VALUES ($1, NULL, $2, $3, $4, $5, $6)`,
-          [id, enc.encryptedUsername, enc.encryptedPassword, enc.iv, enc.authTag, enc.keyVersion],
-        );
-        await client.query(
-          `INSERT INTO audit_logs (user_id, action, service_id, ip_address, details)
-           VALUES ($1, 'credential_saved', $2, $3, $4)`,
-          [session.id, id, request.ip, JSON.stringify({ credentialType: 'shared' })],
-        );
-      }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-    return reply.code(201).send({ service: await readCatalogItem(id, session.id) });
+    const result = await createCatalogService(pool, input, session, request.ip);
+    if (!result.ok) return reply.code(result.statusCode).send({ error: result.error });
+    return reply.code(201).send({ service: result.value });
   });
 
   server.put<{ Params: { id: string } }>('/api/catalog/services/:id', async (request, reply) => {
-    const session = await adminSession(pool, request, reply);
+    const session = await activeSession(pool, request, reply);
     if (!session) return;
     const input = catalogInput(request.body);
     if (!input) return reply.code(400).send({ error: 'Dados do card inválidos.' });
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const existing = await client.query<{ credential_type: CatalogCredentialType }>(
-        'SELECT credential_type FROM services WHERE id = $1 FOR UPDATE',
-        [request.params.id],
-      );
-      if (!existing.rows[0]) {
-        await client.query('ROLLBACK');
-        return reply.code(404).send({ error: 'Serviço não encontrado.' });
-      }
-      await client.query(
-        `UPDATE services SET name = $2, description = $3, category = $4, credential_type = $5,
-          target_url = $6, has_action = $7, logo_data_url = $8 WHERE id = $1`,
-        [
-          request.params.id,
-          input.name,
-          input.description,
-          input.category,
-          input.credentialType,
-          input.targetUrl,
-          input.targetUrl !== null,
-          input.logoDataUrl,
-        ],
-      );
-      if (existing.rows[0].credential_type !== input.credentialType) {
-        await client.query('DELETE FROM vault_credentials WHERE service_id = $1', [
-          request.params.id,
-        ]);
-      }
-      if (input.credential) {
-        const enc = encryptCredential(
-          input.credential.username,
-          input.credential.password,
-          request.params.id,
-          null,
-          1,
-        );
-        await client.query(
-          `INSERT INTO vault_credentials (service_id, owner_user_id, encrypted_username,
-            encrypted_password, iv, auth_tag, key_version, updated_at)
-           VALUES ($1, NULL, $2, $3, $4, $5, $6, NOW())
-           ON CONFLICT (service_id) WHERE owner_user_id IS NULL DO UPDATE SET
-            encrypted_username = EXCLUDED.encrypted_username,
-            encrypted_password = EXCLUDED.encrypted_password, iv = EXCLUDED.iv,
-            auth_tag = EXCLUDED.auth_tag, key_version = EXCLUDED.key_version, updated_at = NOW()`,
-          [
-            request.params.id,
-            enc.encryptedUsername,
-            enc.encryptedPassword,
-            enc.iv,
-            enc.authTag,
-            enc.keyVersion,
-          ],
-        );
-        await client.query(
-          `INSERT INTO audit_logs (user_id, action, service_id, ip_address, details)
-           VALUES ($1, 'credential_saved', $2, $3, $4)`,
-          [session.id, request.params.id, request.ip, JSON.stringify({ credentialType: 'shared' })],
-        );
-      }
-      await client.query(
-        `INSERT INTO audit_logs (user_id, action, service_id, ip_address, details)
-         VALUES ($1, 'service_updated', $2, $3, $4)`,
-        [
-          session.id,
-          request.params.id,
-          request.ip,
-          JSON.stringify({ category: input.category, credentialType: input.credentialType }),
-        ],
-      );
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-    return { service: await readCatalogItem(request.params.id, session.id) };
+    const result = await updateCatalogService(pool, request.params.id, input, session, request.ip);
+    if (!result.ok) return reply.code(result.statusCode).send({ error: result.error });
+    return { service: result.value };
   });
 
   server.delete<{ Params: { id: string } }>('/api/catalog/services/:id', async (request, reply) => {
-    const session = await adminSession(pool, request, reply);
+    const session = await activeSession(pool, request, reply);
     if (!session) return;
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const deleted = await client.query('DELETE FROM services WHERE id = $1 RETURNING id', [
-        request.params.id,
-      ]);
-      if (!deleted.rowCount) {
-        await client.query('ROLLBACK');
-        return reply.code(404).send({ error: 'Serviço não encontrado.' });
-      }
-      await client.query(
-        `INSERT INTO audit_logs (user_id, action, service_id, ip_address, details)
-         VALUES ($1, 'service_deleted', NULL, $2, $3)`,
-        [session.id, request.ip, JSON.stringify({ serviceId: request.params.id })],
-      );
-      await client.query('COMMIT');
-      return reply.code(204).send();
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    const result = await deleteCatalogService(pool, request.params.id, session, request.ip);
+    if (!result.ok) return reply.code(result.statusCode).send({ error: result.error });
+    return reply.code(204).send();
   });
 
   server.get<{ Querystring: { url?: string } }>('/api/catalog/favicon', async (request, reply) => {
-    const session = await adminSession(pool, request, reply);
+    const session = await activeSession(pool, request, reply);
     if (!session) return;
-    const rawUrl = request.query?.url;
-    if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
-      return reply.code(400).send({ error: 'URL inválida.' });
-    }
-    let parsed: URL;
-    try {
-      parsed = new URL(rawUrl.trim());
-    } catch {
-      return reply.code(400).send({ error: 'URL inválida.' });
-    }
-    function isUnsafeTarget(u: URL): boolean {
-      const h = u.hostname.toLowerCase();
-      return (
-        u.protocol !== 'https:' ||
-        !h ||
-        u.username !== '' ||
-        u.password !== '' ||
-        h === 'localhost' ||
-        h.endsWith('.local') ||
-        h.endsWith('.internal') ||
-        h.endsWith('.test') ||
-        h.includes(':') ||
-        /^(127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(h)
-      );
-    }
-    const host = parsed.hostname.toLowerCase();
-    if (
-      parsed.protocol !== 'https:' ||
-      !host ||
-      parsed.username !== '' ||
-      parsed.password !== '' ||
-      host === 'localhost' ||
-      host.endsWith('.local') ||
-      host.endsWith('.internal') ||
-      host.includes(':') ||
-      /^(127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)
-    ) {
-      return reply.code(400).send({ error: 'URL de destino precisa ser HTTPS público.' });
-    }
-    if (host.endsWith('.test') || host === 'example.com') {
-      return { logoDataUrl: null, host };
-    }
-
-    function detectSupportedMime(buf: Buffer, headerMime: string): string | null {
-      if (
-        buf.byteLength >= 8 &&
-        buf[0] === 0x89 &&
-        buf[1] === 0x50 &&
-        buf[2] === 0x4e &&
-        buf[3] === 0x47
-      ) {
-        return 'image/png';
-      }
-      if (buf.byteLength >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
-        return 'image/jpeg';
-      }
-      if (
-        buf.byteLength >= 12 &&
-        buf.subarray(0, 4).toString('ascii') === 'RIFF' &&
-        buf.subarray(8, 12).toString('ascii') === 'WEBP'
-      ) {
-        return 'image/webp';
-      }
-      if (
-        headerMime === 'image/png' ||
-        headerMime === 'image/jpeg' ||
-        headerMime === 'image/webp'
-      ) {
-        return headerMime;
-      }
-      return null;
-    }
-
-    async function tryFetchIcon(
-      targetHref: string,
-      allowRedirect: boolean,
-    ): Promise<string | null> {
-      try {
-        const res = await fetch(targetHref, {
-          method: 'GET',
-          redirect: allowRedirect ? 'follow' : 'manual',
-          signal: AbortSignal.timeout(3500),
-          headers: {
-            Accept: 'image/png,image/jpeg,image/webp,image/*;q=0.8',
-            'User-Agent': 'Mozilla/5.0 (compatible; HublinkFaviconBot/1.0)',
-          },
-        });
-        if (!res.ok) return null;
-        if (res.url) {
-          try {
-            const finalUrl = new URL(res.url);
-            if (isUnsafeTarget(finalUrl)) return null;
-          } catch {
-            return null;
-          }
-        }
-        const contentType =
-          (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
-        const buf = Buffer.from(await res.arrayBuffer());
-        if (buf.byteLength === 0 || buf.byteLength > 200_000) return null;
-        const mime = detectSupportedMime(buf, contentType);
-        if (!mime) return null;
-        return `data:${mime};base64,${buf.toString('base64')}`;
-      } catch {
-        return null;
-      }
-    }
-
-    const candidates: Array<{ href: string; allowRedirect: boolean }> = [
-      {
-        href: `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=128`,
-        allowRedirect: true,
-      },
-      { href: new URL('/apple-touch-icon.png', parsed.origin).href, allowRedirect: true },
-      { href: new URL('/favicon.png', parsed.origin).href, allowRedirect: true },
-      { href: new URL('/favicon.ico', parsed.origin).href, allowRedirect: true },
-    ];
-
-    for (const candidate of candidates) {
-      const logoDataUrl = await tryFetchIcon(candidate.href, candidate.allowRedirect);
-      if (logoDataUrl) {
-        return { logoDataUrl, host };
-      }
-    }
-    return { logoDataUrl: null, host };
+    const result = await discoverServiceFavicon(request.query?.url);
+    if (!result.ok) return reply.code(result.statusCode).send({ error: result.error });
+    return { logoDataUrl: result.logoDataUrl, host: result.host };
   });
 }

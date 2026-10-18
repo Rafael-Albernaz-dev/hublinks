@@ -1,3 +1,4 @@
+import { adminSession } from '../services/session.js';
 import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../types/index.js';
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
@@ -25,6 +26,7 @@ export function registerConfigRoutes(server: FastifyInstance, context: ApiContex
   });
 
   server.put('/api/config', async (request, reply) => {
+    if (!(await adminSession(context.pool, request, reply))) return;
     let config: ReturnType<typeof parseConfig>;
     try {
       config = parseConfig(request.body);

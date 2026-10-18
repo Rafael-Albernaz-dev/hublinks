@@ -20,6 +20,7 @@ export type SessionRow = UserRow & { session_id: string };
 export type CatalogCategory = 'sva' | 'crm' | 'sheet' | 'sistemas' | 'outros';
 export type CatalogCredentialType = 'shared' | 'individual' | 'none';
 export type CatalogRow = {
+  owner_user_id: string | null;
   id: string;
   name: string;
   description: string | null;
@@ -32,6 +33,8 @@ export type CatalogRow = {
 };
 
 export type CatalogItem = {
+  ownerUserId: string | null;
+  scope: 'global' | 'personal';
   id: string;
   name: string;
   description: string | null;
@@ -62,7 +65,11 @@ export type ServiceInput = {
 export type VaultInput = { username: string; password: string; ownerUserId?: string | null };
 export type RevealInput = { ownerUserId?: string | null };
 export type TicketInput = { serviceId: string; ticket?: string };
-export type CatalogInput = Omit<CatalogItem, 'id' | 'hasAction' | 'hasCredential'> & {
+export type CatalogInput = Omit<
+  CatalogItem,
+  'id' | 'hasAction' | 'hasCredential' | 'ownerUserId' | 'scope'
+> & {
+  scope?: 'global' | 'personal';
   credential: VaultInput | null;
 };
 export type DemoLink = {
@@ -74,6 +81,8 @@ export type DemoLink = {
 };
 export type DemoConfig = {
   version: 1;
+  homeLayout?: 'grid' | 'list' | 'carousel';
+  showShortcutCards?: boolean;
   companyName: string;
   subtitle: string;
   color: { r: number; g: number; b: number };
@@ -99,4 +108,14 @@ export type ApiContext = {
   configPath: string;
   extensionOrigin: string | null;
   rateLimit: (bucket: 'login' | 'tickets', request: FastifyRequest, reply: FastifyReply) => boolean;
+};
+
+export type UserThemeOverrides = Partial<
+  Omit<DemoConfig, 'version' | 'links' | 'homeLayout' | 'showShortcutCards'>
+>;
+export type UserPreferences = {
+  homeLayout: 'grid' | 'list' | 'carousel';
+  showShortcutCards: boolean;
+  cardOrder: string[];
+  themeOverrides: UserThemeOverrides | null;
 };

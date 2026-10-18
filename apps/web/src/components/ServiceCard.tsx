@@ -1,9 +1,12 @@
+import type { HTMLAttributes } from 'react';
 import type { AuthenticatedWorkspace } from '../hooks/useWorkspace';
 import type { CatalogService } from '../types';
 import { Icon } from '../icons';
 import { normalizeSearch } from '../hooks/normalizeSearch';
 export function ServiceCard({
   service,
+  className = '',
+  dragProps,
   currentUser,
   setPage,
   query,
@@ -16,7 +19,11 @@ export function ServiceCard({
   setIndividualError,
   openVaultService,
   openingServiceId,
-}: { service: CatalogService } & Pick<
+}: {
+  service: CatalogService;
+  className?: string;
+  dragProps?: HTMLAttributes<HTMLAnchorElement>;
+} & Pick<
   AuthenticatedWorkspace,
   | 'currentUser'
   | 'setPage'
@@ -31,10 +38,13 @@ export function ServiceCard({
   | 'openVaultService'
   | 'openingServiceId'
 >) {
+  const canManage =
+    (currentUser.role === 'admin' && !service.ownerUserId) ||
+    service.ownerUserId === currentUser.id;
   const missing = !service.hasAction || !service.targetUrl;
   const pending = service.credentialType === 'individual' && !service.hasCredential;
   const action = missing
-    ? currentUser.role === 'admin'
+    ? canManage
       ? 'Configurar'
       : 'Sem destino'
     : pending
@@ -62,15 +72,18 @@ export function ServiceCard({
       hidden={
         !normalizeSearch(service.name + ' ' + service.category).includes(normalizeSearch(query))
       }
-      className="hb-service"
+      className={'hb-service ' + className}
+      {...dragProps}
       href={missing ? undefined : service.targetUrl!}
       role={missing || pending ? 'button' : undefined}
-      tabIndex={missing ? (currentUser.role === 'admin' ? 0 : -1) : undefined}
-      aria-disabled={missing && currentUser.role !== 'admin'}
+      tabIndex={missing ? (canManage ? 0 : -1) : undefined}
+      aria-disabled={missing && !canManage}
       aria-label={action + ' ' + service.name}
       target="_blank"
       rel="noopener noreferrer"
       onKeyDown={(e) => {
+        dragProps?.onKeyDown?.(e);
+        if (e.defaultPrevented) return;
         if ((missing || pending) && e.key === ' ') {
           e.preventDefault();
           e.currentTarget.click();
@@ -83,7 +96,7 @@ export function ServiceCard({
       onClick={(e) => {
         if (missing) {
           e.preventDefault();
-          if (currentUser.role === 'admin') {
+          if (canManage) {
             setPage('catalogo');
             setCatalogQuery('');
             setEditingCatalogId(service.id);
@@ -118,6 +131,13 @@ export function ServiceCard({
       <strong className="hb-service-name">{service.name}</strong>
       <span className="hb-service-desc">
         {service.description || (missing ? 'Destino ainda não configurado' : 'Acesso da equipe')}
+      </span>
+      <span className="hb-badge">
+        {
+          { sva: 'SVA', crm: 'CRM', sheet: 'Planilha', sistemas: 'Sistemas', outros: 'Outros' }[
+            service.category
+          ]
+        }
       </span>
       <span className="hb-service-bottom">
         <span className={'hb-state' + (pending && !missing ? ' hb-pending' : '')}>

@@ -3,64 +3,170 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hublink</title>
+    <title>Hublink — Central da extensão</title>
     <style>
+      * {
+        box-sizing: border-box;
+      }
       body {
-        width: 300px;
+        width: 340px;
         margin: 0;
         padding: 20px;
         font:
-          14px/1.5 system-ui,
+          13px/1.5 system-ui,
           sans-serif;
-        background: #18181b;
-        color: #fafafa;
+        background: #141620;
+        color: #f4f3ff;
+      }
+      header {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .mark {
+        background: #b49aff;
+        color: #20133b;
+        border-radius: 12px;
+        font-size: 24px;
+        font-weight: 800;
+        padding: 4px 12px;
       }
       h1 {
-        margin: 0 0 12px;
+        margin: 0;
         font-size: 22px;
       }
-      #api-status {
-        display: inline-block;
-        padding: 4px 8px;
-        border-radius: 6px;
-        background: #3f3f46;
+      h2 {
+        font-size: 14px;
+        margin: 0 0 12px;
       }
-      #api-status[data-state='online'] {
-        background: #14532d;
+      header small {
+        color: #c4c5d8;
       }
-      #api-status[data-state='offline'] {
-        background: #7f1d1d;
+      .status {
+        margin: 8px 0;
+        padding: 8px 10px;
+        background: #292d40;
+        border: 1px solid #656b87;
+        border-radius: 10px;
+      }
+      .status[data-state='online'] {
+        background: #123e32;
+        border-color: #34d399;
+        color: #a7f3d0;
+      }
+      .status[data-state='offline'] {
+        background: #462c16;
+        border-color: #fbbf24;
+        color: #fde68a;
       }
       button {
         width: 100%;
         padding: 10px;
-        border: 0;
-        border-radius: 8px;
-        background: #c4b5fd;
-        color: #18181b;
+        border: 1px solid #777f9d;
+        border-radius: 10px;
+        background: #272b3c;
+        color: #f4f3ff;
         font: inherit;
         cursor: pointer;
       }
-      button:focus-visible {
-        outline: 2px solid white;
+      button:hover {
+        border-color: #c4b5fd;
+        background: #36324c;
+      }
+      #open-hublink {
+        background: #c4b5fd;
+        color: #24133f;
+        font-weight: 700;
+        border-color: #c4b5fd;
+        margin-top: 8px;
+      }
+      #copy-workspace {
+        margin-top: 8px;
+      }
+      button:focus-visible,
+      input:focus-visible {
+        outline: 3px solid #fbbf24;
         outline-offset: 3px;
       }
-      small {
+      button:disabled,
+      input:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
+      section {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #555b76;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 12px 0;
+        cursor: pointer;
+      }
+      input {
+        accent-color: #c4b5fd;
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+      }
+      #quick-shortcuts {
+        display: grid;
+        gap: 8px;
+        max-height: 180px;
+        overflow-y: auto;
+      }
+      #quick-shortcuts small {
         display: block;
-        margin: 14px 0;
-        color: #d4d4d8;
+        color: #c4c5d8;
+        font-size: 11px;
+      }
+      #quick-shortcuts button {
+        text-align: left;
+        overflow-wrap: anywhere;
+      }
+      #popup-notice {
+        min-height: 20px;
+        color: #fde68a;
+      }
+      footer {
+        margin-top: 12px;
+        color: #c4c5d8;
+        font-size: 11px;
       }
     </style>
   </head>
   <body>
-    <h1>Hublink</h1>
-    <div id="api-status" role="status" aria-live="polite">Verificando API local…</div>
-    <p id="tab-status" role="status" aria-live="polite">Verificando aba ativa…</p>
-    <small
-      >O Hublink nunca envia formulários automaticamente. Revise os dados, resolva CAPTCHA ou 2FA e
-      envie manualmente.</small
-    >
+    <header>
+      <span class="mark" aria-hidden="true">H</span>
+      <div>
+        <h1>Hublink</h1>
+        <small>Seu Workspace, sempre perto</small>
+      </div>
+    </header>
+    <div id="api-status" class="status" role="status" aria-live="polite">
+      Verificando API local…
+    </div>
+    <p id="tab-status" class="status" role="status" aria-live="polite">Verificando aba ativa…</p>
     <button id="open-hublink" type="button">Abrir Hublink Workspace</button>
+    <button id="copy-workspace" type="button">Copiar URL do Hub</button>
+    <section aria-labelledby="options-title">
+      <h2 id="options-title">Opções rápidas</h2>
+      <label><input id="opt-startup" type="checkbox" />Abrir Hublink ao iniciar o Chrome</label>
+      <label><input id="opt-newtab" type="checkbox" />Usar Hublink ao abrir Nova Guia</label>
+      <label><input id="opt-notifications" type="checkbox" />Exibir avisos de preenchimento</label>
+    </section>
+    <section aria-labelledby="shortcuts-title">
+      <h2 id="shortcuts-title">Atalhos rápidos</h2>
+      <div id="quick-shortcuts">Abra o Workspace para ver seus atalhos.</div>
+    </section>
+    <p id="popup-notice" role="status" aria-live="polite"></p>
+    <footer>
+      Preenchimento assistido, sem envio automático. Revise os dados e conclua CAPTCHA ou 2FA
+      manualmente.
+    </footer>
     <script src="popup.js"></script>
   </body>
 </html>
