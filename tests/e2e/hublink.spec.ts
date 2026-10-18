@@ -35,10 +35,19 @@ test.beforeEach(async ({ page, request }) => {
     const response = await route.fetch({ url: `${apiBase}${target.pathname}${target.search}` });
     await route.fulfill({ response });
   });
+  const auth = await request.post(`${apiBase}/api/auth/login`, {
+    data: {
+      email: process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
+      password: process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
+    },
+  });
+  expect(auth.ok()).toBeTruthy();
   const response = await request.put(`${apiBase}/api/config`, {
     data: initialConfig,
   });
   expect(response.ok()).toBeTruthy();
+  const preferences = await request.delete(`${apiBase}/api/me/preferences`);
+  expect(preferences.ok()).toBeTruthy();
 });
 
 test.afterAll(async () => {

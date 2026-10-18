@@ -1,0 +1,167 @@
+.catalog-editor {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+.catalog-editor img {
+  max-width: 100%;
+  max-height: 80px;
+  object-fit: contain;
+}
+.notice,
+.api-error,
+.form-error {
+  padding: 12px 14px;
+  background: var(--hb-soft);
+  border: 1px solid var(--hb-line);
+  border-radius: 10px;
+  font-size: 12px;
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+.extension-overlay,
+.hublink-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #0008;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  overflow-y: auto;
+}
+.extension-dialog,
+.hublink-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  border: 1px solid var(--hb-line);
+  border-radius: var(--hb-radius);
+  padding: 28px;
+  background: var(--hb-panel);
+  color: var(--hb-ink);
+}
+.extension-dialog {
+  display: grid;
+  gap: 18px;
+}
+.extension-dialog h2,
+.hublink-modal-header {
+  padding-right: 32px;
+}
+.extension-close,
+.hublink-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+.hublink-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hublink-modal-icon {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--hb-soft);
+  color: var(--hb-accent);
+}
+.hublink-modal-icon img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+.hublink-modal-chip {
+  font-size: 10px;
+  color: var(--hb-sub);
+}
+.hublink-modal-desc {
+  margin: 20px 0;
+}
+.hublink-modal-form {
+  display: grid;
+  gap: 16px;
+}
+.hublink-password-wrapper {
+  display: flex;
+  min-width: 0;
+}
+.hublink-password-toggle {
+  flex: none;
+  font-size: 11px;
+}
+.hublink-modal-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.favicon-capture-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hb-line);
+  background: var(--hb-panel);
+  font-size: 12px;
+}
+.favicon-capture-banner.is-captured {
+  background: color-mix(in srgb, var(--hb-accent) 9%, var(--hb-panel));
+  border-color: color-mix(in srgb, var(--hb-accent) 32%, var(--hb-line));
+}
+.favicon-capture-banner.is-failed {
+  background: color-mix(in srgb, var(--hb-pending) 12%, var(--hb-panel));
+  border-color: color-mix(in srgb, var(--hb-pending) 35%, var(--hb-line));
+  color: var(--hb-pending);
+}
+.favicon-capture-thumb {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: #fff;
+  border: 1px solid #d8dee9;
+  display: grid;
+  place-items: center;
+  padding: 5px;
+  overflow: hidden;
+}
+.favicon-capture-thumb img {
+  max-width: 100%;
+  max-height: 26px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.favicon-capture-info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.favicon-capture-info strong {
+  font-size: 12px;
+  color: var(--hb-ink);
+}
+.favicon-capture-info small {
+  font-size: 11px;
+  color: var(--hb-sub);
+}
+.modal-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.hublink-modal-card {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.button-danger {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+  font-weight: 600;
+}

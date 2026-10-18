@@ -23,7 +23,7 @@ export function useDialogFocus({
   | 'setIndividualError'
 >) {
   useEffect(() => {
-    if (!showExtensionGuide && !individualModal) return;
+    if (showExtensionGuide || !individualModal) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = dialogRef.current;
     const focusable = () =>

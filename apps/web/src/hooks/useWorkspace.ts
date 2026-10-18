@@ -3,6 +3,7 @@ import type { WorkspaceActions } from '../types/actions';
 import { useAuth } from './useAuth';
 import { useCatalog } from './useCatalog';
 import { useExtensionBridge } from './useExtensionBridge';
+import { usePreferences } from './usePreferences';
 import { useIdentity } from './useIdentity';
 import { useTeam } from './useTeam';
 import { useTheme } from './useTheme';
@@ -24,7 +25,8 @@ export function useWorkspace() {
   const catalog = useCatalog(state, dependencies);
   const vault = useVault(state, dependencies);
   const team = useTeam(state);
-  const identity = useIdentity(state);
+  const personal = usePreferences(state.currentUser);
+  const identity = useIdentity(state, personal);
   const extensionBridge = useExtensionBridge(state);
   useDialogFocus(state);
   useSessionCleanup(state);
@@ -38,6 +40,7 @@ export function useWorkspace() {
     ...team,
     ...extensionBridge,
     ...identity,
+    ...personal,
   };
 }
 export type WorkspaceModel = ReturnType<typeof useWorkspace>;

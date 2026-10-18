@@ -10,6 +10,8 @@ import type {
   RevealInput,
   TicketInput,
   DemoConfig,
+  UserPreferences,
+  UserThemeOverrides,
 } from '../types/index.js';
 
 export function ticketInput(body: unknown, exchange = false): TicketInput | null {
@@ -119,6 +121,7 @@ export function catalogInput(body: unknown): CatalogInput | null {
     Object.keys(input).some(
       (key) =>
         ![
+          'scope',
           'name',
           'description',
           'category',
@@ -181,7 +184,18 @@ export function catalogInput(body: unknown): CatalogInput | null {
     ? vaultInput({ username: input.username, password: input.password })
     : null;
   if (hasUsername && !credential) return null;
-  return { name, description, category, credentialType, targetUrl, logoDataUrl, credential };
+  if (input.scope !== undefined && input.scope !== 'global' && input.scope !== 'personal')
+    return null;
+  return {
+    name,
+    description,
+    category,
+    credentialType,
+    targetUrl,
+    logoDataUrl,
+    credential,
+    ...(input.scope ? { scope: input.scope } : {}),
+  };
 }
 
 export function vaultInput(body: unknown): VaultInput | null {
@@ -267,6 +281,15 @@ export function image(value: unknown, max: number, name: string): string | null 
 export function parseConfig(input: unknown): DemoConfig {
   const config = object(input);
   if (config.version !== 1) throw new Error('Unsupported configuration version.');
+  if (
+    config.homeLayout !== undefined &&
+    config.homeLayout !== 'grid' &&
+    config.homeLayout !== 'list' &&
+    config.homeLayout !== 'carousel'
+  )
+    throw new Error('Invalid Home layout.');
+  if (config.showShortcutCards !== undefined && typeof config.showShortcutCards !== 'boolean')
+    throw new Error('Invalid shortcuts visibility.');
   const color = object(config.color);
   for (const key of ['r', 'g', 'b']) {
     if (
@@ -330,6 +353,12 @@ export function parseConfig(input: unknown): DemoConfig {
 
   return {
     version: 1 as const,
+    ...(config.homeLayout !== undefined
+      ? { homeLayout: config.homeLayout as 'grid' | 'list' | 'carousel' }
+      : {}),
+    ...(config.showShortcutCards !== undefined
+      ? { showShortcutCards: config.showShortcutCards as boolean }
+      : {}),
     companyName: string(config.companyName, 'Company name', 60),
     subtitle: string(config.subtitle, 'Subtitle', 160, false),
     color: { r: color.r as number, g: color.g as number, b: color.b as number },
@@ -345,4 +374,73 @@ export function parseConfig(input: unknown): DemoConfig {
     ...(textColor ? { textColor } : {}),
     ...(backgroundColor ? { backgroundColor } : {}),
   };
+}
+
+export function preferencesInput(body: unknown): Partial<UserPreferences> | null {
+  try {
+    const input = object(body);
+    if (
+      Object.keys(input).some(
+        (key) => !['homeLayout', 'showShortcutCards', 'cardOrder', 'themeOverrides'].includes(key),
+      )
+    )
+      return null;
+    const result: Partial<UserPreferences> = {};
+    if ('homeLayout' in input) {
+      if (
+        input.homeLayout !== 'grid' &&
+        input.homeLayout !== 'list' &&
+        input.homeLayout !== 'carousel'
+      )
+        return null;
+      result.homeLayout = input.homeLayout;
+    }
+    if ('showShortcutCards' in input) {
+      if (typeof input.showShortcutCards !== 'boolean') return null;
+      result.showShortcutCards = input.showShortcutCards;
+    }
+    if ('cardOrder' in input) {
+      if (
+        !Array.isArray(input.cardOrder) ||
+        input.cardOrder.length > 100 ||
+        input.cardOrder.some((id) => typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,50}$/.test(id)) ||
+        new Set(input.cardOrder).size !== input.cardOrder.length
+      )
+        return null;
+      result.cardOrder = input.cardOrder;
+    }
+    if ('themeOverrides' in input) {
+      if (input.themeOverrides === null) result.themeOverrides = null;
+      else {
+        const theme = object(input.themeOverrides);
+        const keys = [
+          'companyName',
+          'subtitle',
+          'color',
+          'logoDataUrl',
+          'headerTagline',
+          'homeEyebrow',
+          'homeTitle',
+          'brandPrimaryText',
+          'brandPrimaryColor',
+          'brandSecondaryText',
+          'brandSecondaryColor',
+          'textColor',
+          'backgroundColor',
+        ];
+        if (Object.keys(theme).some((key) => !keys.includes(key))) return null;
+        const parsed = parseConfig({ ...DEFAULT_CONFIG, ...theme });
+        // Keep only explicitly supplied fields, including empty strings and null resets.
+        const normalized: Record<string, unknown> = {};
+        for (const key of Object.keys(theme))
+          normalized[key] =
+            (parsed as unknown as Record<string, unknown>)[key] ??
+            (theme[key] === null ? null : '');
+        result.themeOverrides = normalized as UserThemeOverrides;
+      }
+    }
+    return result;
+  } catch {
+    return null;
+  }
 }

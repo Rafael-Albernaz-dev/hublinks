@@ -9,6 +9,8 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerCatalogRoutes } from './routes/catalog.js';
 import { registerVaultRoutes } from './routes/vault.js';
+import { registerPreferencesRoutes } from './routes/preferences.js';
+import { registerExtensionRoutes } from './routes/extension.js';
 import { registerConfigRoutes } from './routes/config.js';
 export type { ServerOptions } from './types/index.js';
 
@@ -59,6 +61,8 @@ export function createServer(
   registerCatalogRoutes(server, context);
   registerVaultRoutes(server, context);
   registerConfigRoutes(server, context);
+  registerExtensionRoutes(server, context);
+  registerPreferencesRoutes(server, context);
   return server;
 }
 

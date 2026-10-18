@@ -1,107 +1,17 @@
-import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
-import { Icon } from '../icons';
-import type { CatalogService } from '../types';
-
-export function ModalDialog({
-  titleId,
-  chip,
-  title,
-  description,
-  icon = 'Settings2',
-  logoDataUrl,
-  onClose,
-  children,
-}: {
-  titleId: string;
-  chip: string;
-  title: string;
-  description?: ReactNode;
-  icon?: 'Settings2' | 'KeyRound' | 'LockKeyhole' | 'Users' | 'Trash' | 'Plus' | 'Edit';
-  logoDataUrl?: string | null;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  useEffect(() => {
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const dialog = cardRef.current;
-    const focusable = () =>
-      Array.from(
-        dialog?.querySelectorAll<HTMLElement>(
-          'button, a[href], input:not(.visually-hidden), select, textarea, [tabindex="0"]',
-        ) ?? [],
-      ).filter((node) => !node.hasAttribute('disabled'));
-    focusable()[0]?.focus();
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        onCloseRef.current();
-      }
-      if (event.key === 'Tab') {
-        const nodes = focusable();
-        if (!nodes.length) return;
-        const next = event.shiftKey ? nodes.at(-1) : nodes[0];
-        if (
-          (event.shiftKey && document.activeElement === nodes[0]) ||
-          (!event.shiftKey && document.activeElement === nodes.at(-1))
-        ) {
-          event.preventDefault();
-          next?.focus();
-        }
-      }
-    }
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      previous?.focus();
-    };
-  }, []);
-
-  return (
-    <div
-      className="hublink-modal-overlay"
-      role="presentation"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="hublink-modal-card"
-        ref={cardRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <button type="button" className="hublink-modal-close" aria-label="Fechar" onClick={onClose}>
-          ×
-        </button>
-        <div className="hublink-modal-header">
-          <div className="hublink-modal-icon" aria-hidden="true">
-            {logoDataUrl ? <img src={logoDataUrl} alt="" /> : <Icon name={icon} />}
-          </div>
-          <div>
-            <span className="hublink-modal-chip">{chip}</span>
-            <h2 id={titleId}>{title}</h2>
-          </div>
-        </div>
-        {description && <p className="hublink-modal-desc">{description}</p>}
-        {children}
-      </div>
-    </div>
-  );
-}
+import { useState } from 'react';
+import { useServiceFavicon } from '../hooks/useServiceFavicon';
+import type { CatalogService, User } from '../types';
+export { ModalDialog } from '../components/ModalDialog';
 
 export function CatalogEditor({
   service,
+  currentUser,
   onSave,
   onCancel,
   busy,
 }: {
   service?: CatalogService;
+  currentUser: User;
   onSave: (
     value: Omit<CatalogService, 'id' | 'hasAction' | 'hasCredential'> & {
       username?: string;
@@ -111,6 +21,10 @@ export function CatalogEditor({
   onCancel: () => void;
   busy: boolean;
 }) {
+  const [scope, setScope] = useState<'global' | 'personal'>(
+    service?.scope ?? (currentUser.role === 'admin' ? 'global' : 'personal'),
+  );
+  const personal = scope === 'personal' || currentUser.role !== 'admin';
   const [name, setName] = useState(service?.name ?? '');
   const [targetUrl, setTargetUrl] = useState(service?.targetUrl ?? '');
   const [description, setDescription] = useState(service?.description ?? '');
@@ -118,100 +32,22 @@ export function CatalogEditor({
   const [credentialType, setCredentialType] = useState<CatalogService['credentialType']>(
     service?.credentialType ?? 'none',
   );
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(service?.logoDataUrl ?? null);
-  const [manualLogo, setManualLogo] = useState<boolean>(Boolean(service?.logoDataUrl));
-  const [faviconStatus, setFaviconStatus] = useState<'idle' | 'loading' | 'captured' | 'failed'>(
-    'idle',
-  );
-  const [capturedHost, setCapturedHost] = useState<string>('');
-  const [faviconMessage, setFaviconMessage] = useState<string>('');
+  const {
+    logoDataUrl,
+    setLogoDataUrl,
+    manualLogo,
+    setManualLogo,
+    faviconStatus,
+    setFaviconStatus,
+    capturedHost,
+    faviconMessage,
+    setFaviconMessage,
+    fetchFaviconForUrl,
+  } = useServiceFavicon({ targetUrl, setTargetUrl, initialLogoDataUrl: service?.logoDataUrl });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-
-  async function fetchFaviconForUrl(rawUrl: string, isManualTrigger = false) {
-    const trimmed = rawUrl.trim();
-    if (!trimmed) {
-      if (isManualTrigger) {
-        setFaviconStatus('failed');
-        setFaviconMessage('Informe um endereço HTTPS válido antes de capturar o favicon.');
-      }
-      return;
-    }
-    const candidateUrl =
-      trimmed.startsWith('https://') || trimmed.startsWith('http://')
-        ? trimmed
-        : `https://${trimmed}`;
-    let parsed: URL;
-    try {
-      parsed = new URL(candidateUrl);
-      if (parsed.protocol !== 'https:' || !parsed.hostname || parsed.username || parsed.password) {
-        if (isManualTrigger) {
-          setFaviconStatus('failed');
-          setFaviconMessage('O endereço precisa usar HTTPS público para capturar o favicon.');
-        }
-        return;
-      }
-    } catch {
-      if (isManualTrigger) {
-        setFaviconStatus('failed');
-        setFaviconMessage('Endereço HTTPS inválido para captura de favicon.');
-      }
-      return;
-    }
-    if (isManualTrigger && candidateUrl !== trimmed) {
-      setTargetUrl(parsed.href);
-    }
-    setFaviconStatus('loading');
-    setFaviconMessage(`Buscando favicon de ${parsed.hostname}...`);
-    try {
-      const response = await fetch(`/api/catalog/favicon?url=${encodeURIComponent(parsed.href)}`);
-      if (!response.ok) {
-        setFaviconStatus(isManualTrigger ? 'failed' : 'idle');
-        setFaviconMessage(
-          isManualTrigger ? 'Não foi possível consultar o favicon para este endereço.' : '',
-        );
-        return;
-      }
-      const data = (await response.json()) as { logoDataUrl?: string | null; host?: string };
-      if (typeof data.logoDataUrl === 'string' && data.logoDataUrl.startsWith('data:image/')) {
-        setLogoDataUrl(data.logoDataUrl);
-        setCapturedHost(data.host || parsed.hostname);
-        setFaviconStatus('captured');
-        setFaviconMessage(`Favicon capturado de ${data.host || parsed.hostname}`);
-      } else {
-        setFaviconStatus(isManualTrigger ? 'failed' : 'idle');
-        setFaviconMessage(
-          isManualTrigger
-            ? `Nenhum favicon público encontrado em ${parsed.hostname}. Você pode enviar uma logo manualmente.`
-            : '',
-        );
-      }
-    } catch {
-      setFaviconStatus(isManualTrigger ? 'failed' : 'idle');
-      setFaviconMessage(
-        isManualTrigger ? 'Erro ao buscar o favicon. Envie uma logo manualmente.' : '',
-      );
-    }
-  }
-
-  useEffect(() => {
-    if (manualLogo || !targetUrl.trim()) return;
-    let parsed: URL;
-    try {
-      parsed = new URL(targetUrl.trim());
-      if (parsed.protocol !== 'https:' || !parsed.hostname || parsed.username || parsed.password) {
-        return;
-      }
-    } catch {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      void fetchFaviconForUrl(parsed.href, false);
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [targetUrl, manualLogo]);
 
   const monogram = (name.trim() || 'SV').slice(0, 2).toUpperCase();
 
@@ -240,6 +76,7 @@ export function CatalogEditor({
         }
         setError('');
         void onSave({
+          scope: personal ? 'personal' : 'global',
           name: name.trim(),
           targetUrl: targetUrl || null,
           description: description.trim() || null,
@@ -250,6 +87,23 @@ export function CatalogEditor({
         });
       }}
     >
+      {currentUser.role === 'admin' && !service && (
+        <label className="hublink-form-label">
+          Escopo
+          <select
+            className="hublink-input"
+            value={scope}
+            onChange={(event) => {
+              const next = event.target.value as 'global' | 'personal';
+              setScope(next);
+              if (next === 'personal' && credentialType === 'shared') setCredentialType('none');
+            }}
+          >
+            <option value="global">Padrão da equipe</option>
+            <option value="personal">Pessoal (só para mim)</option>
+          </select>
+        </label>
+      )}
       <div className="modal-form-grid">
         <label className="hublink-form-label">
           <span>Nome do serviço/card</span>
@@ -311,7 +165,9 @@ export function CatalogEditor({
             }
           >
             <option value="none">Sem login / Sem cofre (Link direto)</option>
-            {category !== 'sheet' && <option value="shared">Cofre Compartilhado (equipe)</option>}
+            {!personal && category !== 'sheet' && (
+              <option value="shared">Cofre Compartilhado (equipe)</option>
+            )}
             {category !== 'sheet' && (
               <option value="individual">Cofre Individual (por atendente)</option>
             )}

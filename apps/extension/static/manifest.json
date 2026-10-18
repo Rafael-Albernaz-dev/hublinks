@@ -6,7 +6,7 @@
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArJV7/JdchBY710ulNzlri2AzvNUGZ9r0xGyXwWiMQslmRsFTPiWSVIdL1j7UZRXLQxlxKh1EvxsQUsSdRrw0TvTwRDF6IStuCcvR9Ew1IS4PDDyVja8Z2FYpTxsg1/qsUCxd09XNbQuKuBqtau3HQzqGTFuUEAEdFP2x2I0BRdFynRLdcCx9GufEW67nOAIaRpwhWYXAn83a/+h+G2N9KZv6iKGVru+H50NHNVtg0AMOXJqVcgYINa9mbj1HNipoqfXYYa0MhXD3c2R6F1Th2+5js933rb3P1alw89pryKRWKU7X2w6zE4Zpi7dKbGpKIE11A5HZqyx/nT5SqcYJ/wIDAQAB",
   "action": { "default_popup": "popup.html" },
   "background": { "service_worker": "background.js" },
-  "permissions": ["tabs", "scripting"],
+  "permissions": ["tabs", "scripting", "storage"],
   "host_permissions": ["https://*/*", "http://127.0.0.1:3177/*"],
   "content_scripts": [
     {

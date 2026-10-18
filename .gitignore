@@ -40,3 +40,18 @@ screenshots/
 Thumbs.db
 .idea/
 .vscode/
+
+# AI assistants, internal prompts, and local orchestration (never versioned)
+/AGENTS.md
+/agent.md
+/gemini.md
+/GEMINI.md
+/prompts/
+/.agents/
+/.codex/
+/.claude/
+/.gemini/
+/.vigiadev/
+/vigiadev.yaml
+/vigiadev.local.yaml
+/skills-lock.json

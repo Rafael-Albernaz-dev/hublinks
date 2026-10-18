@@ -1,3 +1,8 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import { crc32 } from 'node:zlib';
+import { buildExtensionZipBuffer, extensionPackageFiles } from './services/extensionPackage.js';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -37,10 +42,12 @@ function sessionCookie(response: {
   return cookie[0];
 }
 
+let adminLoginClient = 0;
 async function adminLogin() {
   const response = await server.inject({
     method: 'POST',
     url: '/api/auth/login',
+    remoteAddress: `192.0.2.${++adminLoginClient}`,
     payload: {
       email: process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
       password: process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
@@ -287,7 +294,12 @@ test('PUT persists a valid configuration and GET returns it', async () => {
       },
     ],
   };
-  const response = await server.inject({ method: 'PUT', url: '/api/config', payload: config });
+  const response = await server.inject({
+    method: 'PUT',
+    url: '/api/config',
+    headers: { cookie: await adminLogin() },
+    payload: config,
+  });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().status, 'ok');
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), response.json().config);
@@ -297,7 +309,12 @@ test('PUT persists a valid configuration and GET returns it', async () => {
 test('PUT rejects invalid payloads without replacing the file', async () => {
   const before = await readFile(path, 'utf8');
   for (const payload of [{ version: 2 }, { version: 1, links: [] }]) {
-    const response = await server.inject({ method: 'PUT', url: '/api/config', payload });
+    const response = await server.inject({
+      method: 'PUT',
+      url: '/api/config',
+      headers: { cookie: await adminLogin() },
+      payload,
+    });
     assert.equal(response.statusCode, 400);
     assert.equal(typeof response.json().error, 'string');
   }
@@ -312,7 +329,12 @@ test('PUT rejects invalid payloads without replacing the file', async () => {
       ],
     },
   ]) {
-    const response = await server.inject({ method: 'PUT', url: '/api/config', payload: invalid });
+    const response = await server.inject({
+      method: 'PUT',
+      url: '/api/config',
+      headers: { cookie: await adminLogin() },
+      payload: invalid,
+    });
     assert.equal(response.statusCode, 400);
     assert.equal(typeof response.json().error, 'string');
   }
@@ -720,10 +742,10 @@ test('catalog migration, private listing, CRUD, and role isolation', async () =>
       targetUrl: 'https://example.test/form',
       logoDataUrl: null,
     };
-    for (const method of ['POST', 'PUT', 'DELETE'] as const) {
+    for (const method of ['PUT', 'DELETE'] as const) {
       const denied = await server.inject({
         method,
-        url: method === 'POST' ? '/api/catalog/services' : '/api/catalog/services/partiu',
+        url: '/api/catalog/services/partiu',
         headers: { cookie: attendantCookie },
         payload: method === 'DELETE' ? undefined : common,
       });
@@ -1151,5 +1173,435 @@ test('catalog favicon endpoint enforces admin auth and blocks non-HTTPS or priva
       headers: { cookie: adminCookie },
     });
     assert.equal(res.statusCode, 400);
+  }
+});
+
+async function personalLayerActor(role: 'admin' | 'attendant') {
+  const token = randomBytes(32).toString('hex');
+  const result = await pool.query<{ id: string }>(
+    `INSERT INTO users (display_name, email, password_hash, role) VALUES ('Synthetic layer user', $1, 'unused', $2) RETURNING id`,
+    [`layer-${randomBytes(8).toString('hex')}@example.test`, role],
+  );
+  const id = result.rows[0]!.id;
+  await pool.query('INSERT INTO sessions (user_id, token_hash) VALUES ($1, $2)', [
+    id,
+    createHash('sha256').update(token).digest('hex'),
+  ]);
+  return { id, cookie: `hublink_session=${token}` };
+}
+
+test('personal services enforce ownership across catalog, vault and ticket operations', async () => {
+  const actors = await Promise.all([
+    personalLayerActor('admin'),
+    personalLayerActor('attendant'),
+    personalLayerActor('attendant'),
+  ]);
+  const [admin, a, b] = actors;
+  const ids: string[] = [];
+  const input = {
+    name: 'Synthetic personal service',
+    category: 'sva',
+    credentialType: 'individual',
+    targetUrl: 'https://example.test/login',
+  };
+  try {
+    const global = await server.inject({
+      method: 'POST',
+      url: '/api/catalog/services',
+      headers: { cookie: admin!.cookie },
+      payload: input,
+    });
+    assert.equal(global.statusCode, 201);
+    ids.push(global.json().service.id);
+    assert.equal(global.json().service.scope, 'global');
+    const personal = await server.inject({
+      method: 'POST',
+      url: '/api/catalog/services',
+      headers: { cookie: a!.cookie },
+      payload: { ...input, scope: 'global' },
+    });
+    assert.equal(personal.statusCode, 201);
+    const id: string = personal.json().service.id;
+    ids.push(id);
+    assert.equal(personal.json().service.ownerUserId, a!.id);
+    assert.equal(personal.json().service.scope, 'personal');
+    for (const actor of [a!, admin!]) {
+      const denied = await server.inject({
+        method: 'POST',
+        url: '/api/catalog/services',
+        headers: { cookie: actor.cookie },
+        payload: { ...input, scope: 'personal', credentialType: 'shared' },
+      });
+      assert.equal(denied.statusCode, 403);
+    }
+    for (const method of ['PUT', 'DELETE'] as const) {
+      const globalDenied = await server.inject({
+        method,
+        url: `/api/catalog/services/${ids[0]}`,
+        headers: { cookie: a!.cookie },
+        ...(method === 'PUT' ? { payload: input } : {}),
+      });
+      assert.equal(globalDenied.statusCode, 403);
+      for (const actor of [b!, admin!]) {
+        const denied = await server.inject({
+          method,
+          url: `/api/catalog/services/${id}`,
+          headers: { cookie: actor.cookie },
+          ...(method === 'PUT' ? { payload: input } : {}),
+        });
+        assert.equal(denied.statusCode, 403);
+      }
+    }
+    assert.equal(
+      (
+        await server.inject({
+          method: 'PUT',
+          url: `/api/catalog/services/${id}`,
+          headers: { cookie: a!.cookie },
+          payload: { ...input, credentialType: 'shared' },
+        })
+      ).statusCode,
+      400,
+    );
+    assert.equal(
+      (
+        await server.inject({
+          method: 'PUT',
+          url: `/api/catalog/services/${id}`,
+          headers: { cookie: a!.cookie },
+          payload: { ...input, name: 'Updated personal' },
+        })
+      ).statusCode,
+      200,
+    );
+    assert.equal(
+      (
+        await server.inject({
+          method: 'PUT',
+          url: `/api/vault/credentials/${id}`,
+          headers: { cookie: a!.cookie },
+          payload: { username: 'synthetic', password: 'synthetic-password' },
+        })
+      ).statusCode,
+      200,
+    );
+    for (const actor of [b!, admin!]) {
+      const list = await server.inject({
+        method: 'GET',
+        url: '/api/catalog',
+        headers: { cookie: actor.cookie },
+      });
+      assert.equal(
+        list.json().services.some((item: { id: string }) => item.id === id),
+        false,
+      );
+      const vault = await server.inject({
+        method: 'GET',
+        url: '/api/vault/credentials',
+        headers: { cookie: actor.cookie },
+      });
+      assert.equal(
+        vault.json().credentials.some((item: { serviceId: string }) => item.serviceId === id),
+        false,
+      );
+      assert.equal(
+        (
+          await server.inject({
+            method: 'PUT',
+            url: `/api/vault/credentials/${id}`,
+            headers: { cookie: actor.cookie },
+            payload: { username: 'synthetic', password: 'synthetic-password' },
+          })
+        ).statusCode,
+        404,
+      );
+      assert.equal(
+        (
+          await server.inject({
+            method: 'POST',
+            url: `/api/vault/credentials/${id}/reveal`,
+            headers: { cookie: actor.cookie },
+            payload: { ownerUserId: a!.id },
+          })
+        ).statusCode,
+        404,
+      );
+      assert.equal(
+        (
+          await server.inject({
+            method: 'POST',
+            url: '/api/vault/tickets',
+            headers: { cookie: actor.cookie },
+            payload: { serviceId: id },
+          })
+        ).statusCode,
+        404,
+      );
+    }
+    const own = await server.inject({
+      method: 'POST',
+      url: '/api/vault/tickets',
+      headers: { cookie: a!.cookie },
+      payload: { serviceId: id },
+    });
+    assert.equal(own.statusCode, 200);
+    const exchanged = await server.inject({
+      method: 'POST',
+      url: '/api/vault/exchange',
+      headers: { origin: extensionOrigin },
+      payload: { serviceId: id, ticket: own.json().ticket },
+    });
+    assert.equal(exchanged.statusCode, 200);
+    assert.equal(
+      (
+        await server.inject({
+          method: 'DELETE',
+          url: `/api/catalog/services/${id}`,
+          headers: { cookie: a!.cookie },
+        })
+      ).statusCode,
+      204,
+    );
+  } finally {
+    await pool.query('DELETE FROM services WHERE id = ANY($1::varchar[])', [ids]);
+    await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [
+      actors.map((actor) => actor.id),
+    ]);
+  }
+});
+
+test('personal preferences support partial updates, isolation, validation and full reset', async () => {
+  const a = await personalLayerActor('attendant'),
+    b = await personalLayerActor('attendant');
+  const url = '/api/me/preferences';
+  const defaults = {
+    homeLayout: 'grid',
+    showShortcutCards: true,
+    cardOrder: [],
+    themeOverrides: null,
+  };
+  try {
+    for (const method of ['GET', 'PUT', 'DELETE'] as const)
+      assert.equal(
+        (await server.inject({ method, url, ...(method === 'PUT' ? { payload: {} } : {}) }))
+          .statusCode,
+        401,
+      );
+    assert.deepEqual(
+      (await server.inject({ method: 'GET', url, headers: { cookie: a.cookie } })).json()
+        .preferences,
+      defaults,
+    );
+    const patch = {
+      homeLayout: 'carousel',
+      showShortcutCards: false,
+      cardOrder: ['partiu'],
+      themeOverrides: {
+        homeTitle: 'My workspace',
+        color: { r: 10, g: 20, b: 30 },
+        logoDataUrl: null,
+      },
+    };
+    const saved = await server.inject({
+      method: 'PUT',
+      url,
+      headers: { cookie: a.cookie },
+      payload: patch,
+    });
+    assert.equal(saved.statusCode, 200);
+    assert.deepEqual(saved.json().preferences, patch);
+    await Promise.all([
+      server.inject({
+        method: 'PUT',
+        url,
+        headers: { cookie: a.cookie },
+        payload: { homeLayout: 'list' },
+      }),
+      server.inject({
+        method: 'PUT',
+        url,
+        headers: { cookie: a.cookie },
+        payload: { showShortcutCards: true },
+      }),
+    ]);
+    assert.deepEqual(
+      (await server.inject({ method: 'GET', url, headers: { cookie: a.cookie } })).json()
+        .preferences,
+      { ...patch, homeLayout: 'list', showShortcutCards: true },
+    );
+    assert.deepEqual(
+      (await server.inject({ method: 'GET', url, headers: { cookie: b.cookie } })).json()
+        .preferences,
+      defaults,
+    );
+    for (const invalid of [
+      { homeLayout: 'invalid' },
+      { showShortcutCards: 1 },
+      { cardOrder: Array.from({ length: 101 }, (_, i) => String(i)) },
+      { cardOrder: [1] },
+      { cardOrder: ['duplicate', 'duplicate'] },
+      { userId: b.id },
+      { themeOverrides: { links: [] } },
+      { themeOverrides: { color: { r: 256, g: 1, b: 1 } } },
+      { themeOverrides: { homeTitle: 'x'.repeat(121) } },
+      { themeOverrides: { logoDataUrl: 'https://example.test/logo.png' } },
+    ]) {
+      assert.equal(
+        (
+          await server.inject({
+            method: 'PUT',
+            url,
+            headers: { cookie: a.cookie },
+            payload: invalid,
+          })
+        ).statusCode,
+        400,
+      );
+    }
+    assert.equal(
+      (
+        await server.inject({
+          method: 'PUT',
+          url: '/api/config',
+          headers: { cookie: a.cookie },
+          payload: {},
+        })
+      ).statusCode,
+      403,
+    );
+    assert.deepEqual(
+      (await server.inject({ method: 'DELETE', url, headers: { cookie: a.cookie } })).json()
+        .preferences,
+      defaults,
+    );
+    assert.deepEqual(
+      (await server.inject({ method: 'GET', url, headers: { cookie: a.cookie } })).json()
+        .preferences,
+      defaults,
+    );
+  } finally {
+    await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[a.id, b.id]]);
+  }
+});
+
+test('personal-layer migration is idempotent and company Home defaults are inherited', async () => {
+  const migration = await readFile(
+    new URL('../migrations/005_user_personal_layer.sql', import.meta.url),
+    'utf8',
+  );
+  await pool.query(migration);
+  await pool.query(migration);
+  const admin = await personalLayerActor('admin'),
+    user = await personalLayerActor('attendant');
+  const original = (await server.inject('/api/config')).json();
+  try {
+    assert.equal(
+      (await server.inject({ method: 'PUT', url: '/api/config', payload: original })).statusCode,
+      401,
+    );
+    assert.equal(
+      (
+        await server.inject({
+          method: 'PUT',
+          url: '/api/config',
+          headers: { cookie: admin.cookie },
+          payload: { ...original, homeLayout: 'list', showShortcutCards: false },
+        })
+      ).statusCode,
+      200,
+    );
+    for (const method of ['GET', 'DELETE'] as const)
+      assert.deepEqual(
+        (
+          await server.inject({
+            method,
+            url: '/api/me/preferences',
+            headers: { cookie: user.cookie },
+          })
+        ).json().preferences,
+        { homeLayout: 'list', showShortcutCards: false, cardOrder: [], themeOverrides: null },
+      );
+    assert.equal(
+      (
+        await server.inject({
+          method: 'PUT',
+          url: '/api/me/preferences',
+          headers: { cookie: user.cookie },
+          payload: { themeOverrides: { subtitle: 'Mine' } },
+        })
+      ).json().preferences.homeLayout,
+      'list',
+    );
+  } finally {
+    await server.inject({
+      method: 'PUT',
+      url: '/api/config',
+      headers: { cookie: admin.cookie },
+      payload: original,
+    });
+    await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[admin.id, user.id]]);
+  }
+});
+
+test('extension package is authenticated, deterministic and a complete CRC-valid ZIP', async () => {
+  const denied = await server.inject('/api/extension/package');
+  assert.equal(denied.statusCode, 401);
+  assert.equal(denied.headers['cache-control'], 'no-store');
+  // Check runs tests before workspace builds; generate the actual installable artifacts here.
+  await promisify(execFile)(process.execPath, ['build.mjs'], {
+    cwd: fileURLToPath(new URL('../../extension/', import.meta.url)),
+  });
+  const actor = await personalLayerActor('attendant');
+  try {
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/extension/package',
+      headers: { cookie: actor.cookie },
+    });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers['content-type'], 'application/zip');
+    assert.equal(
+      response.headers['content-disposition'],
+      'attachment; filename="hublink-chrome-extension.zip"',
+    );
+    assert.equal(response.headers['cache-control'], 'no-store');
+    const zip = response.rawPayload;
+    assert.equal(zip.subarray(0, 4).toString('binary'), 'PK\x03\x04');
+    assert.deepEqual(zip, await buildExtensionZipBuffer());
+    const entries = new Map<string, Buffer>();
+    let offset = 0;
+    while (zip.readUInt32LE(offset) === 0x04034b50) {
+      assert.equal(zip.readUInt16LE(offset + 8), 0);
+      const size = zip.readUInt32LE(offset + 18),
+        nameSize = zip.readUInt16LE(offset + 26),
+        extraSize = zip.readUInt16LE(offset + 28);
+      const name = zip.subarray(offset + 30, offset + 30 + nameSize).toString();
+      const start = offset + 30 + nameSize + extraSize;
+      const data = zip.subarray(start, start + size);
+      assert.equal(crc32(data), zip.readUInt32LE(offset + 14));
+      entries.set(name, data);
+      offset = start + size;
+    }
+    assert.deepEqual([...entries.keys()], [...extensionPackageFiles]);
+    const manifest = JSON.parse(entries.get('manifest.json')!.toString());
+    assert.equal(manifest.manifest_version, 3);
+    assert.deepEqual(manifest.permissions, ['tabs', 'scripting', 'storage']);
+    assert.deepEqual(manifest.host_permissions, ['https://*/*', 'http://127.0.0.1:3177/*']);
+    const centralOffset = offset;
+    for (const name of extensionPackageFiles) {
+      assert.equal(zip.readUInt32LE(offset), 0x02014b50);
+      const length = zip.readUInt16LE(offset + 28);
+      assert.equal(zip.subarray(offset + 46, offset + 46 + length).toString(), name);
+      const local = zip.readUInt32LE(offset + 42);
+      assert.equal(zip.readUInt32LE(local), 0x04034b50);
+      offset += 46 + length;
+    }
+    assert.equal(zip.readUInt32LE(offset), 0x06054b50);
+    assert.equal(zip.readUInt32LE(offset + 16), centralOffset);
+    assert.equal(zip.readUInt16LE(offset + 10), extensionPackageFiles.length);
+    assert.equal(offset + 22, zip.length);
+    await assert.rejects(buildExtensionZipBuffer(directory));
+  } finally {
+    await pool.query('DELETE FROM users WHERE id = $1', [actor.id]);
   }
 });

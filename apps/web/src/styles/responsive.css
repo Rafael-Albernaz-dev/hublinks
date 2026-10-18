@@ -1,0 +1,333 @@
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 780px) {
+  .hb-header {
+    padding: 18px 22px;
+  }
+  .hb-nav {
+    padding: 9px 18px;
+    gap: 2px;
+  }
+  .hb-nav button {
+    padding: 9px 10px;
+  }
+  .hb-main {
+    padding: 25px 22px 18px;
+  }
+  .hb-shortcuts,
+  .hb-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hb-identity-grid,
+  .hb-identity-preview {
+    grid-template-columns: 1fr;
+  }
+  .hb-identity-preview-brand {
+    padding-right: 0;
+    padding-bottom: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--hb-line);
+  }
+  .hb-identity-preview-meta {
+    justify-items: start;
+    text-align: left;
+  }
+}
+@media (max-width: 560px) {
+  .hb-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    padding: 19px 18px;
+    min-height: 92px;
+  }
+  .hb-brand {
+    grid-row: 1 / 3;
+    font-size: 23px;
+    gap: 10px;
+    margin: 0;
+  }
+  .hb-brand-sub {
+    font-size: 9px;
+    letter-spacing: 1.4px;
+  }
+  .extension-status {
+    justify-self: end;
+    font-size: 9px;
+    min-height: 44px;
+  }
+  .hb-account {
+    justify-self: end;
+    font-size: 10px;
+    gap: 6px;
+    max-width: 125px;
+    text-align: right;
+  }
+  .account-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+  .account-actions button {
+    min-height: 44px;
+  }
+  .hb-nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 3px;
+    padding: 9px 10px;
+  }
+  .hb-nav button {
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    min-height: 54px;
+    min-width: 0;
+    padding: 7px 2px;
+    font-size: 11px;
+    border-radius: 9px;
+  }
+  .hb-main {
+    padding: 26px 18px 22px;
+  }
+  h1 {
+    font-size: 30px;
+    line-height: 1.18;
+    letter-spacing: -1.1px;
+    margin: 9px 0;
+  }
+  .hb-title-row {
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .hb-title-row p {
+    max-width: 290px;
+  }
+  .hb-shortcuts {
+    gap: 10px;
+    margin: 0 0 28px;
+  }
+  .hb-shortcut {
+    padding: 13px 11px;
+    gap: 9px;
+    min-height: 75px;
+  }
+  .hb-shortcut small {
+    font-size: 11px;
+    line-height: 1.35;
+    margin-top: 3px;
+  }
+  .hb-section-head {
+    gap: 14px;
+    margin: 0 0 15px;
+  }
+  .hb-section-head h2 {
+    font-size: 18px;
+  }
+  .hb-search {
+    width: 100%;
+    min-height: 46px;
+    padding: 11px 12px;
+    gap: 9px;
+  }
+  .hb-search input {
+    width: 100%;
+    font-size: 16px;
+  }
+  .hb-grid {
+    gap: 12px;
+  }
+  .hb-service {
+    padding: 14px 12px;
+    min-height: 215px;
+  }
+  .hb-logo {
+    padding: 5px 8px;
+  }
+  .hb-service-name {
+    font-size: 14px;
+    line-height: 1.35;
+    margin: 15px 0 5px;
+  }
+  .hb-service-desc {
+    line-height: 1.5;
+    min-height: 33px;
+  }
+  .hb-service-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+    margin-top: auto;
+    padding-top: 12px;
+  }
+  .hb-state {
+    font-size: 11px;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .hb-service-action {
+    font-size: 12px;
+  }
+  .hb-footer {
+    padding: 18px;
+    gap: 6px;
+  }
+  .hb-footer > span {
+    display: block;
+    width: 100%;
+  }
+  .setting-group {
+    padding: 16px 12px;
+  }
+  .setting-group button,
+  .button,
+  .row-actions button {
+    min-height: 44px;
+  }
+  .setting-group input,
+  .setting-group select,
+  .setting-group textarea {
+    font-size: 16px;
+  }
+  .extension-close,
+  .hublink-modal-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .extension-dialog,
+  .hublink-modal-card {
+    padding: 24px 18px;
+  }
+}
+@media (max-width: 360px) {
+  .hb-header {
+    padding: 17px 12px;
+    column-gap: 5px;
+  }
+  .hb-brand {
+    font-size: 21px;
+    gap: 8px;
+  }
+  .hb-main {
+    padding: 24px 12px 18px;
+  }
+  .hb-nav {
+    padding: 9px 5px;
+    gap: 1px;
+  }
+  .hb-nav button {
+    font-size: 10px;
+  }
+  .hb-shortcuts {
+    gap: 8px;
+  }
+  .hb-shortcut {
+    padding: 12px 8px;
+    gap: 6px;
+  }
+  .hb-shortcut small {
+    font-size: 10px;
+  }
+  .hb-grid {
+    gap: 9px;
+  }
+  .hb-service {
+    padding: 13px 9px;
+  }
+  .hb-service-name {
+    font-size: 13px;
+  }
+  .hb-logo {
+    font-size: 17px;
+    padding: 5px 6px;
+  }
+  .hb-state {
+    font-size: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* Keep these refinements after the legacy media rules to preserve their cascade. */
+.catalog-record-logo {
+  max-width: 48px;
+  min-width: 42px;
+  height: 38px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.logo-dropzone-actions .button,
+.logo-dropzone-actions button {
+  min-height: 40px;
+}
+.color-inputs input {
+  min-height: 44px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 560px) {
+  .hb-header .header-user {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+  .hb-header .hb-account {
+    max-width: 115px;
+    font-size: 10px;
+    justify-content: end;
+    text-align: right;
+  }
+  .hb-header .account-actions {
+    grid-column: auto;
+    gap: 0;
+  }
+  .hb-header .account-actions button {
+    width: 44px;
+    min-height: 44px;
+  }
+  .catalog-toolbar .hb-search,
+  .catalog-toolbar .hb-filter-group,
+  .catalog-toolbar .hb-filter-select {
+    width: 100%;
+  }
+  .catalog-toolbar .button-primary {
+    width: 100%;
+  }
+  .catalog-management-list {
+    padding: 0 12px;
+  }
+  .catalog-form-panel {
+    padding: 12px;
+  }
+  .color-inputs,
+  .modal-form-grid,
+  .logo-theme-previews {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 360px) {
+  .hb-header .header-user {
+    max-width: 150px;
+  }
+  .hb-header .hb-account {
+    max-width: 136px;
+  }
+}

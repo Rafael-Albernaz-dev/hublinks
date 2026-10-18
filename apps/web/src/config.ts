@@ -10,6 +10,8 @@ export type HubLink = {
 
 export type HubConfig = {
   version: 1;
+  homeLayout?: 'grid' | 'list' | 'carousel';
+  showShortcutCards?: boolean;
   companyName: string;
   subtitle: string;
   color: RgbColor;
@@ -131,11 +133,26 @@ export function parseHubConfig(input: unknown): HubConfig {
     'Cor do texto secundário',
   );
   const textColor = optionalHexField(value.textColor, 'Cor do texto');
+  if (
+    value.homeLayout !== undefined &&
+    value.homeLayout !== 'grid' &&
+    value.homeLayout !== 'list' &&
+    value.homeLayout !== 'carousel'
+  )
+    throw new Error('Modo da Home inválido.');
+  if (value.showShortcutCards !== undefined && typeof value.showShortcutCards !== 'boolean')
+    throw new Error('Atalhos inválidos.');
   const backgroundColor = optionalHexField(value.backgroundColor, 'Cor de fundo');
 
   const ids = new Set<string>();
   return {
     version: 1,
+    ...(value.homeLayout !== undefined
+      ? { homeLayout: value.homeLayout as 'grid' | 'list' | 'carousel' }
+      : {}),
+    ...(value.showShortcutCards !== undefined
+      ? { showShortcutCards: value.showShortcutCards as boolean }
+      : {}),
     companyName: textField(value.companyName, 'Nome da empresa', 60),
     subtitle: textField(value.subtitle, 'Descrição', 160, false),
     color: {

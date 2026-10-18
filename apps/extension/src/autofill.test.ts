@@ -242,3 +242,352 @@ describe('toolbar popup', () => {
     expect(document.getElementById('tab-status')?.textContent).toContain('Abra o Workspace');
   });
 });
+
+describe('extension settings and browser integration', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+  async function worker() {
+    vi.resetModules();
+    const stored: Record<string, unknown> = {};
+    const set = vi.fn(async (patch: Record<string, unknown>) => {
+      Object.assign(stored, patch);
+    });
+    const get = vi.fn(async () => ({ ...stored }));
+    let external: (
+      message: unknown,
+      sender: chrome.runtime.MessageSender,
+      response: (value: unknown) => void,
+    ) => unknown = () => undefined;
+    let internal = external;
+    let startup: () => void = () => undefined;
+    let created: (value: chrome.tabs.Tab) => void = () => undefined;
+    const tab = (value: Partial<chrome.tabs.Tab>): chrome.tabs.Tab => ({
+      index: 0,
+      pinned: false,
+      highlighted: false,
+      windowId: 1,
+      active: true,
+      incognito: false,
+      selected: true,
+      discarded: false,
+      autoDiscardable: true,
+      frozen: false,
+      lastAccessed: 0,
+      groupId: -1,
+      ...value,
+    });
+    const query = vi.fn().mockResolvedValue([]),
+      update = vi.fn().mockResolvedValue({}),
+      create = vi.fn().mockResolvedValue({}),
+      focus = vi.fn().mockResolvedValue({}),
+      tabsGet = vi.fn().mockResolvedValue(tab({ id: 8, url: 'chrome://newtab/' }));
+    const sendTabMessage = vi.fn().mockResolvedValue({ status: 'filled_only' });
+    const executeScript = vi.fn().mockResolvedValue([]);
+    vi.stubGlobal('chrome', {
+      scripting: { executeScript },
+      storage: { local: { get, set } },
+      runtime: {
+        id: 'test-id',
+        getURL: (path: string) => `chrome-extension://test-id/${path}`,
+        onMessageExternal: {
+          addListener: (fn: typeof external) => {
+            external = fn;
+          },
+        },
+        onMessage: {
+          addListener: (fn: typeof internal) => {
+            internal = fn;
+          },
+        },
+        onStartup: {
+          addListener: (fn: typeof startup) => {
+            startup = fn;
+          },
+        },
+      },
+      tabs: {
+        query,
+        update,
+        create,
+        get: tabsGet,
+        sendMessage: sendTabMessage,
+        onCreated: {
+          addListener: (fn: typeof created) => {
+            created = fn;
+          },
+        },
+        onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
+        onRemoved: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+      windows: { update: focus },
+    });
+    await import('./background');
+    return {
+      stored,
+      set,
+      get,
+      external: (msg: unknown, sender = { url: 'http://127.0.0.1:5177/', tab: tab({ id: 1 }) }) =>
+        new Promise<Record<string, unknown>>((resolve) =>
+          external(msg, sender, (reply) => resolve(reply as Record<string, unknown>)),
+        ),
+      internal: (msg: unknown, sender: chrome.runtime.MessageSender) => {
+        const response = vi.fn();
+        internal(msg, sender, response);
+        return response;
+      },
+      startup: () => startup(),
+      created: (value: Partial<chrome.tabs.Tab>) => created(tab(value)),
+      query,
+      update,
+      create,
+      focus,
+      tabsGet,
+      sendTabMessage,
+      executeScript,
+    };
+  }
+  it('returns defaults and stores only validated boolean patches from authorized Hub messages', async () => {
+    const w = await worker();
+    expect((await w.external({ type: 'PING' })).settings).toEqual({
+      openOnStartup: false,
+      openOnNewTab: false,
+      showToastNotifications: true,
+    });
+    expect(
+      (await w.external({ type: 'UPDATE_EXTENSION_SETTINGS', settings: { openOnStartup: true } }))
+        .status,
+    ).toBe('ok');
+    expect(w.stored).toEqual({ openOnStartup: true });
+    for (const settings of [
+      { password: 'synthetic' },
+      { ticket: 'opaque' },
+      { workspaceUrl: 'https://evil.test' },
+      { shortcuts: [] },
+      { openOnNewTab: 'true' },
+      null,
+    ])
+      expect((await w.external({ type: 'UPDATE_SETTINGS', settings })).status).toBe('error');
+    expect(w.set).toHaveBeenCalledTimes(1);
+    expect(
+      (
+        await w.external(
+          { type: 'GET_SETTINGS' },
+          { url: 'https://evil.test', tab: {} as chrome.tabs.Tab },
+        )
+      ).status,
+    ).toBe('error');
+    expect(
+      w.internal(
+        { type: 'UPDATE_SETTINGS', settings: { openOnNewTab: true } },
+        { id: 'test-id', url: 'https://example.test' },
+      ),
+    ).not.toHaveBeenCalled();
+    const accepted = w.internal(
+      { type: 'GET_SETTINGS' },
+      { id: 'test-id', url: 'chrome-extension://test-id/popup.html' },
+    );
+    await vi.waitFor(() =>
+      expect(accepted).toHaveBeenCalledWith(expect.objectContaining({ status: 'ok' })),
+    );
+  });
+  it('opens or focuses the Workspace on startup only after explicit opt-in', async () => {
+    const w = await worker();
+    w.startup();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(w.query).not.toHaveBeenCalled();
+    w.stored.openOnStartup = true;
+    w.startup();
+    await vi.waitFor(() => expect(w.create).toHaveBeenCalledWith({ url: 'http://127.0.0.1:5177' }));
+    w.query.mockResolvedValue([{ id: 4, windowId: 2, url: 'http://localhost:5177/' }]);
+    w.startup();
+    await vi.waitFor(() => expect(w.focus).toHaveBeenCalledWith(2, { focused: true }));
+    expect(w.update).toHaveBeenCalledWith(4, { active: true });
+    expect(w.create).toHaveBeenCalledTimes(1);
+  });
+  it('redirects opted-in new tabs but preserves explicit destinations and racing navigations', async () => {
+    const w = await worker();
+    w.created({ id: 8, url: 'chrome://newtab/' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(w.update).not.toHaveBeenCalled();
+    w.stored.openOnNewTab = true;
+    w.created({ id: 8, pendingUrl: 'chrome://newtab/' });
+    await vi.waitFor(() =>
+      expect(w.update).toHaveBeenCalledWith(8, { url: 'http://127.0.0.1:5177' }),
+    );
+    w.update.mockClear();
+    w.created({ id: 8, url: 'chrome://newtab/', pendingUrl: 'https://example.test' });
+    w.created({ id: 8, url: 'about:blank' });
+    w.created({ url: 'chrome://newtab/' });
+    w.tabsGet.mockResolvedValue({ id: 8, url: 'https://example.test' });
+    w.created({ id: 8, url: 'chrome://newtab/' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(w.update).not.toHaveBeenCalled();
+  });
+  it('preserves ticket exchange and destination checks while passing notification preferences transiently', async () => {
+    const w = await worker();
+    w.stored.showToastNotifications = false;
+    w.create.mockResolvedValue({ id: 8 });
+    w.tabsGet.mockResolvedValue({ id: 8, status: 'complete', url: 'https://example.test/login' });
+    const fetchFn = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          username: creds.username,
+          password: creds.password,
+          targetUrl: 'https://example.test/login',
+        }),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchFn);
+    const message = {
+      type: 'OPEN_SERVICE',
+      ticket: 'a'.repeat(43),
+      serviceId: 'synthetic',
+      targetUrl: 'https://example.test/login',
+    };
+    expect((await w.external(message)).status).toBe('opened');
+    expect(w.sendTabMessage).toHaveBeenCalledWith(
+      8,
+      expect.objectContaining({
+        type: 'HUBLINK_AUTOFILL',
+        showToastNotifications: false,
+        targetUrl: message.targetUrl,
+      }),
+    );
+    expect(w.set).not.toHaveBeenCalled();
+    expect(w.stored).toEqual({ showToastNotifications: false });
+    w.create.mockClear();
+    fetchFn.mockResolvedValue(
+      new Response(JSON.stringify({ ...creds, targetUrl: 'https://other.example.test/' })),
+    );
+    expect((await w.external(message)).status).toBe('error');
+    expect(w.create).not.toHaveBeenCalled();
+    expect(
+      (await w.external(message, { url: 'https://evil.test', tab: {} as chrome.tabs.Tab })).status,
+    ).toBe('error');
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+  it('suppresses visual toasts while preserving human challenge results and manual submit', async () => {
+    const { waitForAndExecuteAutofill } = await import('./autofill');
+    document.body.innerHTML =
+      '<form><input name="username"><input type="password"><input autocomplete="one-time-code"><button>Entrar</button></form>';
+    const click = vi.spyOn(document.querySelector('button')!, 'click');
+    expect((await waitForAndExecuteAutofill(document, creds, 100, () => true, false)).status).toBe(
+      'filled_pending_challenge',
+    );
+    expect(document.getElementById('hublink-autofill-toast')).toBeNull();
+    expect(click).not.toHaveBeenCalled();
+  });
+});
+
+describe('rich popup controls', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+  const markup =
+    '<div id="api-status"></div><p id="tab-status"></p><button id="open-hublink"></button><button id="copy-workspace"></button><input type="checkbox" id="opt-startup"><input type="checkbox" id="opt-newtab"><input type="checkbox" id="opt-notifications"><div id="popup-notice"></div><div id="quick-shortcuts"></div>';
+  it('persists each toggle through the worker, copies the URL and lists only authenticated safe links', async () => {
+    const { initPopup } = await import('./popup');
+    document.body.innerHTML = markup;
+    const settings = { openOnStartup: false, openOnNewTab: false, showToastNotifications: true };
+    const sendMessage = vi.fn(async (msg: { type: string; settings?: object }) => {
+      Object.assign(settings, msg.settings);
+      return { status: 'ok', settings: { ...settings } };
+    });
+    const create = vi.fn().mockResolvedValue({}),
+      query = vi.fn().mockResolvedValue([]);
+    vi.stubGlobal('chrome', { runtime: { sendMessage }, tabs: { create, query } });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(
+      async (url) =>
+        new Response(
+          JSON.stringify(
+            String(url).endsWith('/health')
+              ? { status: 'ok' }
+              : {
+                  services: [
+                    {
+                      name: 'Public sheet',
+                      targetUrl: 'https://example.test/sheet',
+                      credentialType: 'none',
+                      hasAction: true,
+                    },
+                    {
+                      name: 'Protected service',
+                      targetUrl: 'https://example.test/login',
+                      credentialType: 'shared',
+                      hasAction: true,
+                    },
+                    {
+                      name: 'Unsafe',
+                      targetUrl: 'javascript:alert(1)',
+                      credentialType: 'none',
+                      hasAction: true,
+                    },
+                  ],
+                },
+          ),
+        ),
+    );
+    await initPopup(document, fetchFn);
+    for (const [id, key, value] of [
+      ['opt-startup', 'openOnStartup', true],
+      ['opt-newtab', 'openOnNewTab', true],
+      ['opt-notifications', 'showToastNotifications', false],
+    ] as const) {
+      document.getElementById(id)!.click();
+      await vi.waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith({
+          type: 'UPDATE_SETTINGS',
+          settings: { [key]: value },
+        }),
+      );
+      expect(settings[key]).toBe(value);
+    }
+    document.getElementById('copy-workspace')!.click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('http://127.0.0.1:5177'));
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://127.0.0.1:3177/api/catalog',
+      expect.objectContaining({ credentials: 'include', cache: 'no-store' }),
+    );
+    const shortcuts = document.querySelectorAll<HTMLButtonElement>('#quick-shortcuts button');
+    expect(shortcuts).toHaveLength(2);
+    shortcuts[0]!.click();
+    await vi.waitFor(() =>
+      expect(create).toHaveBeenCalledWith({ url: 'https://example.test/sheet' }),
+    );
+    shortcuts[1]!.click();
+    await vi.waitFor(() => expect(create).toHaveBeenCalledWith({ url: 'http://127.0.0.1:5177' }));
+  });
+  it('reverts failed saves and does not show a stale catalog after an unauthorized response', async () => {
+    const { initPopup } = await import('./popup');
+    document.body.innerHTML = markup;
+    const sendMessage = vi.fn(async (msg: { type: string }) =>
+      msg.type === 'GET_SETTINGS'
+        ? {
+            status: 'ok',
+            settings: { openOnStartup: false, openOnNewTab: false, showToastNotifications: true },
+          }
+        : { status: 'error' },
+    );
+    vi.stubGlobal('chrome', {
+      runtime: { sendMessage },
+      tabs: { query: vi.fn().mockResolvedValue([]) },
+    });
+    await initPopup(
+      document,
+      vi.fn<typeof fetch>().mockResolvedValue(new Response('{}', { status: 401 })),
+    );
+    document.getElementById('opt-startup')!.click();
+    await vi.waitFor(() =>
+      expect(document.getElementById('popup-notice')!.textContent).toContain(
+        'Não foi possível salvar',
+      ),
+    );
+    expect((document.getElementById('opt-startup') as HTMLInputElement).checked).toBe(false);
+    expect(document.querySelectorAll('#quick-shortcuts button')).toHaveLength(0);
+  });
+});

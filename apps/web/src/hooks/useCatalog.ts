@@ -60,7 +60,7 @@ export function useCatalog(
       password?: string;
     },
   ) {
-    if (currentUser?.role !== 'admin' || vaultBusy) return;
+    if (!currentUser || vaultBusy) return;
     setVaultBusy(true);
     setVaultNotice('');
     try {
@@ -92,7 +92,7 @@ export function useCatalog(
     }
   }
   async function deleteCatalogService(service: CatalogService) {
-    if (currentUser?.role !== 'admin' || vaultBusy) return;
+    if (!currentUser || vaultBusy) return;
     setVaultBusy(true);
     try {
       const response = await fetch(`/api/catalog/services/${service.id}`, { method: 'DELETE' });
