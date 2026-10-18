@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hublink
+          POSTGRES_PASSWORD: hublink_dev_password
+          POSTGRES_DB: hublink_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hublink -d hublink_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://hublink:hublink_dev_password@127.0.0.1:5432/hublink_test
+      HUB_MASTER_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      VAULT_MASTER_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check

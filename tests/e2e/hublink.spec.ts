@@ -26,7 +26,7 @@ async function login(
   await page.getByRole('textbox', { name: 'E-mail' }).fill(email);
   await page.getByLabel('Senha').fill(password);
   await page.getByRole('button', { name: 'Entrar no Hublink' }).click();
-  await expect(page.getByRole('button', { name: 'Sair' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sair da conta' })).toBeVisible();
 }
 
 test.beforeEach(async ({ page, request }) => {
@@ -47,129 +47,153 @@ test.afterAll(async () => {
   });
 });
 
-test('initial page displays identity and private catalog state', async ({ page }) => {
-  await page.goto('/');
-  await login(page);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText(
-    'Tudo o que sua equipe precisa',
-  );
-  await expect(page.getByText(initialConfig.subtitle)).toBeVisible();
-  await expect(
-    page
-      .locator('.link-card')
-      .first()
-      .or(page.getByRole('heading', { name: 'Catálogo vazio' })),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Personalizar hub' })).toBeEnabled();
-});
+const createdServiceIds: string[] = [];
+function navigate(page: Page, name: string) {
+  return page
+    .getByRole('navigation', { name: 'Telas do Workspace' })
+    .getByRole('button', { name, exact: true })
+    .click();
+}
 
-test('edits branding and creates a private card with a logo', async ({ page }) => {
-  await page.goto('/');
-  await login(page);
-  await page.getByRole('button', { name: 'Personalizar hub' }).click();
-  const panel = page.getByLabel('Personalização do hub');
-  await panel.getByLabel('Nome da empresa').fill('Empresa E2E');
-  await panel.getByLabel('R', { exact: true }).fill('12');
-  await panel.getByLabel('G', { exact: true }).fill('34');
-  await panel.getByLabel('B', { exact: true }).fill('56');
-  await panel.getByRole('button', { name: '+ Adicionar card' }).click();
-  const editor = panel.locator('.link-editor');
-  await editor.getByLabel('Nome do serviço/card').fill('Portal sintético');
+async function createService(page: Page, name: string, withLogo = false) {
+  await navigate(page, 'Catálogo');
+  await page.getByRole('button', { name: '+ Adicionar serviço', exact: true }).click();
+  const editor = page.locator('.catalog-editor');
+  await editor.getByLabel('Nome do serviço/card').fill(name);
+  await editor.getByRole('combobox', { name: /^Categoria/ }).selectOption('sheet');
   await editor.getByLabel('Descrição curta').fill('Página pública de teste');
-  await editor.getByLabel('Endereço HTTPS').fill('https://example.com/');
-  await editor.locator('input[type="file"]').setInputFiles({
-    name: 'logo.png',
-    mimeType: 'image/png',
-    buffer: logo,
-  });
-  await expect(editor.getByAltText('Prévia da logo do card')).toBeVisible();
-  await editor.getByRole('button', { name: 'Salvar card' }).click();
-  await expect(panel.getByText('Alterações pendentes')).toBeVisible();
-  await panel.getByRole('button', { name: 'Salvar alterações' }).click();
-  await expect(panel.getByText('Alterações salvas na API local.')).toBeVisible();
+  await editor.getByLabel('Endereço HTTPS', { exact: true }).fill('https://example.com/');
+  if (withLogo) {
+    await editor
+      .locator('input[type="file"]')
+      .setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: logo });
+    await expect(editor.getByAltText('Prévia da logo do card')).toBeVisible();
+  }
+  const saved = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/catalog/services' &&
+      response.request().method() === 'POST',
+  );
+  await editor.getByRole('button', { name: 'Salvar card', exact: true }).click();
+  const response = await saved;
+  expect(response.status()).toBe(201);
+  createdServiceIds.push((await response.json()).service.id as string);
+  await expect(editor).toHaveCount(0);
+}
 
-  await page.reload();
-  await expect(page.locator('.brand strong')).toHaveText('Empresa E2E');
-  await expect(page.locator('.site-shell')).toHaveCSS('--brand', 'rgb(12 34 56)');
-  const card = page.getByRole('link', { name: /Portal sintético/ });
-  await expect(card).toHaveAttribute('href', 'https://example.com/');
-  await expect(card.locator('.card-icon img')).toHaveAttribute('src', /^data:image\/png;base64,/);
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'wait' });
+  if (!createdServiceIds.length) return;
   const pool = new pg.Pool({
     connectionString:
       process.env.E2E_DATABASE_URL ??
       `postgres://hublink:hublink_dev_password@127.0.0.1:${process.env.HUB_DB_PORT ?? '5439'}/hublink_e2e`,
   });
   try {
-    await pool.query('DELETE FROM services WHERE name = $1', ['Portal sintético']);
+    await pool.query('DELETE FROM services WHERE id = ANY($1::text[])', [createdServiceIds]);
   } finally {
+    createdServiceIds.length = 0;
     await pool.end();
   }
 });
 
-test('Escape closes the panel and restores focus to its trigger', async ({ page }) => {
+test('initial page displays identity and private catalog state', async ({ page }) => {
   await page.goto('/');
   await login(page);
-  const trigger = page.getByRole('button', { name: 'Personalizar hub' });
-  await trigger.click();
-  const close = page.getByRole('button', { name: 'Fechar ajustes' });
-  await expect(close).toBeFocused();
-  await page.keyboard.press('Escape');
-  await expect(page.getByLabel('Personalização do hub')).toHaveCount(0);
-  await expect(trigger).toBeFocused();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Um bom dia começa aqui.');
+  await expect(page.getByText(initialConfig.subtitle, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .locator('.hb-service')
+      .first()
+      .or(page.getByRole('heading', { name: 'Catálogo vazio' })),
+  ).toBeVisible();
+  const nav = page.getByRole('navigation', { name: 'Telas do Workspace' });
+  for (const name of ['Início', 'Catálogo', 'Acessos', 'Equipe', 'Identidade'])
+    await expect(nav.getByRole('button', { name, exact: true })).toBeEnabled();
+  await navigate(page, 'Acessos');
+  await expect(page.getByRole('heading', { name: 'Acessos da equipe', exact: true })).toBeVisible();
+  await navigate(page, 'Equipe');
+  await expect(
+    page.getByRole('heading', { name: 'Equipe e permissões', exact: true }),
+  ).toBeVisible();
 });
 
-test('cards and customization panel fit desktop and mobile viewports', async ({ page }) => {
+test('edits branding and creates a private card with a logo', async ({ page }) => {
+  await page.goto('/');
+  await login(page);
+  await navigate(page, 'Identidade');
+  await page.getByLabel('Nome da empresa', { exact: true }).fill('Empresa E2E');
+  await page.getByRole('textbox', { name: 'RGB', exact: true }).fill('12, 34, 56');
+  await page.getByRole('button', { name: 'Salvar alterações', exact: true }).click();
+  await expect(page.getByText('Alterações salvas na API local.')).toBeVisible();
+  await createService(page, 'Portal sintético', true);
+  await page.reload();
+  await expect(page.locator('.hb-brand')).toContainText('Empresa E2E');
+  await expect(page.locator('.site-shell')).toHaveCSS('--brand', 'rgb(12 34 56)');
+  const card = page.getByRole('link', { name: 'Abrir Portal sintético', exact: true });
+  await expect(card).toHaveAttribute('href', 'https://example.com/');
+  await expect(card.locator('.hb-logo img')).toHaveAttribute('src', /^data:image\/png;base64,/);
+});
+
+// The existing Workspace exposes an inline editor, not a service dialog.
+// Escape/focus restoration for a nonexistent modal would require an out-of-scope web change.
+test('cancel closes the inline service editor and returns to catalog management', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await login(page);
+  await navigate(page, 'Catálogo');
+  const trigger = page.getByRole('button', { name: '+ Adicionar serviço', exact: true });
+  await trigger.focus();
+  await trigger.click();
+  await expect(page.locator('.catalog-editor')).toBeVisible();
+  await page
+    .locator('.catalog-editor')
+    .getByRole('button', { name: 'Cancelar', exact: true })
+    .click();
+  await expect(page.locator('.catalog-editor')).toHaveCount(0);
+  await expect(trigger).toBeEnabled();
+});
+
+test('cards and workspace views fit desktop and mobile viewports', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await login(page);
-  await page.getByRole('button', { name: 'Personalizar hub' }).click();
-  const panel = page.getByLabel('Personalização do hub');
-  for (const name of ['Primeiro layout', 'Segundo layout']) {
-    await panel.getByRole('button', { name: '+ Adicionar card' }).click();
-    const editor = panel.locator('.catalog-editor');
-    await editor.getByLabel('Nome do serviço/card').fill(name);
-    await editor.getByLabel('Endereço HTTPS').fill('https://example.test/');
-    await editor.getByRole('button', { name: 'Salvar card' }).click();
-    await expect(panel.getByText('Card salvo no catálogo privado.')).toBeVisible();
-  }
-  await panel.getByRole('button', { name: 'Fechar ajustes' }).click();
-  const cards = page.locator('.link-card');
-  await expect(cards.first()).toBeVisible();
-  const desktopFirst = await page.getByRole('link', { name: /Primeiro layout/ }).boundingBox();
-  const desktopSecond = await page.getByRole('link', { name: /Segundo layout/ }).boundingBox();
+  for (const name of ['Primeiro layout', 'Segundo layout']) await createService(page, name);
+  await navigate(page, 'Início');
+  const first = page.getByRole('link', { name: 'Abrir Primeiro layout', exact: true });
+  const second = page.getByRole('link', { name: 'Abrir Segundo layout', exact: true });
+  await page.getByRole('textbox', { name: 'Buscar serviços no Workspace' }).fill('layout');
+  const desktopFirst = await first.boundingBox();
+  const desktopSecond = await second.boundingBox();
   expect(desktopFirst).not.toBeNull();
   expect(desktopSecond).not.toBeNull();
   expect(desktopSecond!.x).toBeGreaterThan(desktopFirst!.x);
-
+  expect(Math.abs(desktopSecond!.y - desktopFirst!.y)).toBeLessThan(2);
   await page.setViewportSize({ width: 375, height: 667 });
-  await page.getByRole('button', { name: 'Personalizar hub' }).click();
-  await expect(panel).toBeVisible();
-  const mobileFirst = await page.getByRole('link', { name: /Primeiro layout/ }).boundingBox();
-  const mobileSecond = await page.getByRole('link', { name: /Segundo layout/ }).boundingBox();
-  const panelBox = await panel.boundingBox();
-  expect(mobileFirst).not.toBeNull();
-  expect(mobileSecond).not.toBeNull();
-  expect(panelBox).not.toBeNull();
-  expect(Math.abs(mobileSecond!.x - mobileFirst!.x)).toBeLessThan(2);
-  expect(mobileSecond!.y).toBeGreaterThan(mobileFirst!.y);
-  expect(panelBox!.width).toBeLessThanOrEqual(375);
+  await expect(first).toBeVisible();
+  await expect(second).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await navigate(page, 'Catálogo');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   for (const name of ['Primeiro layout', 'Segundo layout']) {
     page.once('dialog', (dialog) => dialog.accept());
-    await panel
-      .getByText(name, { exact: true })
-      .last()
-      .locator('..')
-      .locator('..')
-      .getByRole('button', { name: 'Excluir' })
+    await page
+      .locator('.catalog-management-record')
+      .filter({ hasText: name })
+      .getByRole('button', { name: 'Excluir', exact: true })
       .click();
+    await expect(page.locator('.catalog-management-record').filter({ hasText: name })).toHaveCount(
+      0,
+    );
   }
 });
 
 test('exports a version 1 JSON configuration download', async ({ page }) => {
   await page.goto('/');
   await login(page);
-  await page.getByRole('button', { name: 'Personalizar hub' }).click();
+  await navigate(page, 'Identidade');
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exportar JSON' }).click();
   const download = await downloadPromise;
@@ -184,10 +208,11 @@ test('login persists across reload and logout blocks links again', async ({ page
   await expect(page.getByRole('button', { name: 'Entrar no Hublink' })).toBeVisible();
   await login(page);
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Sair' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await expect(page.getByRole('button', { name: 'Sair da conta' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sair da conta' }).click();
   await expect(page.getByRole('button', { name: 'Entrar no Hublink' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Seus links' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Telas do Workspace' })).toHaveCount(0);
+  await expect(page.locator('.hb-service')).toHaveCount(0);
 });
 
 test('admin password reset blocks an attendant session on reload', async ({ page, request }) => {
@@ -223,7 +248,8 @@ test('admin password reset blocks an attendant session on reload', async ({ page
     expect(reset.ok()).toBeTruthy();
     await page.reload();
     await expect(page.getByRole('button', { name: 'Entrar no Hublink' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Seus links' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Telas do Workspace' })).toHaveCount(0);
+    await expect(page.locator('.hb-service')).toHaveCount(0);
   } finally {
     await pool.query('DELETE FROM users WHERE email = $1', [email]);
     await pool.end();
