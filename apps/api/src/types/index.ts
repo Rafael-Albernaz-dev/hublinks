@@ -1,12 +1,19 @@
 import type { Pool } from 'pg';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
-export type User = { id: string; displayName: string; email: string; role: 'admin' | 'attendant' };
+export type User = {
+  id: string;
+  displayName: string;
+  email: string;
+  role: 'admin' | 'attendant';
+  active?: boolean;
+};
 export type UserRow = {
   id: string;
   display_name: string;
   email: string;
   role: 'admin' | 'attendant';
+  active?: boolean;
 };
 export type CredentialUserRow = UserRow & { password_hash: string };
 export type SessionRow = UserRow & { session_id: string };
@@ -36,7 +43,16 @@ export type CatalogItem = {
   hasCredential: boolean;
 };
 export type CredentialsInput = { email: string; password: string };
-export type AttendantInput = CredentialsInput & { displayName: string };
+export type AttendantInput = CredentialsInput & {
+  displayName: string;
+  role?: 'admin' | 'attendant';
+};
+export type UserUpdateInput = {
+  displayName: string;
+  email: string;
+  role: 'admin' | 'attendant';
+  active: boolean;
+};
 export type ServiceInput = {
   name: string;
   credentialType: 'shared' | 'individual';
@@ -63,6 +79,15 @@ export type DemoConfig = {
   color: { r: number; g: number; b: number };
   logoDataUrl: string | null;
   links: DemoLink[];
+  headerTagline?: string;
+  homeEyebrow?: string;
+  homeTitle?: string;
+  brandPrimaryText?: string;
+  brandPrimaryColor?: string | null;
+  brandSecondaryText?: string;
+  brandSecondaryColor?: string | null;
+  textColor?: string | null;
+  backgroundColor?: string | null;
 };
 export type RateLimitConfig = { max: number; windowMs: number };
 export type ServerOptions = {

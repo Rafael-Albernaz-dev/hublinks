@@ -109,7 +109,7 @@ test('initial page displays identity and private catalog state', async ({ page }
       .or(page.getByRole('heading', { name: 'Catálogo vazio' })),
   ).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Telas do Workspace' });
-  for (const name of ['Início', 'Catálogo', 'Acessos', 'Equipe', 'Identidade'])
+  for (const name of ['Início', 'Catálogo', 'Acessos', 'Equipe', 'Personalização'])
     await expect(nav.getByRole('button', { name, exact: true })).toBeEnabled();
   await navigate(page, 'Acessos');
   await expect(page.getByRole('heading', { name: 'Acessos da equipe', exact: true })).toBeVisible();
@@ -122,7 +122,7 @@ test('initial page displays identity and private catalog state', async ({ page }
 test('edits branding and creates a private card with a logo', async ({ page }) => {
   await page.goto('/');
   await login(page);
-  await navigate(page, 'Identidade');
+  await navigate(page, 'Personalização');
   await page.getByLabel('Nome da empresa', { exact: true }).fill('Empresa E2E');
   await page.getByRole('textbox', { name: 'RGB', exact: true }).fill('12, 34, 56');
   await page.getByRole('button', { name: 'Salvar alterações', exact: true }).click();
@@ -136,9 +136,7 @@ test('edits branding and creates a private card with a logo', async ({ page }) =
   await expect(card.locator('.hb-logo img')).toHaveAttribute('src', /^data:image\/png;base64,/);
 });
 
-// The existing Workspace exposes an inline editor, not a service dialog.
-// Escape/focus restoration for a nonexistent modal would require an out-of-scope web change.
-test('cancel closes the inline service editor and returns to catalog management', async ({
+test('cancel or Escape closes the service modal dialog and restores focus to trigger', async ({
   page,
 }) => {
   await page.goto('/');
@@ -147,16 +145,14 @@ test('cancel closes the inline service editor and returns to catalog management'
   const trigger = page.getByRole('button', { name: '+ Adicionar serviço', exact: true });
   await trigger.focus();
   await trigger.click();
-  await expect(page.locator('.catalog-editor')).toBeVisible();
-  await page
-    .locator('.catalog-editor')
-    .getByRole('button', { name: 'Cancelar', exact: true })
-    .click();
-  await expect(page.locator('.catalog-editor')).toHaveCount(0);
-  await expect(trigger).toBeEnabled();
+  await expect(page.getByRole('dialog', { name: 'Novo serviço' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });
 
 test('cards and workspace views fit desktop and mobile viewports', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await login(page);
@@ -178,12 +174,13 @@ test('cards and workspace views fit desktop and mobile viewports', async ({ page
   await navigate(page, 'Catálogo');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   for (const name of ['Primeiro layout', 'Segundo layout']) {
-    page.once('dialog', (dialog) => dialog.accept());
     await page
       .locator('.catalog-management-record')
       .filter({ hasText: name })
       .getByRole('button', { name: 'Excluir', exact: true })
       .click();
+    await expect(page.getByRole('dialog', { name: `Excluir ${name}` })).toBeVisible();
+    await page.getByRole('button', { name: 'Confirmar exclusão', exact: true }).click();
     await expect(page.locator('.catalog-management-record').filter({ hasText: name })).toHaveCount(
       0,
     );
@@ -193,7 +190,7 @@ test('cards and workspace views fit desktop and mobile viewports', async ({ page
 test('exports a version 1 JSON configuration download', async ({ page }) => {
   await page.goto('/');
   await login(page);
-  await navigate(page, 'Identidade');
+  await navigate(page, 'Personalização');
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exportar JSON' }).click();
   const download = await downloadPromise;

@@ -92,8 +92,7 @@ export function useCatalog(
     }
   }
   async function deleteCatalogService(service: CatalogService) {
-    if (currentUser?.role !== 'admin' || vaultBusy || !window.confirm(`Excluir ${service.name}?`))
-      return;
+    if (currentUser?.role !== 'admin' || vaultBusy) return;
     setVaultBusy(true);
     try {
       const response = await fetch(`/api/catalog/services/${service.id}`, { method: 'DELETE' });

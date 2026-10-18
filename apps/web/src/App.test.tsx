@@ -167,6 +167,23 @@ beforeEach(() => {
           ok: true,
           json: async () => ({ username: 'partiu_mock_user', password: 'partiu_mock_password' }),
         };
+      if (url.startsWith('/api/catalog/favicon?url=')) {
+        const rawTarget = decodeURIComponent(url.split('url=')[1] ?? '');
+        let host = 'example.com';
+        try {
+          host = new URL(rawTarget).hostname;
+        } catch {
+          // ignore
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            logoDataUrl:
+              'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+            host,
+          }),
+        };
+      }
       if (method === 'PUT' && url === '/api/config') saved = JSON.parse(options?.body as string);
       return {
         ok: true,
@@ -248,7 +265,7 @@ describe('API backed customization', () => {
     const user = userEvent.setup();
     render(<App />);
     expect(await screen.findByText('Empresa da API')).not.toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Identidade' }));
+    await user.click(screen.getByRole('button', { name: 'Personalização' }));
     const save = screen.getByRole('button', { name: 'Salvar alterações' });
     expect((save as HTMLButtonElement).disabled).toBe(true);
     await user.clear(screen.getByRole('textbox', { name: 'Nome da empresa' }));
@@ -274,9 +291,9 @@ describe('API backed customization', () => {
     );
     render(<App />);
     expect(await screen.findByText(/Não foi possível conectar à API do Hublink/)).not.toBeNull();
-    expect((screen.getByRole('button', { name: 'Identidade' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(
+      (screen.getByRole('button', { name: 'Personalização' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it('shows the offline banner for an HTTP error response', async () => {
@@ -290,9 +307,9 @@ describe('API backed customization', () => {
     );
     render(<App />);
     expect(await screen.findByText(/Não foi possível conectar à API do Hublink/)).not.toBeNull();
-    expect((screen.getByRole('button', { name: 'Identidade' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(
+      (screen.getByRole('button', { name: 'Personalização' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it('keeps navigation keyboard accessible with a current page', async () => {
@@ -310,12 +327,13 @@ describe('API backed customization', () => {
     expect(document.activeElement).toBe(home);
   });
 
-  it('uploads a private card logo, previews it, and renders it in the card', async () => {
+  it('uploads a private card logo, previews it in Light/Dark modes, and renders it in the card', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
     await user.click(screen.getByRole('button', { name: 'Catálogo' }));
     await user.click(screen.getByRole('button', { name: '+ Adicionar serviço' }));
+    expect(screen.getByRole('dialog', { name: 'Novo serviço' })).not.toBeNull();
     await user.type(screen.getByRole('textbox', { name: 'Nome do serviço/card' }), 'Novo card');
     await user.type(screen.getByRole('textbox', { name: 'Endereço HTTPS' }), 'https://example.net');
     const image = new File([new Uint8Array([137, 80, 78, 71])], 'card.png', { type: 'image/png' });
@@ -344,7 +362,7 @@ describe('API backed customization', () => {
     );
     render(<App />);
     await screen.findByText('Empresa da API');
-    fireEvent.click(screen.getByRole('button', { name: 'Identidade' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Personalização' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nome da empresa' }), {
       target: { value: 'Alterada' },
     });
@@ -383,7 +401,7 @@ describe('API backed customization', () => {
     render(<App />);
     await screen.findByText('Empresa da API');
     await user.click(screen.getByRole('button', { name: 'Acessos' }));
-    expect(await screen.findByText('Cifrada no cofre')).not.toBeNull();
+    expect((await screen.findAllByText('Cifrada no cofre')).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Revelar' })).toBeNull();
     expect(document.querySelector('input[type="password"]')).toBeNull();
     expect(requests.some((item) => item.url.endsWith('/reveal'))).toBe(false);
@@ -481,7 +499,7 @@ describe('API backed customization', () => {
     expect(screen.queryByRole('option', { name: 'Cofre Compartilhado (equipe)' })).toBeNull();
   });
 
-  it('lets an attendant start their own credential for a new individual service', async () => {
+  it('lets an attendant start their own credential for a new individual service in a modal', async () => {
     signedInUser = { ...admin, id: 'attendant', role: 'attendant' };
     vaultItems = [
       {
@@ -502,6 +520,7 @@ describe('API backed customization', () => {
     await user.click(screen.getByRole('button', { name: 'Acessos' }));
     expect(await screen.findByText('Individual Service')).not.toBeNull();
     await user.click(screen.getByRole('button', { name: 'Cadastrar' }));
+    expect(screen.getByRole('dialog', { name: 'Cadastrar Individual Service' })).not.toBeNull();
     expect(screen.getByRole('textbox', { name: 'Usuário do serviço' })).not.toBeNull();
     expect(screen.getByLabelText('Senha do serviço')).not.toBeNull();
   });
@@ -536,18 +555,19 @@ describe('API backed customization', () => {
 });
 
 describe('Workspace design system', () => {
-  it('renders the shell and all five dedicated destinations', async () => {
+  it('renders the shell, centered company+year footer, and all five dedicated destinations', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
     expect(screen.getByRole('heading', { name: 'Um bom dia começa aqui.' })).not.toBeNull();
-    expect(screen.getByRole('contentinfo')).not.toBeNull();
+    const footer = screen.getByRole('contentinfo');
+    expect(footer.textContent).toBe(`Empresa da API · ${new Date().getFullYear()}`);
     const destinations = [
       ['Início', 'Um bom dia começa aqui.'],
       ['Catálogo', 'Catálogo de Serviços'],
       ['Acessos', 'Acessos da equipe'],
       ['Equipe', 'Equipe e permissões'],
-      ['Identidade', 'Identidade do seu hub'],
+      ['Personalização', 'Personalização do seu hub'],
     ];
     for (const [name, heading] of destinations) {
       const button = screen.getByRole('button', { name });
@@ -599,9 +619,9 @@ describe('Workspace design system', () => {
     expect((screen.getByRole('button', { name: 'Equipe' }) as HTMLButtonElement).disabled).toBe(
       true,
     );
-    expect((screen.getByRole('button', { name: 'Identidade' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(
+      (screen.getByRole('button', { name: 'Personalização' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(requests.some((item) => item.url === '/api/admin/users')).toBe(false);
   });
 
@@ -701,21 +721,23 @@ describe('Workspace interaction boundaries', () => {
     render(<App />);
     await screen.findByText('Empresa da API');
     await user.click(screen.getByRole('button', { name: 'Acessos' }));
-    await screen.findByText('Cifrada no cofre');
+    await screen.findAllByText('Cifrada no cofre');
     expect(screen.queryByText('Other private service')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Gerenciar' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Revelar' })).toBeNull();
   });
 
-  it('creates attendants and resets passwords through the existing API contract', async () => {
+  it('creates users, edits permissions/status, and resets passwords through modals', async () => {
     const originalFetch = globalThis.fetch;
     const people = [
-      { ...admin, createdAt: '2026-10-16T00:00:00Z' },
+      { ...admin, active: true, createdAt: '2026-10-16T00:00:00Z' },
       {
         ...admin,
         id: 'team-member',
         displayName: 'Pessoa sintética',
+        email: 'synthetic@example.test',
         role: 'attendant',
+        active: true,
         createdAt: '2026-10-16T00:00:00Z',
       },
     ];
@@ -739,13 +761,22 @@ describe('Workspace interaction boundaries', () => {
     await screen.findByText('Empresa da API');
     await user.click(screen.getByRole('button', { name: 'Equipe' }));
     await screen.findByText('Pessoa sintética');
-    expect(screen.getAllByText('Administrador').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Usuário').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: '+ Adicionar usuário' }));
+    expect(screen.getByRole('dialog', { name: 'Novo usuário' })).not.toBeNull();
     await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Nova pessoa');
     await user.type(screen.getByRole('textbox', { name: 'E-mail' }), 'new@example.test');
     await user.type(screen.getByLabelText('Senha inicial'), 'synthetic-password');
-    await user.click(screen.getByRole('button', { name: 'Cadastrar atendente' }));
-    expect(await screen.findByText('Atendente cadastrado.')).not.toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Redefinir senha' }));
+    await user.click(screen.getByRole('button', { name: 'Cadastrar usuário' }));
+    expect(await screen.findByText('Usuário cadastrado com sucesso.')).not.toBeNull();
+
+    const resetBtns = screen.getAllByRole('button', { name: 'Redefinir senha' });
+    await user.click(resetBtns[1]!);
+    expect(
+      screen.getByRole('dialog', { name: 'Redefinir senha de Pessoa sintética' }),
+    ).not.toBeNull();
     await user.type(screen.getByLabelText('Nova senha'), 'synthetic-new-password');
     await user.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
     await waitFor(() =>
@@ -780,22 +811,27 @@ describe('Workspace UX refinements', () => {
     expect(await screen.findByRole('button', { name: 'Entrar no Hublink' })).not.toBeNull();
   });
 
-  it('shows the identity subtitle immediately at Home and persists it only after Save', async () => {
+  it('shows the customization subtitle, home texts, and bicolor navbar immediately and persists after Save', async () => {
     const user = userEvent.setup();
     render(<App />);
     expect(await screen.findByText(apiConfig.subtitle)).not.toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Identidade' }));
+    await user.click(screen.getByRole('button', { name: 'Personalização' }));
     const field = screen.getByRole('textbox', { name: 'Texto de apresentação' });
     await user.clear(field);
     await user.type(field, 'Uma mensagem da equipe');
+    await user.type(screen.getByRole('textbox', { name: 'Texto parte 1 (navbar)' }), 'Rural');
+    await user.type(screen.getByRole('textbox', { name: 'Texto parte 2 (navbar)' }), 'Conecta');
     await user.click(screen.getByRole('button', { name: 'Início' }));
     expect(screen.getByText('Uma mensagem da equipe')).not.toBeNull();
+    expect(document.querySelector('.hb-brand-bicolor')?.textContent).toBe('Rural Conecta');
     expect(
       requests.filter((item) => item.method === 'PUT' && item.url === '/api/config'),
     ).toHaveLength(0);
-    await user.click(screen.getByRole('button', { name: 'Identidade' }));
+    await user.click(screen.getByRole('button', { name: 'Personalização' }));
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
     await waitFor(() => expect(saved.subtitle).toBe('Uma mensagem da equipe'));
+    expect(saved.brandPrimaryText).toBe('Rural');
+    expect(saved.brandSecondaryText).toBe('Conecta');
   });
 
   it('falls back to the approved Home subtitle when the configured text is empty', async () => {
@@ -804,7 +840,7 @@ describe('Workspace UX refinements', () => {
     expect(await screen.findByText('Serviços, consultas e acessos da equipe.')).not.toBeNull();
   });
 
-  it('keeps Home cards out of Catalog and filters management records', async () => {
+  it('keeps Home cards out of Catalog and filters table management records by search and category', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByRole('link', { name: 'Abrir PARTIU!' });
@@ -812,6 +848,7 @@ describe('Workspace UX refinements', () => {
     expect(screen.queryByRole('link', { name: 'Abrir PARTIU!' })).toBeNull();
     expect(document.querySelector('.hb-grid')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Catálogo de Serviços' })).not.toBeNull();
+    expect(screen.getByRole('table', { name: 'Tabela de serviços do catálogo' })).not.toBeNull();
     expect(screen.getByRole('button', { name: '+ Adicionar serviço' })).not.toBeNull();
     expect(screen.getByText('example.test')).not.toBeNull();
     expect(screen.getByText('Sem destino configurado')).not.toBeNull();
@@ -844,7 +881,7 @@ describe('Workspace UX refinements', () => {
     await screen.findByText('Empresa da API');
     const shell = document.querySelector('.site-shell') as HTMLElement;
     expect(shell.style.getPropertyValue('--hb-accent')).toBe('');
-    await user.click(screen.getByRole('button', { name: 'Identidade' }));
+    await user.click(screen.getByRole('button', { name: 'Personalização' }));
     const hex = screen.getByRole('textbox', { name: 'Hexadecimal' });
     const rgb = screen.getByRole('textbox', { name: 'RGB' });
     fireEvent.change(hex, { target: { value: '#11AA33' } });
@@ -865,17 +902,34 @@ describe('Workspace UX refinements', () => {
     expect((hex as HTMLInputElement).value).toBe('#7137D1');
   });
 
-  it('previews and removes the company logo through its dedicated card', async () => {
+  it('previews and removes the company logo through its dedicated Light/Dark card', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('Empresa da API');
-    await user.click(screen.getByRole('button', { name: 'Identidade' }));
+    await user.click(screen.getByRole('button', { name: 'Personalização' }));
     const upload = screen.getByLabelText('Enviar nova logo') as HTMLInputElement;
     const image = new File([new Uint8Array([137, 80, 78, 71])], 'brand.png', { type: 'image/png' });
     await user.upload(upload, image);
     expect(await screen.findByAltText('Logo enviada')).not.toBeNull();
-    expect(screen.getByText(/PNG, JPG ou WebP · até 1 MB/)).not.toBeNull();
+    expect(screen.getByText(/Light mode/)).not.toBeNull();
+    expect(screen.getByText(/Dark mode/)).not.toBeNull();
+    expect(screen.getByText(/256×256 px/)).not.toBeNull();
     await user.click(screen.getByRole('button', { name: 'Remover logo' }));
     expect(screen.queryByAltText('Logo enviada')).toBeNull();
+  });
+
+  it('captures a favicon from the HTTPS link and displays the captured icon banner in the service modal', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Empresa da API');
+    await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+    await user.click(screen.getByRole('button', { name: '+ Adicionar serviço' }));
+    expect(screen.getByRole('dialog', { name: 'Novo serviço' })).not.toBeNull();
+    await user.type(screen.getByLabelText('Nome do serviço/card'), 'Portal GitHub');
+    await user.type(screen.getByLabelText('Endereço HTTPS'), 'github.com');
+    await user.click(screen.getByRole('button', { name: 'Capturar favicon do link' }));
+    expect(await screen.findByText('Favicon capturado de github.com')).not.toBeNull();
+    expect(screen.getByText('Favicon automático')).not.toBeNull();
+    expect(screen.getByAltText('Favicon capturado de github.com')).not.toBeNull();
   });
 });

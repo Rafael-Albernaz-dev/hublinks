@@ -15,7 +15,20 @@ export type HubConfig = {
   color: RgbColor;
   logoDataUrl: string | null;
   links: HubLink[];
+  headerTagline?: string;
+  homeEyebrow?: string;
+  homeTitle?: string;
+  brandPrimaryText?: string;
+  brandPrimaryColor?: string | null;
+  brandSecondaryText?: string;
+  brandSecondaryColor?: string | null;
+  textColor?: string | null;
+  backgroundColor?: string | null;
 };
+
+export const DEFAULT_HEADER_TAGLINE = 'HUB DA EQUIPE';
+export const DEFAULT_HOME_EYEBROW = 'SEU ESPAÇO DE TRABALHO';
+export const DEFAULT_HOME_TITLE = 'Um bom dia começa aqui.';
 
 export const DEFAULT_CONFIG: HubConfig = {
   version: 1,
@@ -39,6 +52,14 @@ function textField(value: unknown, label: string, limit: number, required = true
   if (required && !text) throw new Error(`${label} não pode ficar vazio.`);
   if (text.length > limit) throw new Error(`${label} aceita até ${limit} caracteres.`);
   return text;
+}
+
+function optionalHexField(value: unknown, label: string): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(value.trim())) {
+    throw new Error(`${label} precisa ser uma cor hexadecimal de 6 dígitos (ex: #112233).`);
+  }
+  return value.trim().toLowerCase();
 }
 
 function channel(value: unknown, label: string): number {
@@ -84,6 +105,33 @@ export function parseHubConfig(input: unknown): HubConfig {
   }
 
   const logo = imageDataUrl(value.logoDataUrl, 1_000_000, 'Logo da empresa');
+  const headerTagline =
+    value.headerTagline === undefined
+      ? undefined
+      : textField(value.headerTagline, 'Tagline do cabeçalho', 60, false);
+  const homeEyebrow =
+    value.homeEyebrow === undefined
+      ? undefined
+      : textField(value.homeEyebrow, 'Selo da tela inicial', 60, false);
+  const homeTitle =
+    value.homeTitle === undefined
+      ? undefined
+      : textField(value.homeTitle, 'Título da tela inicial', 120, false);
+  const brandPrimaryText =
+    value.brandPrimaryText === undefined
+      ? undefined
+      : textField(value.brandPrimaryText, 'Texto principal da marca', 40, false);
+  const brandSecondaryText =
+    value.brandSecondaryText === undefined
+      ? undefined
+      : textField(value.brandSecondaryText, 'Texto secundário da marca', 40, false);
+  const brandPrimaryColor = optionalHexField(value.brandPrimaryColor, 'Cor do texto principal');
+  const brandSecondaryColor = optionalHexField(
+    value.brandSecondaryColor,
+    'Cor do texto secundário',
+  );
+  const textColor = optionalHexField(value.textColor, 'Cor do texto');
+  const backgroundColor = optionalHexField(value.backgroundColor, 'Cor de fundo');
 
   const ids = new Set<string>();
   return {
@@ -112,6 +160,15 @@ export function parseHubConfig(input: unknown): HubConfig {
       }
       return parsed;
     }),
+    ...(headerTagline ? { headerTagline } : {}),
+    ...(homeEyebrow ? { homeEyebrow } : {}),
+    ...(homeTitle ? { homeTitle } : {}),
+    ...(brandPrimaryText ? { brandPrimaryText } : {}),
+    ...(brandPrimaryColor ? { brandPrimaryColor } : {}),
+    ...(brandSecondaryText ? { brandSecondaryText } : {}),
+    ...(brandSecondaryColor ? { brandSecondaryColor } : {}),
+    ...(textColor ? { textColor } : {}),
+    ...(backgroundColor ? { backgroundColor } : {}),
   };
 }
 

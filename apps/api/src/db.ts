@@ -17,6 +17,10 @@ const visualMigrationPath = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../migrations/003_services_visual_metadata.sql',
 );
+const usersActiveMigrationPath = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../migrations/004_users_active_and_management.sql',
+);
 
 export function createPool(): pg.Pool {
   const port = process.env.HUB_DB_PORT ?? '5439';
@@ -49,6 +53,7 @@ export async function initializeDatabase(pool: pg.Pool): Promise<void> {
     );
     const needsVisualBackfill = !visualColumn.rows[0]?.present;
     await client.query(await readFile(visualMigrationPath, 'utf8'));
+    await client.query(await readFile(usersActiveMigrationPath, 'utf8'));
     const existingServices = await client.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM services',
     );

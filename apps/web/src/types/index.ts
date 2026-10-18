@@ -1,4 +1,10 @@
-export type User = { id: string; displayName: string; email: string; role: 'admin' | 'attendant' };
+export type User = {
+  id: string;
+  displayName: string;
+  email: string;
+  role: 'admin' | 'attendant';
+  active?: boolean;
+};
 export type ManagedUser = User & { createdAt: string };
 export type CatalogService = {
   id: string;
