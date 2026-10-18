@@ -108,6 +108,87 @@ export function executeAutofill(doc: Document, creds: AutofillCredentials): Auto
   return { status: 'filled_only' };
 }
 
+export function renderAutofillToast(doc: Document, result: AutofillResult): HTMLElement | null {
+  if (result.status === 'form_not_found') return null;
+  doc.getElementById('hublink-autofill-toast')?.remove();
+  const toast = doc.createElement('div');
+  toast.id = 'hublink-autofill-toast';
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+  toast.dataset.hublinkToast = result.status;
+  toast.style.cssText =
+    'position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; max-width: 340px; padding: 12px 14px; border-radius: 10px; background: #18181b; color: #fafafa; font: 13px/1.4 system-ui, sans-serif; box-shadow: 0 10px 25px rgba(0,0,0,0.25); display: flex; gap: 10px; align-items: start;';
+  const text = doc.createElement('span');
+  text.textContent =
+    result.status === 'filled_only'
+      ? 'Hublink: credenciais preenchidas. Confira os dados e clique em Entrar.'
+      : `Hublink: credenciais preenchidas. Conclua a verificação humana (${result.challengeDetected ?? '2FA/CAPTCHA'}) e envie o formulário.`;
+  const close = doc.createElement('button');
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Fechar aviso do Hublink');
+  close.textContent = '×';
+  close.style.cssText =
+    'background: transparent; color: inherit; border: 0; cursor: pointer; font: inherit; padding: 0 4px;';
+  close.addEventListener('click', () => toast.remove());
+  toast.append(text, close);
+  (doc.body ?? doc.documentElement).append(toast);
+  return toast;
+}
+
+export function waitForAndExecuteAutofill(
+  doc: Document,
+  creds: AutofillCredentials,
+  timeoutMs = 4000,
+  isAuthorized: () => boolean = () => true,
+): Promise<AutofillResult> {
+  return new Promise((resolve) => {
+    let observer: MutationObserver | undefined = undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined = undefined;
+    let done = false;
+    const finish = (result: AutofillResult) => {
+      if (done) return;
+      done = true;
+      observer?.disconnect();
+      clearTimeout(timeout);
+      renderAutofillToast(doc, result);
+      resolve(result);
+    };
+    const attempt = () => {
+      if (done) return;
+      try {
+        if (!isAuthorized()) {
+          finish({ status: 'form_not_found' });
+          return;
+        }
+        const result = executeAutofill(doc, creds);
+        if (result.status !== 'form_not_found') finish(result);
+      } catch {
+        finish({ status: 'form_not_found' });
+      }
+    };
+    attempt();
+    if (done) return;
+    const Observer = doc.defaultView?.MutationObserver ?? MutationObserver;
+    observer = new Observer(attempt);
+    observer.observe(doc.body ?? doc.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: [
+        'type',
+        'hidden',
+        'disabled',
+        'readonly',
+        'style',
+        'class',
+        'aria-hidden',
+        'inert',
+      ],
+    });
+    timeout = setTimeout(() => finish({ status: 'form_not_found' }), timeoutMs);
+  });
+}
+
 type FillMessage = AutofillCredentials & { type: 'HUBLINK_AUTOFILL'; targetUrl: string };
 
 export function matchesAuthorizedLocation(actual: string, target: string): boolean {
@@ -134,29 +215,44 @@ if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
     if (typeof message !== 'object' || message === null || !('type' in message)) return;
     if (message.type !== 'HUBLINK_AUTOFILL') return;
     chrome.runtime.onMessage.removeListener(listener);
-    let username = '';
-    let password = '';
-    try {
-      const input = message as Partial<FillMessage>;
-      if (
-        typeof input.username !== 'string' ||
-        typeof input.password !== 'string' ||
-        typeof input.targetUrl !== 'string' ||
-        !matchesAuthorizedLocation(location.href, input.targetUrl)
-      ) {
+    void (async () => {
+      let username = '';
+      let password = '';
+      const creds: AutofillCredentials = { username: '', password: '' };
+      try {
+        const input = message as Partial<FillMessage>;
+        if (
+          typeof input.username !== 'string' ||
+          typeof input.password !== 'string' ||
+          typeof input.targetUrl !== 'string' ||
+          !matchesAuthorizedLocation(location.href, input.targetUrl)
+        ) {
+          sendResponse({ status: 'form_not_found' });
+          return;
+        }
+        const targetUrl = input.targetUrl;
+        username = input.username;
+        password = input.password;
+        input.username = '';
+        input.password = '';
+        creds.username = username;
+        creds.password = password;
+        sendResponse(
+          await waitForAndExecuteAutofill(document, creds, 4000, () =>
+            matchesAuthorizedLocation(location.href, targetUrl),
+          ),
+        );
+      } catch {
         sendResponse({ status: 'form_not_found' });
-        return;
+      } finally {
+        // JS strings and destination DOM values cannot be securely zeroed.
+        username = '';
+        password = '';
+        creds.username = '';
+        creds.password = '';
       }
-      username = input.username;
-      password = input.password;
-      sendResponse(executeAutofill(document, { username, password }));
-    } catch {
-      sendResponse({ status: 'form_not_found' });
-    } finally {
-      // JS strings and DOM values cannot be securely zeroed; release our references promptly.
-      username = '';
-      password = '';
-    }
+    })();
+    return true;
   };
   chrome.runtime.onMessage.addListener(listener);
 }

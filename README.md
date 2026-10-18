@@ -90,6 +90,25 @@ flowchart TD
 
 ---
 
+## Web Client Architecture
+
+`apps/web/src/App.tsx` composes the session gate, shell, views, and dialogs. The frontend uses React 19 hooks without an additional state-management dependency:
+
+- `views/`: Home, Catalog, Access, Team, Identity, and Login presentation.
+- `components/`: header, navigation and page definitions, service cards, and shared search input. Result announcements remain beside each search in the corresponding view.
+- `modals/`: the service editor, extension installation dialog, individual credential dialog, and embedded attendant/password-reset forms. Catalog deletion retains the native confirmation; embedded forms remain embedded.
+- `hooks/`: authentication, catalog CRUD, vault writes and ticket issuance, extension messaging, team administration, identity drafts/import/export, and browser-local theme. Dedicated hooks preserve dialog focus, session cleanup, and one-time catalog animation.
+- `icons/`: typed Lucide 1.17.0 SVG components with the original geometry and license notices.
+- `types/`: shared metadata types and the callbacks coordinating catalog refreshes, vault refreshes, and extension opening.
+
+`useWorkspaceState` owns transient state and refs for the mounted workspace. Domain hooks receive typed subsets of that state; `useWorkspace` composes their operations and coordinates refresh callbacks. State survives screen navigation, and the existing session-loss cleanup clears sensitive form values. `useTheme` owns its independent browser preference. `useIdentity` handles `/api/config`, keeping public-demo configuration separate from authenticated `/api/catalog` operations in `useCatalog`.
+
+The refactor preserves rendered tag hierarchy, classes, accessible names, `aria-current` navigation, the internal `cofre` page key, and `theme.css`. The extension still confirms PING before ticket issuance and receives only an opaque ticket from React. Stored supplier passwords are never fetched by the web client. Backend modularization and stylesheet changes are separate work.
+
+Run `npm run test -w @hublink/web` for the existing 41 frontend tests and `npm run check` for all workspace checks and builds. API tests write synthetic records: select a dedicated local test database with `DATABASE_URL` before running the full check. Component tests and builds establish local behavior; human visual acceptance, installed-extension validation, and supplier authentication remain separate gates.
+
+---
+
 ## 🛡️ Enterprise Security Model
 
 | Layer                 | Security Control                              | Technical Implementation                                                                                         |
@@ -165,16 +184,26 @@ Open `http://localhost:5177` or `http://127.0.0.1:5177` in Google Chrome.
 
 Environment variables can be set directly or placed in a `.env` file (see `.env.example`):
 
-| Variable                 | Default Value                                           | Description                                                  |
-| ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------ |
-| `HUB_API_PORT`           | `3177`                                                  | Port for the Fastify API server.                             |
-| `DATABASE_URL`           | `postgresql://postgres:postgres@127.0.0.1:5439/hublink` | PostgreSQL connection string.                                |
-| `VAULT_MASTER_KEY`       | _(Dev fallback)_                                        | 32-byte hex key (64 chars) for AES-256-GCM encryption.       |
-| `INITIAL_ADMIN_EMAIL`    | _(Configurable)_                                        | Initial administrator email provisioned on first startup.    |
-| `INITIAL_ADMIN_PASSWORD` | _(Configurable)_                                        | Initial administrator password provisioned on first startup. |
-| `HUB_EXTENSION_ID`       | `nhodfnpljikjfeoihaimabljdenmfbio`                      | Chrome extension ID for message origin validation.           |
+| Variable                 | Default Value                                                      | Description                                                  |
+| ------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `HUB_API_PORT`           | `3177`                                                             | Port for the Fastify API server.                             |
+| `DATABASE_URL`           | `postgresql://hublink:hublink_dev_password@127.0.0.1:5439/hublink` | PostgreSQL connection string.                                |
+| `VAULT_MASTER_KEY`       | _(Dev fallback)_                                                   | 32-byte hex key (64 chars) for AES-256-GCM encryption.       |
+| `INITIAL_ADMIN_EMAIL`    | _(Configurable)_                                                   | Initial administrator email provisioned on first startup.    |
+| `INITIAL_ADMIN_PASSWORD` | _(Configurable)_                                                   | Initial administrator password provisioned on first startup. |
+| `HUB_EXTENSION_ID`       | `nhodfnpljikjfeoihaimabljdenmfbio`                                 | Chrome extension ID for message origin validation.           |
 
 ---
+
+## API Modules, Security, and Companion Status
+
+ARCH-013 stage 2 keeps `createServer(configPath?, pool?, options?)` compatible and makes `server.ts` the lifecycle orchestrator. `types/` holds contracts, `validators/` retains input/configuration validation, `services/` owns session, audit, and security helpers, and `routes/{auth,admin,catalog,vault,config}.ts` registers endpoints. Database initialization, explicit transactions and locks, encryption AAD, session revocation, and atomic configuration writes retain their existing contracts.
+
+Every API response receives `nosniff`, frame denial, no-referrer, same-origin opener/resource policies, disabled camera/microphone/geolocation, and CSP `default-src 'none'; frame-ancestors 'none'; base-uri 'none'`. These headers apply to the JSON API; the Vite frontend is served separately. Login permits 20 attempts per IP per sliding 60-second window; ticket issuance permits 30. Excess attempts receive HTTP 429, `Retry-After` in seconds, and a generic error. Limits are in memory per server instance, reset on restart, and do not coordinate across processes. Expired entries are pruned on subsequent attempts. Tests can override either budget with the optional `loginRateLimit` and `ticketRateLimit` server options (`max`, `windowMs`). This local hardening does not settle remote exposure, CSRF policy, or production infrastructure.
+
+EXT-015 waits up to four seconds for a unique usable SPA login form, rechecking the authorized destination before every filling attempt. A dismissible accessible toast asks the operator to review the fields, complete any human challenge, and submit manually. It never includes credential values. The toolbar popup checks the local API `/health`, describes the active tab, and opens or focuses the local Workspace. It does not fetch account details or vault data. Reload the unpacked extension after `npm run build` to load the new `popup.js` bundle; permissions and the deterministic manifest key are unchanged. Synthetic DOM tests do not prove installed Chrome or supplier behavior.
+
+The GitHub Actions `verify` job uses Node 24 and PostgreSQL 16 with synthetic test-only settings to run `npm ci` and `npm run check`. `VAULT_MASTER_KEY` is the actual vault runtime setting; CI also supplies the ticket's `HUB_MASTER_KEY` alias, which the vault does not read. Playwright remains a separate `npm run test:e2e` command: it starts its own API on 3178 and web on 5177, refuses existing servers, and uses `E2E_DATABASE_URL` (default database `hublink_e2e`). Use a dedicated test database for `DATABASE_URL` when running API tests. The seven Workspace scenarios cover navigation, identity and logo persistence, inline editor cancellation, desktop/mobile layout, export, logout, and password-reset revocation. The service editor is inline; it has no service modal Escape/focus-restoration contract.
 
 ## 🧪 Testing & Quality Gates
 
@@ -208,12 +237,12 @@ hublink/
 ├── apps/
 │   ├── api/          # Fastify backend, PostgreSQL pool, scrypt auth, AES-256-GCM vault
 │   │   ├── migrations/   # Incremental SQL migrations (001_initial, 002_categories, 003_metadata)
-│   │   └── src/          # API routes, auth, vault encryption, server lifecycle
+│   │   └── src/          # types/, validators/, services/, routes/, auth, vault, lifecycle
 │   ├── web/          # React 19 + Vite Workspace, five task screens, responsive modals
 │   │   └── src/          # App component, private catalog, dedicated task screens, theme.css
 │   └── extension/    # Chrome MV3 companion extension
 │       ├── static/       # Manifest V3 (deterministic RSA key) & popup UI
-│       └── src/          # content.ts presence marker, background.ts bridge, autofill.ts
+│       └── src/          # content.ts, background.ts, autofill.ts, popup.ts
 ├── docs/             # Technical architecture, decisions, and roadmap
 └── tests/e2e/        # Isolated Playwright end-to-end test scenarios
 ```
