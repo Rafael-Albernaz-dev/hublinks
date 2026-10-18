@@ -3,6 +3,7 @@ import type {
   CatalogCredentialType,
   CredentialsInput,
   AttendantInput,
+  UserUpdateInput,
   ServiceInput,
   CatalogInput,
   VaultInput,
@@ -45,10 +46,34 @@ export function attendantInput(body: unknown): AttendantInput | null {
   const account = credentials(body);
   if (!account || typeof body !== 'object' || body === null || !('displayName' in body))
     return null;
-  if (typeof body.displayName !== 'string') return null;
-  const displayName = body.displayName.trim();
+  const b = body as Record<string, unknown>;
+  if (typeof b.displayName !== 'string') return null;
+  const displayName = b.displayName.trim();
   if (!displayName || displayName.length > 80 || account.password.length < 8) return null;
-  return { displayName, ...account };
+  let role: 'admin' | 'attendant' = 'attendant';
+  if ('role' in b && b.role !== undefined) {
+    if (b.role === 'admin') role = 'admin';
+    else if (b.role === 'attendant' || b.role === 'user') role = 'attendant';
+    else return null;
+  }
+  return { displayName, ...account, role };
+}
+
+export function userUpdateInput(body: unknown): UserUpdateInput | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const b = body as Record<string, unknown>;
+  if (typeof b.displayName !== 'string' || typeof b.email !== 'string') return null;
+  const displayName = b.displayName.trim();
+  const email = b.email.trim().toLowerCase();
+  if (!displayName || displayName.length > 80) return null;
+  if (email.length < 3 || email.length > 255 || !/^\S+@\S+\.\S+$/.test(email)) return null;
+  let role: 'admin' | 'attendant';
+  if (b.role === 'admin') role = 'admin';
+  else if (b.role === 'attendant' || b.role === 'user') role = 'attendant';
+  else return null;
+  const active = b.active === undefined ? true : b.active;
+  if (typeof active !== 'boolean') return null;
+  return { displayName, email, role, active };
 }
 
 export function serviceInput(body: unknown): ServiceInput | null {
@@ -219,6 +244,14 @@ function string(value: unknown, name: string, max: number, required = true): str
   return value.trim();
 }
 
+function optionalHexColor(value: unknown, name: string): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(value.trim())) {
+    throw new Error(`${name} must be a 6-digit hex color.`);
+  }
+  return value.trim().toLowerCase();
+}
+
 export function image(value: unknown, max: number, name: string): string | null {
   if (value === null) return null;
   if (typeof value !== 'string') throw new Error(`${name} is invalid.`);
@@ -272,6 +305,29 @@ export function parseConfig(input: unknown): DemoConfig {
         : { logoDataUrl: image(link.logoDataUrl, 500_000, 'Card logo') }),
     };
   });
+  const headerTagline =
+    config.headerTagline === undefined
+      ? undefined
+      : string(config.headerTagline, 'Header tagline', 60, false);
+  const homeEyebrow =
+    config.homeEyebrow === undefined
+      ? undefined
+      : string(config.homeEyebrow, 'Home eyebrow', 60, false);
+  const homeTitle =
+    config.homeTitle === undefined ? undefined : string(config.homeTitle, 'Home title', 120, false);
+  const brandPrimaryText =
+    config.brandPrimaryText === undefined
+      ? undefined
+      : string(config.brandPrimaryText, 'Brand primary text', 40, false);
+  const brandSecondaryText =
+    config.brandSecondaryText === undefined
+      ? undefined
+      : string(config.brandSecondaryText, 'Brand secondary text', 40, false);
+  const brandPrimaryColor = optionalHexColor(config.brandPrimaryColor, 'Brand primary color');
+  const brandSecondaryColor = optionalHexColor(config.brandSecondaryColor, 'Brand secondary color');
+  const textColor = optionalHexColor(config.textColor, 'Text color');
+  const backgroundColor = optionalHexColor(config.backgroundColor, 'Background color');
+
   return {
     version: 1 as const,
     companyName: string(config.companyName, 'Company name', 60),
@@ -279,5 +335,14 @@ export function parseConfig(input: unknown): DemoConfig {
     color: { r: color.r as number, g: color.g as number, b: color.b as number },
     logoDataUrl: image(config.logoDataUrl, 1_000_000, 'Company logo'),
     links,
+    ...(headerTagline ? { headerTagline } : {}),
+    ...(homeEyebrow ? { homeEyebrow } : {}),
+    ...(homeTitle ? { homeTitle } : {}),
+    ...(brandPrimaryText ? { brandPrimaryText } : {}),
+    ...(brandPrimaryColor ? { brandPrimaryColor } : {}),
+    ...(brandSecondaryText ? { brandSecondaryText } : {}),
+    ...(brandSecondaryColor ? { brandSecondaryColor } : {}),
+    ...(textColor ? { textColor } : {}),
+    ...(backgroundColor ? { backgroundColor } : {}),
   };
 }

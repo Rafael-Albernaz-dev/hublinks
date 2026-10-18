@@ -1009,3 +1009,147 @@ test('ticket limiter stops issuance after the configured budget without leaking 
     await limited.close();
   }
 });
+
+test('admin updates user role, deactivates user and revokes sessions, and blocks self-demotion', async () => {
+  const adminLoginRes = await server.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    remoteAddress: '10.99.0.1',
+    payload: {
+      email: process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
+      password: process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
+    },
+  });
+  assert.equal(adminLoginRes.statusCode, 200);
+  const adminCookie = sessionCookie(adminLoginRes);
+  const me = await server.inject({
+    method: 'GET',
+    url: '/api/auth/me',
+    headers: { cookie: adminCookie },
+  });
+  const adminId: string = me.json().user.id;
+  const email = `managed-${randomBytes(6).toString('hex')}@example.test`;
+  let userId: string | undefined;
+  try {
+    const created = await server.inject({
+      method: 'POST',
+      url: '/api/admin/users',
+      headers: { cookie: adminCookie },
+      payload: {
+        displayName: 'Managed Member',
+        email,
+        password: 'password-123456',
+        role: 'user',
+      },
+    });
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.json().user.role, 'attendant');
+    assert.equal(created.json().user.active, true);
+    userId = created.json().user.id;
+
+    // Self-demotion or self-deactivation is blocked
+    const selfDeactivate = await server.inject({
+      method: 'PUT',
+      url: `/api/admin/users/${adminId}`,
+      headers: { cookie: adminCookie },
+      payload: {
+        displayName: 'Admin',
+        email: me.json().user.email,
+        role: 'admin',
+        active: false,
+      },
+    });
+    assert.equal(selfDeactivate.statusCode, 400);
+
+    // User logs in
+    const userLogin = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: '10.99.0.2',
+      payload: { email, password: 'password-123456' },
+    });
+    assert.equal(userLogin.statusCode, 200);
+    const userCookie = sessionCookie(userLogin);
+
+    // Promote user to admin and update displayName
+    const promoted = await server.inject({
+      method: 'PUT',
+      url: `/api/admin/users/${userId}`,
+      headers: { cookie: adminCookie },
+      payload: {
+        displayName: 'Promoted Admin',
+        email,
+        role: 'admin',
+        active: true,
+      },
+    });
+    assert.equal(promoted.statusCode, 200);
+    assert.equal(promoted.json().user.role, 'admin');
+    assert.equal(promoted.json().user.displayName, 'Promoted Admin');
+
+    // Deactivate user -> revokes active session and blocks new login
+    const deactivated = await server.inject({
+      method: 'PUT',
+      url: `/api/admin/users/${userId}`,
+      headers: { cookie: adminCookie },
+      payload: {
+        displayName: 'Promoted Admin',
+        email,
+        role: 'attendant',
+        active: false,
+      },
+    });
+    assert.equal(deactivated.statusCode, 200);
+    assert.equal(deactivated.json().user.active, false);
+
+    const meAfterDeactivate = await server.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie: userCookie },
+    });
+    assert.equal(meAfterDeactivate.statusCode, 401);
+
+    const loginAfterDeactivate = await server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: '10.99.0.2',
+      payload: { email, password: 'password-123456' },
+    });
+    assert.equal(loginAfterDeactivate.statusCode, 401);
+  } finally {
+    if (userId) await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+  }
+});
+
+test('catalog favicon endpoint enforces admin auth and blocks non-HTTPS or private hosts (SSRF)', async () => {
+  const adminLoginRes = await server.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    remoteAddress: '10.99.0.3',
+    payload: {
+      email: process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
+      password: process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
+    },
+  });
+  assert.equal(adminLoginRes.statusCode, 200);
+  const adminCookie = sessionCookie(adminLoginRes);
+  assert.equal(
+    (await server.inject('/api/catalog/favicon?url=https://example.com')).statusCode,
+    401,
+  );
+  for (const unsafeUrl of [
+    'http://example.com',
+    'https://localhost/admin',
+    'https://127.0.0.1/secret',
+    'https://10.0.0.1/internal',
+    'https://192.168.1.1/router',
+    'https://169.254.169.254/latest/meta-data/',
+  ]) {
+    const res = await server.inject({
+      method: 'GET',
+      url: `/api/catalog/favicon?url=${encodeURIComponent(unsafeUrl)}`,
+      headers: { cookie: adminCookie },
+    });
+    assert.equal(res.statusCode, 400);
+  }
+});

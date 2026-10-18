@@ -1,7 +1,18 @@
+import { useState } from 'react';
 import { SearchBar } from '../components/SearchBar';
 import { normalizeSearch } from '../hooks/normalizeSearch';
 import type { AuthenticatedWorkspace } from '../hooks/useWorkspace';
-import { CatalogEditor } from '../modals/ServiceModal';
+import { CatalogEditor, ModalDialog } from '../modals/ServiceModal';
+import type { CatalogService } from '../types';
+
+const CATEGORY_LABELS: Record<CatalogService['category'], string> = {
+  sva: 'SVA',
+  crm: 'CRM',
+  sistemas: 'Sistemas',
+  sheet: 'Planilha',
+  outros: 'Outros',
+};
+
 export function CatalogView({
   page,
   catalogQuery,
@@ -34,6 +45,31 @@ export function CatalogView({
   | 'deleteCatalogService'
   | 'setPage'
 >) {
+  const [categoryFilter, setCategoryFilter] = useState<'all' | CatalogService['category']>('all');
+  const [vaultFilter, setVaultFilter] = useState<'all' | CatalogService['credentialType']>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'configured' | 'pending'>('all');
+  const [deletingService, setDeletingService] = useState<CatalogService | null>(null);
+
+  const filteredCatalog = catalog.filter((service) => {
+    const matchesSearch = normalizeSearch(
+      `${service.name} ${service.category} ${service.description ?? ''} ${service.targetUrl ?? ''}`,
+    ).includes(normalizeSearch(catalogQuery));
+    if (!matchesSearch) return false;
+    if (categoryFilter !== 'all' && service.category !== categoryFilter) return false;
+    if (vaultFilter !== 'all' && service.credentialType !== vaultFilter) return false;
+    if (statusFilter !== 'all') {
+      const isReady =
+        Boolean(service.targetUrl) && (service.credentialType === 'none' || service.hasCredential);
+      if (statusFilter === 'configured' && !isReady) return false;
+      if (statusFilter === 'pending' && isReady) return false;
+    }
+    return true;
+  });
+
+  const editingService = editingCatalogId
+    ? catalog.find((item) => item.id === editingCatalogId)
+    : undefined;
+
   return (
     <>
       {page === 'catalogo' && (
@@ -44,6 +80,48 @@ export function CatalogView({
           </div>
           <div className="catalog-toolbar">
             <SearchBar value={catalogQuery} onChange={setCatalogQuery} label="Buscar no catálogo" />
+            <div className="hb-filter-group" role="group" aria-label="Filtros do catálogo">
+              <select
+                className="hb-filter-select"
+                aria-label="Filtrar por categoria"
+                value={categoryFilter}
+                onChange={(event) =>
+                  setCategoryFilter(event.target.value as 'all' | CatalogService['category'])
+                }
+              >
+                <option value="all">Todas as categorias</option>
+                <option value="sva">SVA</option>
+                <option value="crm">CRM</option>
+                <option value="sistemas">Sistemas</option>
+                <option value="sheet">Planilha</option>
+                <option value="outros">Outros</option>
+              </select>
+              <select
+                className="hb-filter-select"
+                aria-label="Filtrar por cofre"
+                value={vaultFilter}
+                onChange={(event) =>
+                  setVaultFilter(event.target.value as 'all' | CatalogService['credentialType'])
+                }
+              >
+                <option value="all">Todos os cofres</option>
+                <option value="shared">Compartilhado</option>
+                <option value="individual">Individual</option>
+                <option value="none">Sem cofre</option>
+              </select>
+              <select
+                className="hb-filter-select"
+                aria-label="Filtrar por status"
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as 'all' | 'configured' | 'pending')
+                }
+              >
+                <option value="all">Todos os status</option>
+                <option value="configured">Configurado</option>
+                <option value="pending">Pendente</option>
+              </select>
+            </div>
             {currentUser.role === 'admin' && (
               <button
                 type="button"
@@ -58,14 +136,7 @@ export function CatalogView({
             )}
           </div>
           <p className="visually-hidden" role="status" aria-live="polite">
-            {
-              catalog.filter((service) =>
-                normalizeSearch(service.name + ' ' + service.category).includes(
-                  normalizeSearch(catalogQuery),
-                ),
-              ).length
-            }{' '}
-            serviços encontrados no catálogo
+            {filteredCatalog.length} serviços encontrados no catálogo
           </p>
           {catalogError && (
             <p role="alert" className="form-error">
@@ -73,102 +144,181 @@ export function CatalogView({
             </p>
           )}
           {addingCatalog && currentUser.role === 'admin' && (
-            <div className="catalog-form-panel">
-              <h2>Novo serviço</h2>
+            <ModalDialog
+              titleId="catalog-add-dialog-title"
+              chip="Catálogo privado"
+              title="Novo serviço"
+              description="Configure o nome, endereço HTTPS, logo e política de cofre do novo card."
+              icon="Plus"
+              onClose={() => setAddingCatalog(false)}
+            >
               <CatalogEditor
                 busy={vaultBusy}
                 onSave={saveCatalogService}
                 onCancel={() => setAddingCatalog(false)}
               />
-            </div>
+            </ModalDialog>
           )}
-          <div className="catalog-management-list">
-            {catalog
-              .filter((service) =>
-                normalizeSearch(service.name + ' ' + service.category).includes(
-                  normalizeSearch(catalogQuery),
-                ),
-              )
-              .map((service) => (
-                <div className="catalog-management-record" key={service.id}>
-                  {editingCatalogId === service.id && currentUser.role === 'admin' ? (
-                    <div className="catalog-form-panel">
-                      <h2>Editar {service.name}</h2>
-                      <CatalogEditor
-                        service={service}
-                        busy={vaultBusy}
-                        onSave={saveCatalogService}
-                        onCancel={() => setEditingCatalogId(null)}
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <span className="hb-logo catalog-record-logo">
-                        {service.logoDataUrl ? (
-                          <img src={service.logoDataUrl} alt="" />
-                        ) : (
-                          service.name.slice(0, 2).toUpperCase()
-                        )}
-                      </span>
-                      <div className="catalog-record-details">
-                        <strong>{service.name}</strong>
-                        <small>Categoria: {service.category}</small>
-                        <span className={service.targetUrl ? '' : 'hb-pending'}>
+          {editingService && currentUser.role === 'admin' && (
+            <ModalDialog
+              titleId="catalog-edit-dialog-title"
+              chip="Catálogo privado"
+              title={`Editar ${editingService.name}`}
+              description="Atualize os dados do serviço, destino HTTPS ou credencial compartilhada."
+              icon="Edit"
+              logoDataUrl={editingService.logoDataUrl}
+              onClose={() => setEditingCatalogId(null)}
+            >
+              <CatalogEditor
+                service={editingService}
+                busy={vaultBusy}
+                onSave={saveCatalogService}
+                onCancel={() => setEditingCatalogId(null)}
+              />
+            </ModalDialog>
+          )}
+          {deletingService && currentUser.role === 'admin' && (
+            <ModalDialog
+              titleId="catalog-delete-dialog-title"
+              chip="Exclusão de serviço"
+              title={`Excluir ${deletingService.name}`}
+              description={
+                <>
+                  Tem certeza que deseja excluir <strong>{deletingService.name}</strong> do
+                  catálogo? As credenciais associadas a este serviço também serão removidas.
+                </>
+              }
+              icon="Trash"
+              logoDataUrl={deletingService.logoDataUrl}
+              onClose={() => setDeletingService(null)}
+            >
+              <div className="hublink-modal-actions">
+                <button
+                  type="button"
+                  className="button button-danger"
+                  disabled={vaultBusy}
+                  onClick={async () => {
+                    const target = deletingService;
+                    setDeletingService(null);
+                    await deleteCatalogService(target);
+                  }}
+                >
+                  Confirmar exclusão
+                </button>
+                <button
+                  type="button"
+                  className="button button-plain"
+                  onClick={() => setDeletingService(null)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </ModalDialog>
+          )}
+
+          {filteredCatalog.length > 0 ? (
+            <div className="hb-table-wrap">
+              <table className="hb-table" aria-label="Tabela de serviços do catálogo">
+                <thead>
+                  <tr>
+                    <th scope="col">Serviço</th>
+                    <th scope="col">Categoria</th>
+                    <th scope="col">Destino HTTPS</th>
+                    <th scope="col">Cofre</th>
+                    <th scope="col">Status</th>
+                    {currentUser.role === 'admin' && <th scope="col">Ações</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCatalog.map((service) => (
+                    <tr className="catalog-management-record" key={service.id}>
+                      <td>
+                        <div className="hb-table-entity">
+                          <span className="hb-logo catalog-record-logo">
+                            {service.logoDataUrl ? (
+                              <img src={service.logoDataUrl} alt="" />
+                            ) : (
+                              service.name.slice(0, 2).toUpperCase()
+                            )}
+                          </span>
+                          <div className="catalog-record-details">
+                            <strong>{service.name}</strong>
+                            {service.description && <small>{service.description}</small>}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="hb-badge">
+                          {CATEGORY_LABELS[service.category] ?? service.category}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={service.targetUrl ? 'hb-table-mono' : 'hb-pending'}>
                           {service.targetUrl
                             ? new URL(service.targetUrl).hostname
                             : 'Sem destino configurado'}
                         </span>
-                      </div>
-                      <div className="catalog-record-status">
-                        <span>
+                      </td>
+                      <td>
+                        <span className="credential-badge">
                           {service.credentialType === 'none'
                             ? 'Sem cofre'
                             : service.credentialType === 'shared'
                               ? 'Compartilhado'
                               : 'Individual'}
                         </span>
-                        <small>
+                      </td>
+                      <td>
+                        <span
+                          className={
+                            'hb-status-pill ' +
+                            (service.credentialType === 'none' || service.hasCredential
+                              ? 'is-active'
+                              : 'is-pending')
+                          }
+                        >
                           {service.credentialType === 'none'
                             ? 'Link direto'
                             : service.hasCredential
                               ? 'Credencial cadastrada'
                               : 'Acesso pendente'}
-                        </small>
-                      </div>
+                        </span>
+                      </td>
                       {currentUser.role === 'admin' && (
-                        <div className="row-actions">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingCatalogId(service.id);
-                              setAddingCatalog(false);
-                            }}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            disabled={vaultBusy}
-                            onClick={() => void deleteCatalogService(service)}
-                          >
-                            Excluir
-                          </button>
-                        </div>
+                        <td>
+                          <div className="row-actions">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCatalogId(service.id);
+                                setAddingCatalog(false);
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={vaultBusy}
+                              onClick={() => setDeletingService(service)}
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        </td>
                       )}
-                    </>
-                  )}
-                </div>
-              ))}
-            {!catalog.length && !catalogError && (
-              <p className="catalog-empty">Nenhum serviço cadastrado.</p>
-            )}
-            {catalog.length > 0 &&
-              !catalog.some((service) =>
-                normalizeSearch(service.name + ' ' + service.category).includes(
-                  normalizeSearch(catalogQuery),
-                ),
-              ) && <p className="catalog-empty">Nenhum serviço encontrado.</p>}
-          </div>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="catalog-management-list">
+              {!catalog.length && !catalogError && (
+                <p className="catalog-empty">Nenhum serviço cadastrado.</p>
+              )}
+              {catalog.length > 0 && <p className="catalog-empty">Nenhum serviço encontrado.</p>}
+            </div>
+          )}
           {currentUser.role === 'attendant' && (
             <div className="catalog-attendant-note">
               <p>

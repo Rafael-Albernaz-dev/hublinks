@@ -51,8 +51,8 @@ export function HomeView({
       <section hidden={page !== 'inicio'} aria-label="Início">
         <div className="hb-title-row">
           <div>
-            <span className="hb-eyebrow">SEU ESPAÇO DE TRABALHO</span>
-            <h1>Um bom dia começa aqui.</h1>
+            <span className="hb-eyebrow">{config.homeEyebrow || 'SEU ESPAÇO DE TRABALHO'}</span>
+            <h1>{config.homeTitle || 'Um bom dia começa aqui.'}</h1>
             <p>{config.subtitle || 'Serviços, consultas e acessos da equipe.'}</p>
           </div>
         </div>

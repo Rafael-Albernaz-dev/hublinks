@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { ManagedUser } from '../types';
 import type { WorkspaceState } from './useWorkspaceState';
 export function useTeam(
@@ -37,6 +37,7 @@ export function useTeam(
     setResetPassword,
     setResetId,
   } = state;
+  const [adminRole, setAdminRole] = useState<'admin' | 'attendant'>('attendant');
 
   useEffect(() => {
     if (page !== 'equipe' || currentUser?.role !== 'admin') return;
@@ -60,27 +61,32 @@ export function useTeam(
         throw new Error('Invalid users');
       }
       setManagedUsers(
-        data.users.filter(
-          (user): user is ManagedUser =>
-            typeof user === 'object' &&
-            user !== null &&
-            'id' in user &&
-            typeof user.id === 'string' &&
-            'displayName' in user &&
-            typeof user.displayName === 'string' &&
-            'email' in user &&
-            typeof user.email === 'string' &&
-            'role' in user &&
-            (user.role === 'admin' || user.role === 'attendant') &&
-            'createdAt' in user &&
-            typeof user.createdAt === 'string',
-        ),
+        data.users
+          .filter(
+            (user): user is ManagedUser =>
+              typeof user === 'object' &&
+              user !== null &&
+              'id' in user &&
+              typeof user.id === 'string' &&
+              'displayName' in user &&
+              typeof user.displayName === 'string' &&
+              'email' in user &&
+              typeof user.email === 'string' &&
+              'role' in user &&
+              (user.role === 'admin' || user.role === 'attendant') &&
+              'createdAt' in user &&
+              typeof user.createdAt === 'string',
+          )
+          .map((user) => ({
+            ...user,
+            active: typeof user.active === 'boolean' ? user.active : true,
+          })),
       );
     } catch {
-      setAdminNotice('Não foi possível carregar os atendentes.');
+      setAdminNotice('Não foi possível carregar os usuários da equipe.');
     }
   }
-  async function createAttendant(event: FormEvent<HTMLFormElement>) {
+  async function createAttendant(event: FormEvent<HTMLFormElement>): Promise<boolean> {
     event.preventDefault();
     setAdminNotice('');
     try {
@@ -91,20 +97,58 @@ export function useTeam(
           displayName: adminName,
           email: adminEmail,
           password: adminPassword,
+          role: adminRole,
         }),
       });
       if (response.status === 401) {
         setCurrentUser(null);
-        return;
+        return false;
       }
       if (!response.ok) throw new Error('Could not create user');
       setAdminName('');
       setAdminEmail('');
       setAdminPassword('');
-      setAdminNotice('Atendente cadastrado.');
+      setAdminRole('attendant');
+      setAdminNotice('Usuário cadastrado com sucesso.');
       await refreshUsers();
+      return true;
     } catch {
-      setAdminNotice('Não foi possível cadastrar o atendente. Verifique os dados e o e-mail.');
+      setAdminNotice('Não foi possível cadastrar o usuário. Verifique os dados e o e-mail.');
+      return false;
+    }
+  }
+  async function updateManagedUser(
+    id: string,
+    input: {
+      displayName: string;
+      email: string;
+      role: 'admin' | 'attendant';
+      active: boolean;
+    },
+  ): Promise<boolean> {
+    setAdminNotice('');
+    try {
+      const response = await fetch(`/api/admin/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (response.status === 401) {
+        setCurrentUser(null);
+        return false;
+      }
+      if (!response.ok) {
+        const err = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || 'Não foi possível atualizar o usuário.');
+      }
+      setAdminNotice('Permissões e dados do usuário atualizados.');
+      await refreshUsers();
+      return true;
+    } catch (cause) {
+      setAdminNotice(
+        cause instanceof Error ? cause.message : 'Não foi possível atualizar o usuário.',
+      );
+      return false;
     }
   }
   async function changePassword(event: FormEvent<HTMLFormElement>, id: string) {
@@ -128,5 +172,12 @@ export function useTeam(
       setAdminNotice('Não foi possível redefinir a senha.');
     }
   }
-  return { refreshUsers, createAttendant, changePassword };
+  return {
+    refreshUsers,
+    createAttendant,
+    updateManagedUser,
+    changePassword,
+    adminRole,
+    setAdminRole,
+  };
 }

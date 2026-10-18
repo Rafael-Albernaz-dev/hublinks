@@ -15,20 +15,25 @@
 
 ## 🌟 Highlights & White-Label Customization
 
-- 🎨 **Dynamic White-Label Branding:**
-  - Fully customizable organization name, subtitle, and brand logo upload.
-  - Brand color picker with a live identity preview and explicit saving to the local configuration API.
-  - Responsive Workspace layouts for desktop, tablet, and mobile, with light and dark themes.
+- 🎨 **Dynamic White-Label Branding & Personalization:**
+  - Fully customizable organization name, optional bicolor navbar brand text (`brandPrimaryText` / `brandSecondaryText` with independent colors), header tagline, home eyebrow, home title, and subtitle.
+  - Brand logo upload with explicit recommended pixel resolution (`256×256 px` or `320×96 px` for company logo; `128×128 px` for service logo) and side-by-side **Light Mode / Dark Mode** live previews.
+  - Synchronized `#RRGGBB`, `r, g, b`, and native color pickers for primary accent color, plus optional custom text (`--hb-text`) and background (`--hb-bg`) colors.
+  - Responsive Workspace layouts for desktop, tablet, and mobile, with light and dark themes and a clean centered footer (`<Company Name> · <Year>`).
 
-- 📂 **Customizable Service Catalog:**
-  - Organize access cards across flexible categories (_CRM, ERP, Financial, Communication, Tools, Other_).
-  - Custom per-service titles, descriptions, icons/logos (PNG, JPG, WebP up to 500 KB), and validated HTTPS target URLs.
-  - Comprehensive card management directly within the authenticated admin interface.
+- 📂 **Customizable Service Catalog & Automatic Favicon Capture:**
+  - Organize access cards across flexible categories (_CRM, ERP, Financial, Communication, Tools, Other_) in structured tables with multi-criteria filters (search, category, vault type, credential status).
+  - Automatic favicon capture (`GET /api/catalog/favicon?url=...` with SSRF protection) when entering an `https://` service URL, while preserving manual logo upload override (PNG, JPG, WebP up to 500 KB).
+  - Comprehensive card creation, editing, and deletion inside accessible modal dialogs (`role="dialog"`, `aria-modal="true"`).
 
 - 🔑 **Dual-Access Architecture:**
   - **Direct Link (No Vault):** Instant one-click access (`noopener, noreferrer`) for internal documentation, Google Sheets, dashboards, and portals requiring no credentials.
-  - **Shared Vault:** Encrypted corporate credentials managed centrally by administrators for team-wide tools.
-  - **Individual Vault:** Personal credentials stored and managed on-demand by individual team members directly on card interaction.
+  - **Shared Vault:** Encrypted corporate credentials managed centrally by administrators for team-wide tools via dedicated modal workflows.
+  - **Individual Vault:** Personal credentials stored and managed on-demand by individual team members directly on card interaction or via the Acessos table.
+
+- 👥 **Team & Permissions Management:**
+  - Simplified two-role model in the UI: **Admin** (`admin`) and **Usuário** (`attendant`).
+  - Structured user directory with role and account status filters (`Ativo` / `Desativado`), modal-based user creation, role/status editing (`PUT /api/admin/users/:id`), quick activate/deactivate toggle with immediate session revocation, and password reset.
 
 - 🛡️ **Zero-Knowledge Frontend:**
   - Stored supplier passwords are never fetched for display by the web client. Authorized forms accept new credential values only for saving; they do not reveal existing vault passwords.
@@ -46,23 +51,19 @@
 
 The authenticated portal follows the approved Workspace design, with five visible destinations:
 
-| Screen     | Purpose                                                                                                       | Access                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Início     | Four task shortcuts, instant service search, and private catalog cards                                        | All authenticated users                                                            |
-| Catálogo   | Dedicated searchable management list with destination, category, vault status, and administrator forms        | All users can browse; only administrators manage cards                             |
-| Acessos    | Credential status and responsible person, with authorized save/update forms                                   | Administrators manage shared access; attendants manage their own individual access |
-| Equipe     | Administrator/attendant listing, attendant creation, and attendant password reset                             | Administrators only                                                                |
-| Identidade | Live brand preview, company name, subtitle, logo dropzone, synchronized hex/RGB color, and JSON import/export | Administrators only                                                                |
+| Screen         | Purpose                                                                                                                                      | Access                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Início         | Four task shortcuts, full-label highlighted instant service search, customizable hero texts, private catalog cards, and centered year footer | All authenticated users                                                            |
+| Catálogo       | Structured table with category/vault/status filters, automatic favicon capture, Light/Dark logo preview, and modal-based admin CRUD          | All users can browse; only administrators manage cards                             |
+| Acessos        | Structured table with credential type and vault status filters, responsible person, and modal-based credential save/update                   | Administrators manage shared access; attendants manage their own individual access |
+| Equipe         | Structured table with role/status filters (`Admin` / `Usuário`, `Ativo` / `Desativado`) and modal workflows for creation, edit, and reset    | Administrators only                                                                |
+| Personalização | Live brand preview, company name, bicolor navbar text, customizable Home texts, Light/Dark logo dropzone, color pickers, and JSON I/O        | Administrators only                                                                |
 
-Search ignores accents and case and matches service names and categories. The result count is announced through a polite live region. Cards offer **Abrir**, **Cadastrar**, or **Configurar** according to the destination, credential status, and user role. Direct links open with `noopener noreferrer`; vault opening retains the confirmed extension bridge, single-use ticket, and manual-login fallback. Passwords are never listed or revealed in Acessos. Team management continues to use the existing `/api/admin/users` routes; this interface adds no administrator-provisioning endpoint.
+Search ignores accents and case and matches service names and categories. The result count is announced through a polite live region. Cards offer **Abrir**, **Cadastrar**, or **Configurar** according to the destination, credential status, and user role. Direct links open with `noopener noreferrer`; vault opening retains the confirmed extension bridge, single-use ticket, and manual-login fallback. Passwords are never listed or revealed in Acessos. Team management uses `/api/admin/users` (`GET`, `POST`, `PUT /:id`, and `POST /:id/reset-password`), revoking active sessions immediately when an account is deactivated or has its password reset.
 
-The light and dark themes use the approved CSS tokens and Lucide 1.17.0 SVG geometry at 16 px with a 1.6 stroke. Icon buttons beside the account in the header switch the theme and sign out. The theme choice remains browser-local under `hublink-theme`; system preference supplies the initial theme when no choice is saved. A chosen brand color updates the Workspace accent, selected surfaces, focus outlines, actions, and identity preview immediately. The purple Workspace accent remains the default. The legacy blue `DEFAULT_CONFIG.color` is treated as an uncustomized default in this frontend; an explicit color choice can be saved through the existing configuration API.
+The light and dark themes use the approved CSS tokens and Lucide 1.17.0 SVG geometry at 16 px with a 1.6 stroke. Icon buttons beside the account in the header switch the theme and sign out. The theme choice remains browser-local under `hublink-theme`; system preference supplies the initial theme when no choice is saved. A chosen brand color updates the Workspace accent, selected surfaces, focus outlines, actions, and identity preview immediately. Optional text and background colors override `--hb-text` and `--hb-bg` when configured.
 
-Home displays four shortcuts and three service columns on desktop. At 780 px and below, both Home grids use two columns. Catálogo has a separate searchable management list and administrator actions; it does not render the Home card grid. At 560 px and below, the five navigation destinations stay in one row with icons above labels, the search field is at least 46 px tall, and main touch targets are at least 44 px. Cards enter once per initial catalog load (220 ms, 35 ms stagger capped at five steps); filtering and navigation do not replay the animation. Reduced-motion preference disables entry animation, transitions, and transforms.
-
-The Home introduction displays the current identity subtitle, with the approved sentence as its empty-text fallback. Identity provides a logo preview/dropzone with PNG, JPG, or WebP upload (up to 1 MB) and removal, plus synchronized `#RRGGBB`, `r, g, b` / `rgb(r, g, b)`, and native color inputs. Invalid color text stays in its field until corrected or blurred and does not change the accent. **Restaurar roxo padrão** selects `#7137D1`. Identity edits and imported JSON remain drafts until **Salvar alterações**. `/api/config` retains its existing local public-demo boundary; JSON links do not publish private catalog cards. An unavailable configuration API blocks identity editing. Private cards still come from authenticated `/api/catalog`, and server authorization remains authoritative for every sensitive operation.
-
-Browser validation uses isolated synthetic API responses, including both themes at 320, 390, 560, 561, 780, 781, 1024, and 1440 px. This establishes local layout behavior; it does not establish installed-extension, supplier-login, production, or human visual acceptance.
+Home displays four shortcuts and three service columns on desktop. At 780 px and below, both Home grids use two columns. Catálogo, Acessos, and Equipe render structured `<table class="hb-table">` views with dedicated columns and filter toolbars, while administrative actions open accessible modal dialogs (`role="dialog"`, `aria-modal="true"`) with Escape key dismissal and focus restoration.
 
 ---
 
@@ -94,18 +95,16 @@ flowchart TD
 
 `apps/web/src/App.tsx` composes the session gate, shell, views, and dialogs. The frontend uses React 19 hooks without an additional state-management dependency:
 
-- `views/`: Home, Catalog, Access, Team, Identity, and Login presentation.
-- `components/`: header, navigation and page definitions, service cards, and shared search input. Result announcements remain beside each search in the corresponding view.
-- `modals/`: the service editor, extension installation dialog, individual credential dialog, and embedded attendant/password-reset forms. Catalog deletion retains the native confirmation; embedded forms remain embedded.
-- `hooks/`: authentication, catalog CRUD, vault writes and ticket issuance, extension messaging, team administration, identity drafts/import/export, and browser-local theme. Dedicated hooks preserve dialog focus, session cleanup, and one-time catalog animation.
+- `views/`: Home, Catalog, Access, Team, Personalization (`IdentityView`), and Login presentation.
+- `components/`: header (with optional bicolor navbar brand rendering), navigation and page definitions, service cards, and shared search input.
+- `modals/`: accessible modal dialogs for the service editor (`CatalogEditor` with automatic favicon capture and Light/Dark logo preview), service deletion confirmation, shared/individual credential management, extension installation guidance, user creation/editing (`AttendantForm`), and password reset (`ResetPasswordForm`).
+- `hooks/`: authentication, catalog CRUD, vault writes and ticket issuance, extension messaging, team administration, personalization drafts/import/export, and browser-local theme. Dedicated hooks preserve dialog focus, session cleanup, and one-time catalog animation.
 - `icons/`: typed Lucide 1.17.0 SVG components with the original geometry and license notices.
 - `types/`: shared metadata types and the callbacks coordinating catalog refreshes, vault refreshes, and extension opening.
 
 `useWorkspaceState` owns transient state and refs for the mounted workspace. Domain hooks receive typed subsets of that state; `useWorkspace` composes their operations and coordinates refresh callbacks. State survives screen navigation, and the existing session-loss cleanup clears sensitive form values. `useTheme` owns its independent browser preference. `useIdentity` handles `/api/config`, keeping public-demo configuration separate from authenticated `/api/catalog` operations in `useCatalog`.
 
-The refactor preserves rendered tag hierarchy, classes, accessible names, `aria-current` navigation, the internal `cofre` page key, and `theme.css`. The extension still confirms PING before ticket issuance and receives only an opaque ticket from React. Stored supplier passwords are never fetched by the web client. Backend modularization and stylesheet changes are separate work.
-
-Run `npm run test -w @hublink/web` for the existing 41 frontend tests and `npm run check` for all workspace checks and builds. API tests write synthetic records: select a dedicated local test database with `DATABASE_URL` before running the full check. Component tests and builds establish local behavior; human visual acceptance, installed-extension validation, and supplier authentication remain separate gates.
+Run `npm run test -w @hublink/web` for the 42 frontend tests and `npm run check` for all workspace checks and builds. API tests write synthetic records: select a dedicated local test database with `DATABASE_URL` before running the full check. Component tests and builds establish local behavior; human visual acceptance, installed-extension validation, and supplier authentication remain separate gates.
 
 ---
 

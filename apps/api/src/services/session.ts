@@ -13,7 +13,13 @@ export const COOKIE_OPTIONS = {
 } as const;
 
 export function publicUser(row: UserRow): User {
-  return { id: row.id, displayName: row.display_name, email: row.email, role: row.role };
+  return {
+    id: row.id,
+    displayName: row.display_name,
+    email: row.email,
+    role: row.role,
+    active: row.active ?? true,
+  };
 }
 
 export function tokenHash(token: string): string {
@@ -40,9 +46,9 @@ export async function activeSession(
   const result = await pool.query<SessionRow>(
     `UPDATE sessions AS s SET last_seen_at = NOW()
        FROM users AS u
-       WHERE s.user_id = u.id AND s.token_hash = $1 AND s.revoked_at IS NULL
+       WHERE s.user_id = u.id AND u.active = TRUE AND s.token_hash = $1 AND s.revoked_at IS NULL
          AND s.last_seen_at > NOW() - INTERVAL '365 days'
-       RETURNING s.id AS session_id, u.id, u.display_name, u.email, u.role`,
+       RETURNING s.id AS session_id, u.id, u.display_name, u.email, u.role, u.active`,
     [tokenHash(token)],
   );
   const session = result.rows[0];

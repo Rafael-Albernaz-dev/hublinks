@@ -55,7 +55,7 @@ export function App() {
         )}
       </main>
       <footer className="hb-footer">
-        {config.companyName} · Hublink<span>Serviços e acessos da equipe</span>
+        {config.companyName} · {new Date().getFullYear()}
       </footer>
     </div>
   );

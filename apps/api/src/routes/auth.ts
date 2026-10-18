@@ -22,7 +22,12 @@ export function registerAuthRoutes(server: FastifyInstance, context: ApiContext)
       ? await pool.query<CredentialUserRow>('SELECT * FROM users WHERE email = $1', [input.email])
       : null;
     const user = found?.rows[0];
-    if (!input || !user || !(await verifyPassword(input.password, user.password_hash))) {
+    if (
+      !input ||
+      !user ||
+      user.active === false ||
+      !(await verifyPassword(input.password, user.password_hash))
+    ) {
       await audit(pool, user?.id ?? null, 'login_failed', request.ip);
       return reply.code(401).send({ error: 'Credenciais inválidas.' });
     }

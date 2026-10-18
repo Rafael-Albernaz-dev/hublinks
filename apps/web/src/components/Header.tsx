@@ -43,9 +43,33 @@ export function Header({
               config.companyName.slice(0, 1).toUpperCase()
             )}
           </span>
-          <span>
-            {config.companyName || 'Sua empresa'}
-            <small className="hb-brand-sub">HUB DA EQUIPE</small>
+          <span className="hb-brand-title">
+            {config.brandPrimaryText?.trim() || config.brandSecondaryText?.trim() ? (
+              <span className="hb-brand-bicolor">
+                {config.brandPrimaryText?.trim() && (
+                  <span
+                    style={
+                      config.brandPrimaryColor ? { color: config.brandPrimaryColor } : undefined
+                    }
+                  >
+                    {config.brandPrimaryText.trim()}
+                  </span>
+                )}
+                {config.brandPrimaryText?.trim() && config.brandSecondaryText?.trim() ? ' ' : ''}
+                {config.brandSecondaryText?.trim() && (
+                  <span
+                    style={
+                      config.brandSecondaryColor ? { color: config.brandSecondaryColor } : undefined
+                    }
+                  >
+                    {config.brandSecondaryText.trim()}
+                  </span>
+                )}
+              </span>
+            ) : (
+              config.companyName || 'Sua empresa'
+            )}
+            <small className="hb-brand-sub">{config.headerTagline || 'HUB DA EQUIPE'}</small>
           </span>
         </a>
         <button
@@ -65,7 +89,7 @@ export function Header({
         <div className="header-user">
           <span className="hb-account">
             {currentUser.displayName}
-            <small>{currentUser.role === 'admin' ? 'Admin' : 'Atendente'}</small>
+            <small>{currentUser.role === 'admin' ? 'Admin' : 'Usuário'}</small>
           </span>
           <div className="account-actions">
             <button

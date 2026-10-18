@@ -110,6 +110,8 @@ export function useIdentity(
           '--hb-soft': 'color-mix(in srgb, ' + customAccent + ' 15%, var(--hb-panel))',
         }
       : {}),
+    ...(config.textColor ? { '--hb-ink': config.textColor } : {}),
+    ...(config.backgroundColor ? { '--hb-bg': config.backgroundColor } : {}),
   } as CSSProperties;
   useEffect(() => {
     setHexDraft(rgbToHex(visualColor).toUpperCase());
