@@ -73,3 +73,11 @@ Remaining product gates are human visual acceptance, installed Chrome and author
 ## TICKET-017 local verification
 
 The full check passes with 38 API tests, 24 extension tests, and 53 web tests, plus typechecking, zero-warning lint, formatting, and builds. Seven existing Chromium E2E scenarios pass separately. Validation uses dedicated `hublink_ticket017_test` and `hublink_ticket017_e2e` databases and temporary API 3178/Web 5187 servers, preserving developer ports. Two additional temporary Chromium scenarios verify the Extension Center/navbar in both themes at 390 and 1440 px, focus restoration, a real authenticated ZIP download, and the compiled 340px popup with synthetic Chrome APIs. Active/missing status buttons and the popup's primary action meet 4.5:1 text contrast in those checks. Python's ZIP reader also validates all six packaged files and CRCs. These proofs do not establish installed-Chrome startup/New Tab behavior, extension-origin cookie availability, or supplier login.
+
+## Next Slice: UX-018 (Workspace Visual Polish, Feature Adjustments & Human QA)
+
+Phase 2 development (Slices A, B, and C) is complete and committed at `97e7624`. Before proceeding to operational packaging (R8), the project pauses for hands-on human inspection and visual fine-tuning:
+
+- Live Workspace review across all five views (Home layouts, Catalog tables, Modals, Extension Center, Personalization).
+- Visual polish: typography spacing, badge colors, contrast in Light/Dark themes, modal transitions, and navbar polish.
+- Feature adjustments based on operator feedback before finalizing production deployment readiness.

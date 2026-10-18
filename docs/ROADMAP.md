@@ -25,7 +25,7 @@ Implemented locally: two-layer company preset and personal account preferences, 
 
 Migration 005 runs idempotently during initialization. Admins configure global branding/defaults; users can restore the company preset by deleting all personal preferences. Saved layout/shortcut values become explicit account preferences until reset. Team management remains admin-only; crypto primitives and companion source are unchanged.
 
-Slice C / TICKET-017 is now implemented locally as described above. Human visual acceptance, installed Chrome companion checks, supplier authentication, remote infrastructure, and deployment remain open gates.
+Slice C / TICKET-017 is now implemented locally as described above. Next: Slice UX-018 (Workspace Visual Polish, UI Fine-Tuning & Feature Adjustments) to conduct hands-on design review and visual acceptance before advancing to operational readiness (R8). Human visual acceptance, installed Chrome companion checks, supplier authentication, remote infrastructure, and deployment remain open gates.
 
 ## Delivery sequence
 
@@ -45,8 +45,10 @@ Slice C / TICKET-017 is now implemented locally as described above. Human visual
 | ARCH-013 | Implemented locally | Frontend extraction preserved; API stage 2 splits types, validators, services, and five route modules with compatible server creation.                                         |
 | SEC-014  | Implemented locally | Native API headers and per-IP sliding rate limits, updated Workspace E2E, and PostgreSQL 16 CI running npm run check.                                                          |
 | EXT-015  | Implemented locally | Four-second SPA wait with URL revalidation, accessible challenge toast, and local API/tab status popup with Workspace shortcut.                                                |
-| R8       | Planned             | On-premise operation, TLS, key custody, backup/restore, monitoring, and rollback.                                                                                              |
-| R9       | Planned             | Review pilot evidence, support burden, and expansion decisions.                                                                                                                |
+| Phase 2  | Implemented locally | TICKET-015 (Clean Arch & hygiene), TICKET-016 (personal layer & Home layouts), TICKET-017 (Extension Center & startup/New Tab).                                                |
+| UX-018   | Planned (Next)      | Workspace visual polish, interactive UI fine-tuning, hands-on design review in Light/Dark themes, and any pending feature adjustments.                                         |
+| R8       | Planned             | On-premise operation, dynamic client origins, Docker packaging, encrypted backup/restore, audit log viewer, and rollback.                                                      |
+| R9       | Planned             | Review pilot evidence, supplier authentication, support burden, and expansion decisions.                                                                                       |
 
 ## Completed local slices
 
