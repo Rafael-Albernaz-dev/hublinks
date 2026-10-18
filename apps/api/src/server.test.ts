@@ -889,3 +889,123 @@ test('catalog atomically creates shared service with encrypted vault credentials
     await pool.query('DELETE FROM services WHERE id = $1', [item.id]);
   }
 });
+
+test('security headers apply to success, authorization errors, not-found and preflight', async () => {
+  const expected = {
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'referrer-policy': 'no-referrer',
+    'cross-origin-opener-policy': 'same-origin',
+    'cross-origin-resource-policy': 'same-origin',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+    'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  };
+  for (const response of await Promise.all([
+    server.inject('/health'),
+    server.inject('/api/auth/me'),
+    server.inject('/missing'),
+    server.inject({
+      method: 'OPTIONS',
+      url: '/api/vault/exchange',
+      headers: { origin: extensionOrigin },
+    }),
+    server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { 'content-type': 'application/json' },
+      payload: '{',
+    }),
+  ])) {
+    for (const [header, value] of Object.entries(expected))
+      assert.equal(response.headers[header], value);
+  }
+});
+
+test('login limiter rejects excess attempts, isolates IPs and server instances, and expires its window', async () => {
+  const limited = createServer(path, createPool(), { loginRateLimit: { max: 2, windowMs: 200 } });
+  const independent = createServer(path, createPool(), { loginRateLimit: { max: 2 } });
+  try {
+    await Promise.all([limited.ready(), independent.ready()]);
+    const attempt = (remoteAddress = '127.0.0.10') =>
+      limited.inject({ method: 'POST', url: '/api/auth/login', remoteAddress, payload: {} });
+    assert.equal((await attempt()).statusCode, 401);
+    assert.equal((await attempt()).statusCode, 401);
+    const blocked = await attempt();
+    assert.equal(blocked.statusCode, 429);
+    assert.ok(Number(blocked.headers['retry-after']) >= 1);
+    assert.equal(blocked.headers['x-content-type-options'], 'nosniff');
+    assert.deepEqual(blocked.json(), {
+      error: 'Muitas tentativas. Aguarde antes de tentar novamente.',
+    });
+    assert.equal((await attempt('127.0.0.11')).statusCode, 401);
+    assert.equal(
+      (
+        await independent.inject({
+          method: 'POST',
+          url: '/api/auth/login',
+          remoteAddress: '127.0.0.10',
+          payload: {},
+        })
+      ).statusCode,
+      401,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    assert.equal((await attempt()).statusCode, 401);
+  } finally {
+    await Promise.all([limited.close(), independent.close()]);
+  }
+});
+
+test('ticket limiter stops issuance after the configured budget without leaking or creating another ticket', async () => {
+  const limited = createServer(path, createPool(), { ticketRateLimit: { max: 2 } });
+  let id: string | undefined;
+  try {
+    const login = await limited.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        email: process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
+        password: process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
+      },
+    });
+    assert.equal(login.statusCode, 200);
+    const cookie = sessionCookie(login);
+    const created = await limited.inject({
+      method: 'POST',
+      url: '/api/catalog/services',
+      headers: { cookie },
+      payload: {
+        name: 'Synthetic rate limit service',
+        category: 'sva',
+        credentialType: 'shared',
+        targetUrl: 'https://example.test/login',
+        username: 'synthetic-user',
+        password: 'synthetic-password',
+      },
+    });
+    assert.equal(created.statusCode, 201);
+    id = created.json().service.id;
+    const attempt = () =>
+      limited.inject({
+        method: 'POST',
+        url: '/api/vault/tickets',
+        headers: { cookie },
+        payload: { serviceId: id },
+      });
+    assert.equal((await attempt()).statusCode, 200);
+    assert.equal((await attempt()).statusCode, 200);
+    const blocked = await attempt();
+    assert.equal(blocked.statusCode, 429);
+    assert.ok(Number(blocked.headers['retry-after']) >= 1);
+    assert.equal(blocked.headers['cache-control'], 'no-store');
+    assert.equal(blocked.json().ticket, undefined);
+    const count = await pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM opening_tickets WHERE service_id = $1',
+      [id],
+    );
+    assert.equal(count.rows[0]?.count, '2');
+  } finally {
+    if (id) await pool.query('DELETE FROM services WHERE id = $1', [id]);
+    await limited.close();
+  }
+});
