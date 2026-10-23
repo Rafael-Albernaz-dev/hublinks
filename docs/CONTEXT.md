@@ -98,4 +98,8 @@ The user authorized the minimum preferences API extension: account-scoped valida
 
 Temporary synthetic Chromium checks covered all five layouts, the Extension Center, and Personalization at 320, 390, 679, 680, 780, 781, 1024, and 1440 px in both themes. They found no horizontal overflow or unnecessary desktop modal scrolling and verified real CSS pause/resume during carousel travel, cyclic wrap, reduced-motion manual navigation, focus restoration, native list/shortcut dragging, reload persistence, compact shortcuts, uploaded-logo previews, and connected-state options. Selected layout controls meet 4.5:1 text/icon contrast with the default and tested custom accent. Evidence and screenshots are under `/tmp/hublink-ticket018-visual/`; check and E2E logs are `/tmp/hublink-ticket018-check.log` and `/tmp/hublink-ticket018-e2e.log`.
 
-The Chrome Web Store branch is component-tested with a synthetic listing URL; no extension was published or installed from the Store. Human visual acceptance, installed-Chrome behavior, supplier login, and deployment remain pending. No commit, push, or deployment was performed.
+The Chrome Web Store branch is component-tested with a synthetic listing URL; no extension was published or installed from the Store. Human visual acceptance, installed-Chrome behavior, supplier login, and deployment remain pending.
+
+## Next Step / Handoff Checkpoint
+
+UX-018 is complete, verified, committed (`1ef9eb7`), and pushed to `main`. The next milestone on the roadmap is **R8 (On-premise operation, dynamic client origins, Docker packaging, encrypted backup/restore, audit log viewer, and rollback)**. Development paused cleanly at this checkpoint.

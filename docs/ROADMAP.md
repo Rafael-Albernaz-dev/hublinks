@@ -115,9 +115,10 @@ Before on-premise deployment, confirm capacity, DNS, TLS, proxy, master-key cust
 ## Next-session handoff
 
 1. Read AGENTS.md, README.md, docs/CONTEXT.md, docs/DECISIONS.md, and docs/OPEN_QUESTIONS.md; inspect git status --short --branch and preserve unrelated work.
-2. Review UX-011 against the approved Workspace reference in both themes, including identity drafts, team management, and card states. Local synthetic browser proof does not replace human visual acceptance. Keep real credentials and destinations out of tracked examples and logs.
-3. For the next gate, validate the installed extension on authorized supplier forms, review the broad HTTPS permission, and settle the stable extension ID and TLS/origin policy. Keep the human submit and manual-login path.
-4. Preserve loopback ports and the developer's running services. A green build or synthetic test is not deployment or supplier acceptance.
+2. The UX-018 slice is fully implemented, verified, committed at `1ef9eb7`, and pushed to origin/main.
+3. Next milestone to begin: **R8 (On-premise operation, Docker packaging, dynamic client origins, encrypted backup/restore, audit log viewer, and rollback)**.
+4. If performing live browser testing first: start `npm run dev:api` and `npm run dev:web`, inspect the 5 layouts, dropdown filters, cyclic carousel, and wide Extension Center.
+5. Preserve loopback ports and developer services on 3177 and 5177.
 
 ## TICKET-016 local validation
 
