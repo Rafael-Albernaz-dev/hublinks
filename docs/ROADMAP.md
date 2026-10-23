@@ -48,7 +48,7 @@ Slice C / TICKET-017 is now implemented locally as described above. UX-018 is im
 | Phase 2  | Implemented locally | TICKET-015 (Clean Arch & hygiene), TICKET-016 (personal layer & Home layouts), TICKET-017 (Extension Center & startup/New Tab).                                                |
 | UX-018   | Implemented locally | Five layouts, category/access dropdowns, service and shortcut ordering, wide Extension Center, optional Store link, and real service-logo previews; human acceptance pending.  |
 | UX-019   | Implemented locally | User Profile screen, header user dropdown, extension status pill redesign, silent bridge polling, direct popup shortcut links, and clean development DB.                       |
-| R8       | Planned             | On-premise operation, dynamic client origins, Docker packaging, encrypted backup/restore, audit log viewer, and rollback.                                                      |
+| R8       | Implemented locally | On-premise operation, dynamic client origins, Docker packaging, encrypted backup/restore, audit log viewer, and rollback.                                                      |
 | R9       | Planned             | Review pilot evidence, supplier authentication, support burden, and expansion decisions.                                                                                       |
 
 ## Completed local slices
@@ -116,8 +116,8 @@ Before on-premise deployment, confirm capacity, DNS, TLS, proxy, master-key cust
 ## Next-session handoff
 
 1. Read AGENTS.md, README.md, docs/CONTEXT.md, docs/DECISIONS.md, and docs/OPEN_QUESTIONS.md; inspect git status --short --branch and preserve unrelated work.
-2. The UX-019 slice is fully implemented, audited, verified, and committed.
-3. Next milestone to begin: **R8 (On-premise operation, Docker packaging, dynamic client origins, encrypted backup/restore, audit log viewer, and rollback)**.
+2. Milestone R8 (TICKET-020) is fully implemented, audited, verified, committed, and pushed to origin/main.
+3. Next session resumption: Connect to on-premise host via VPN/terminal, configure production environment (.env.production), start Docker containers via docker-compose.prod.yml, and configure domain DNS.
 4. If performing live browser testing: development services run on 3177 and 5177 with clean baseline data.
 5. Preserve loopback ports and developer services on 3177 and 5177.
 
@@ -153,10 +153,16 @@ The dedicated Profile screen edits the authenticated user's display name, normal
 
 Extension polling is silent and updates connectivity only on a changed result. Manual checking uses a separate spinner state for at least 600 ms, keeping the connected panel stable. Popup shortcuts open their safe HTTPS destination directly without credential exchange; assisted filling still begins in the Workspace. The web favicon and extension manifest share rounded purple icons.
 
-The explicit development-only `purgeDevelopmentUsers` operation preserves the exact active administrator and never runs on boot. The local development cleanup removed one secondary user and verified one remaining active administrator. Synthetic tests use separate databases; local cleanup does not establish production readiness. R8 Docker packaging, dynamic origins, backup/restore, and deployment remain pending.
+The explicit development-only `purgeDevelopmentUsers` operation preserves the exact active administrator and never runs on boot. The local development cleanup removed one secondary user and verified one remaining active administrator. Synthetic tests use separate databases; local cleanup does not establish production readiness. R8 packaging and operational tooling are implemented in TICKET-020; actual deployment acceptance remains pending.
 
 ### TICKET-019 validation and packaging
 
 `npm run check` passes: 40 API tests, 24 extension tests, 61 web tests, typechecks, zero-warning lint, formatting, and all builds. Eight isolated Chromium E2E scenarios pass, including photo upload, identity/password update, reload persistence, and login with the changed credentials. Tests use `hublink_ticket019` / `hublink_ticket019_e2e`, API 3178, and web 5187. Development services on 3177/5177 were preserved. Synthetic visual checks cover Profile, the account dropdown, and the connected Extension Center at 320, 390, 560, 780, 1024, and 1440 px in both themes; no horizontal overflow or polling-induced dialog height change was observed. Logs and screenshots are under `/tmp/hublink-ticket019-*`.
 
 The downloadable extension ZIP includes all nine required files, including the 16, 48, and 128 px PNG icons referenced by both manifest icon maps. The authenticated-package regression test checks the icon paths, PNG signatures, dimensions, and ZIP CRCs. The packaging gate is closed. Installed-Chrome, supplier, human visual, and production acceptance remain unverified. No commit, push, or deployment was performed.
+
+## TICKET-020 — R8 delivered locally; deployment acceptance pending
+
+The production API/Web images and isolated PostgreSQL Compose topology are implemented. Runtime configuration supports exact client origins, trusted proxy handling and Secure cookies. Administrators can query and view paginated audit events with action/actor/time filters. Backup/restore tooling combines AES-256-CBC/PBKDF2 with encrypt-then-MAC authentication, maintenance, transactional DB restore, config replacement and compensation. Standby tenant generation creates separate project/database/key material without starting infrastructure. Operational steps are in the README and [Recovery and rollback](ROLLBACK.md).
+
+Validation passes: full check (42 API / 24 extension / 63 Web tests), both image builds, real synthetic backup/restore and negative authentication checks, generated-tenant startup, HTTPS admin/cookie/audit journey, both themes at 390/1440 px, and eight E2E scenarios using the isolated real-proxy harness described in CONTEXT. Human acceptance, host security/TLS, off-host recovery practice, monitoring/capacity and remote extension binding remain deployment gates. R8 tooling does not establish production acceptance or advance supplier authentication evidence.

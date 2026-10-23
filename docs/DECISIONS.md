@@ -93,3 +93,9 @@ The full contract and R3–R8 limits are in `docs/PRIVATE_SPEC.md`. R2 delivered
 - The local Chrome manifest and worker accept Hub pages on `http://localhost:5177` and `http://127.0.0.1:5177`. The API endpoint remains `http://127.0.0.1:3177`.
 - A content script marks the Hub document and emits a presence event for immediate UI feedback. Page DOM is mutable, so a successful PING to the configured extension still gates ticket issuance. This does not remove the extension ID or prove installed-extension behavior in Chrome.
 - The individual credential dialog has dedicated responsive form styles. Its AES-256-GCM label refers to the server vault contract.
+
+## R8 — On-premise deployment, CI, and operational lifecycle (October 23, 2026)
+
+- **CI/CD Strategy:** Continuous Integration (CI) is strictly enforced via GitHub Actions running `npm run check` (typecheck, lint, formatting, test suites, builds) on every push and pull request. Automated Continuous Deployment (CD) from cloud runners into the private on-premise network is intentionally omitted to avoid firewall punch-through, self-hosted runner maintenance, or cloud-to-VPN exposure.
+- **Controlled Operator Updates:** Production deployments and updates are operator-initiated using local scripts (`scripts/update.sh` and `docker-compose.prod.yml`) run over VPN/local terminal. Updates perform automatic pre-migration database backups and healthcheck verification.
+- **Standby Multi-Instance Topology:** The single-tenant design scales across corporate clients on a single host via container isolation and dedicated per-client databases (`hublink_<tenant>`) with distinct `VAULT_MASTER_KEY` values and subdomains, avoiding multi-tenant co-mingling in the cryptographic vault while maintaining near-zero marginal cost.

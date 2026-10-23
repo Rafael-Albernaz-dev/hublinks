@@ -102,7 +102,7 @@ The Chrome Web Store branch is component-tested with a synthetic listing URL; no
 
 ## Next Step / Handoff Checkpoint
 
-UX-019 is complete, verified, and authorized for commit. The next operational milestone is **R8 (on-premise operation, dynamic client origins, Docker packaging, encrypted backup/restore, audit log viewer, and rollback)**. Development is cleanly primed for R8 deployment and packaging.
+UX-019 is complete, verified, and authorized for commit. The next operational milestone is **R8 (on-premise operation, dynamic client origins, Docker packaging, encrypted backup/restore, audit log viewer, and rollback)**. TICKET-020 now supplies local packaging and recovery tooling; deployment requires the host-specific gates below.
 
 ## TICKET-019 — Profile and account UX
 
@@ -110,10 +110,20 @@ The dedicated Profile screen edits the authenticated user's display name, normal
 
 Extension polling is silent and updates connectivity only on a changed result. Manual checking uses a separate spinner state for at least 600 ms, keeping the connected panel stable. Popup shortcuts open their safe HTTPS destination directly without credential exchange; assisted filling still begins in the Workspace. The web favicon and extension manifest share rounded purple icons.
 
-The explicit development-only `purgeDevelopmentUsers` operation preserves the exact active administrator and never runs on boot. The local development cleanup removed one secondary user and verified one remaining active administrator. Synthetic tests use separate databases; local cleanup does not establish production readiness. R8 Docker packaging, dynamic origins, backup/restore, and deployment remain pending.
+The explicit development-only `purgeDevelopmentUsers` operation preserves the exact active administrator and never runs on boot. The local development cleanup removed one secondary user and verified one remaining active administrator. Synthetic tests use separate databases; local cleanup does not establish production readiness. R8 packaging and operational tooling are implemented in TICKET-020; actual deployment acceptance remains pending.
 
 ### TICKET-019 validation and packaging
 
 `npm run check` passes: 40 API tests, 24 extension tests, 61 web tests, typechecks, zero-warning lint, formatting, and all builds. Eight isolated Chromium E2E scenarios pass, including photo upload, identity/password update, reload persistence, and login with the changed credentials. Tests use `hublink_ticket019` / `hublink_ticket019_e2e`, API 3178, and web 5187. Development services on 3177/5177 were preserved. Synthetic visual checks cover Profile, the account dropdown, and the connected Extension Center at 320, 390, 560, 780, 1024, and 1440 px in both themes; no horizontal overflow or polling-induced dialog height change was observed. Logs and screenshots are under `/tmp/hublink-ticket019-*`.
 
 The downloadable extension ZIP includes all nine required files, including the 16, 48, and 128 px PNG icons referenced by both manifest icon maps. The authenticated-package regression test checks the icon paths, PNG signatures, dimensions, and ZIP CRCs. The packaging gate is closed. Installed-Chrome, supplier, human visual, and production acceptance remain unverified. No commit, push, or deployment was performed.
+
+## TICKET-020 — R8 operational tooling
+
+Production Dockerfiles, private Compose networking, configurable client origins, explicit proxy trust, Secure cookies, graceful shutdown, administrator audit pagination/filtering, authenticated encrypted backups, maintenance restore, standby tenant generation and the [rollback playbook](ROLLBACK.md) are implemented locally. The public entry is loopback Nginx behind an operator-managed TLS gateway. PostgreSQL/API have no published host ports. Restore is transactional for PostgreSQL with atomic config replacement and compensation; it is not a cross-store atomic transaction.
+
+Validation: `npm run check` passes with 42 API, 24 extension and 63 Web tests, typechecks, zero-warning lint, formatting and workspace builds. Both Docker images build. Real isolated Compose startup, encrypted database/config backup and restore, post-restore health, wrong-passphrase/tamper rejection, non-root API, absent API/DB host bindings and separate tenant secrets were verified with synthetic data. The standby generator's config validates, its tenant starts healthy with the expected database/branding, and repeated generation refuses to overwrite keys.
+
+A temporary HTTPS gateway and Chromium verified real admin login with Secure/HttpOnly/Lax cookies, audit loading/filtering and light/dark views at 390/1440 px without document overflow; the tested audit badge contrast is 5.50:1 / 5.97:1. Eight existing E2E scenarios pass in an isolated harness on API 3178/Web 5187. The initial intercepted harness exposed `route.fulfill: Route is already handled!` when React cancelled a development-mode audit fetch; the temporary harness uses the real Vite proxy instead, preserving test assertions and leaving tracked E2E files unchanged. No operation targeted the development processes on 3177/5177. The final host snapshot showed both ports without listeners; the cause was not established, and no restart was attempted. A concurrent change to DECISIONS was also observed and preserved.
+
+Evidence: `/tmp/hublink-ticket020-check.log`, `-docker-api.log`, `-docker-web.log`, `-backup-final.log`, `-restore-final.log`, `-browser.log`, `-e2e.log`, and `/tmp/hublink-ticket020-visual/`. These are local synthetic proofs, not production or human acceptance. Deployment still needs the actual host/domain/TLS gateway, key custody, off-host retention/recovery rehearsal, capacity and monitoring. The extension remains bound to local origins; dynamic API origins alone do not authorize remote extension operation. No commit, push or deployment was performed.

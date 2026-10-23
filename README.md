@@ -337,3 +337,41 @@ JS
 R8 deployment, dynamic origins, encrypted backup/restore, and installed-Chrome acceptance remain separate work.
 
 The compiled unpacked extension and authenticated downloadable ZIP both include the three PNG icons referenced by the manifest. Package regression tests verify icon paths, PNG signatures, dimensions, and ZIP CRCs. See `docs/CONTEXT.md` for validation and remaining acceptance boundaries.
+
+## On-premise packaging and audit (TICKET-020 / R8)
+
+The multi-stage API image uses Node 24 Alpine and runs as `node`; the Web image serves Vite assets with Nginx Alpine. The production Compose project exposes only Web on `127.0.0.1:8080` by default. PostgreSQL and API have no host ports. Configure a host TLS gateway to forward to this loopback port, **overwriting** `X-Real-IP` with the actual client address and `X-Forwarded-Proto` with the actual scheme. Never trust values supplied by public clients. API proxy trust is enabled only inside this private topology; standalone API development keeps it off. Containers on the project network and processes on the host are trusted infrastructure.
+
+Create a private `.env.production` from `.env.example`. Set a unique hex `POSTGRES_PASSWORD`, a 64-hex-character `VAULT_MASTER_KEY`, explicit `INITIAL_ADMIN_EMAIL` / `INITIAL_ADMIN_PASSWORD`, and exact comma-separated `HUB_CLIENT_ORIGINS` (HTTPS in production). No secret is embedded in either image. These bootstrap credentials only create the first administrator; changing them does not reset an existing account. Protect the file with mode 0600. Keep master-key recovery separate from database backups.
+
+```bash
+mkdir -p data/production
+# The bind mount must be writable by the image's node user (UID/GID 1000).
+# Apply ownership only to this new installation's directory, using host admin access if needed.
+chown 1000:1000 data/production
+chmod 700 data/production
+export HUB_RUNTIME_ENV_FILE=.env.production
+docker compose --env-file "$HUB_RUNTIME_ENV_FILE" -f docker-compose.prod.yml build
+docker compose --env-file "$HUB_RUNTIME_ENV_FILE" -f docker-compose.prod.yml up -d --no-build --wait
+```
+
+Use unique immutable `HUB_API_IMAGE` / `HUB_WEB_IMAGE` tags for releases and record their digests. Build context excludes runtime data, environment files and local tool state. The packaged extension still binds to its existing local origins: changing API client origins **does not** reconfigure the Chrome manifest, worker, popup or startup URL. Remote assisted autofill remains gated on a separately scoped extension-origin/distribution change and installed-Chrome validation. TLS certificates and a public gateway are not provisioned automatically. Production cookies are always Secure; plain HTTP corporate access cannot carry a production session.
+
+`HUB_CLIENT_ORIGINS` controls credentialed CORS and browser-origin checks for ordinary API routes. Local defaults apply only outside production. The vault exchange retains its separate extension-origin check. `HUB_API_HOST` defaults to loopback outside Compose; set `HUB_TRUST_PROXY=true` only behind a trusted proxy. Nginx serves the SPA with same-origin CSP, defensive headers and gzip. SIGTERM/SIGINT close Fastify and its pool.
+
+Administrators open **Equipe → Auditoria** to filter action, actor UUID and local date/time range, with 50 events per page. `GET /api/admin/audit` supports `limit` (1–200), `offset`, exact `action`, `userId`, ISO `from` and `to` (inclusive). Server authorization is checked per request. Existing event names (`login`, `login_failed`, `credential_saved`, `ticket_issued`, etc.) remain unchanged. The response excludes raw details and secret fields. IDs are existing bigint IDs serialized as strings; `userAgent` is null because the current schema does not record it. Deleted users/services may have null actor/target references. Audit data contains personal identifiers and is administrator-only, uncached.
+
+For encrypted operations, use Bash, Python 3.12+, OpenSSL, GNU coreutils and `flock` on the Docker host. Supply `BACKUP_PASSPHRASE` separately through a secret manager or silent prompt. Backups contain a consistent PostgreSQL custom dump, company config and checksums, encrypted with AES-256-CBC/PBKDF2 and authenticated with HMAC-SHA256. Both scripts use the same `HUB_RUNTIME_ENV_FILE` for interpolation and runtime. Backups pause/resume currently running API/Web; restore replaces the selected project's data in maintenance. Do not run alongside external DB writers.
+
+```bash
+read -rs BACKUP_PASSPHRASE; export BACKUP_PASSPHRASE
+./scripts/backup.sh /secure/offline-backups
+# Replacement requires the exact target project name and a retained recovery backup.
+export HUB_RESTORE_CONFIRM=hublink-prod
+./scripts/restore.sh /secure/offline-backups/backup_TIMESTAMP.enc
+unset BACKUP_PASSPHRASE HUB_RESTORE_CONFIRM
+```
+
+See [Recovery and rollback](docs/ROLLBACK.md) for prerequisites, image/schema rollback, crash recovery and off-host storage. PostgreSQL restoration is transactional; database and filesystem together are not one atomic transaction. Keep a separate recovery backup before restoration.
+
+The standby generator `./scripts/provision-tenant.sh example "Example Company" admin@example.test` writes private files beneath ignored `data/tenants/example` with unique DB password/master key/bootstrap password and a separate project/database/volume/network. It never starts containers or changes a live database. Review its `.env.production`, choose an unused loopback Web port and real HTTPS origin, set data directory ownership to UID 1000, then explicitly start that tenant with the root Compose file and both `HUB_RUNTIME_ENV_FILE` and `--env-file` pointing to its environment. The generated `compose.yml` is also usable with those same settings. Never reuse the placeholder origin. A database is created by PostgreSQL on that project's first explicit startup. Existing directories fail closed to prevent key replacement. Multiple installations share host capacity; no additional server purchase is implied, and resource capacity must be measured.
