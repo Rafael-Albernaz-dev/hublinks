@@ -285,7 +285,9 @@ export function parseConfig(input: unknown): DemoConfig {
     config.homeLayout !== undefined &&
     config.homeLayout !== 'grid' &&
     config.homeLayout !== 'list' &&
-    config.homeLayout !== 'carousel'
+    config.homeLayout !== 'carousel' &&
+    config.homeLayout !== 'compact' &&
+    config.homeLayout !== 'sections'
   )
     throw new Error('Invalid Home layout.');
   if (config.showShortcutCards !== undefined && typeof config.showShortcutCards !== 'boolean')
@@ -354,7 +356,7 @@ export function parseConfig(input: unknown): DemoConfig {
   return {
     version: 1 as const,
     ...(config.homeLayout !== undefined
-      ? { homeLayout: config.homeLayout as 'grid' | 'list' | 'carousel' }
+      ? { homeLayout: config.homeLayout as 'grid' | 'list' | 'carousel' | 'compact' | 'sections' }
       : {}),
     ...(config.showShortcutCards !== undefined
       ? { showShortcutCards: config.showShortcutCards as boolean }
@@ -381,7 +383,15 @@ export function preferencesInput(body: unknown): Partial<UserPreferences> | null
     const input = object(body);
     if (
       Object.keys(input).some(
-        (key) => !['homeLayout', 'showShortcutCards', 'cardOrder', 'themeOverrides'].includes(key),
+        (key) =>
+          ![
+            'homeLayout',
+            'showShortcutCards',
+            'cardOrder',
+            'themeOverrides',
+            'shortcutOrder',
+            'shortcutStyle',
+          ].includes(key),
       )
     )
       return null;
@@ -390,7 +400,9 @@ export function preferencesInput(body: unknown): Partial<UserPreferences> | null
       if (
         input.homeLayout !== 'grid' &&
         input.homeLayout !== 'list' &&
-        input.homeLayout !== 'carousel'
+        input.homeLayout !== 'carousel' &&
+        input.homeLayout !== 'compact' &&
+        input.homeLayout !== 'sections'
       )
         return null;
       result.homeLayout = input.homeLayout;
@@ -398,6 +410,22 @@ export function preferencesInput(body: unknown): Partial<UserPreferences> | null
     if ('showShortcutCards' in input) {
       if (typeof input.showShortcutCards !== 'boolean') return null;
       result.showShortcutCards = input.showShortcutCards;
+    }
+    if ('shortcutStyle' in input) {
+      if (input.shortcutStyle !== 'cards' && input.shortcutStyle !== 'chips') return null;
+      result.shortcutStyle = input.shortcutStyle;
+    }
+    if ('shortcutOrder' in input) {
+      if (
+        !Array.isArray(input.shortcutOrder) ||
+        input.shortcutOrder.length > 4 ||
+        input.shortcutOrder.some(
+          (id) => !['catalogo', 'cofre', 'equipe', 'identidade'].includes(id),
+        ) ||
+        new Set(input.shortcutOrder).size !== input.shortcutOrder.length
+      )
+        return null;
+      result.shortcutOrder = input.shortcutOrder;
     }
     if ('cardOrder' in input) {
       if (

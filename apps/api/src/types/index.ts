@@ -81,7 +81,7 @@ export type DemoLink = {
 };
 export type DemoConfig = {
   version: 1;
-  homeLayout?: 'grid' | 'list' | 'carousel';
+  homeLayout?: 'grid' | 'list' | 'carousel' | 'compact' | 'sections';
   showShortcutCards?: boolean;
   companyName: string;
   subtitle: string;
@@ -114,8 +114,10 @@ export type UserThemeOverrides = Partial<
   Omit<DemoConfig, 'version' | 'links' | 'homeLayout' | 'showShortcutCards'>
 >;
 export type UserPreferences = {
-  homeLayout: 'grid' | 'list' | 'carousel';
+  homeLayout: 'grid' | 'list' | 'carousel' | 'compact' | 'sections';
   showShortcutCards: boolean;
   cardOrder: string[];
+  shortcutOrder: string[];
+  shortcutStyle: 'cards' | 'chips';
   themeOverrides: UserThemeOverrides | null;
 };

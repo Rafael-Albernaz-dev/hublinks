@@ -48,7 +48,7 @@ export type ChromeBridge = {
   };
 };
 
-export type HomeLayoutMode = 'grid' | 'list' | 'carousel';
+export type HomeLayoutMode = 'grid' | 'list' | 'carousel' | 'compact' | 'sections';
 export type UserThemeOverrides = Partial<
   Omit<import('../config').HubConfig, 'version' | 'links' | 'homeLayout' | 'showShortcutCards'>
 >;
@@ -56,5 +56,7 @@ export type UserPreferences = {
   homeLayout: HomeLayoutMode;
   showShortcutCards: boolean;
   cardOrder: string[];
+  shortcutOrder: string[];
+  shortcutStyle: 'cards' | 'chips';
   themeOverrides: UserThemeOverrides | null;
 };

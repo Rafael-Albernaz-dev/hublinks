@@ -10,7 +10,7 @@ export type HubLink = {
 
 export type HubConfig = {
   version: 1;
-  homeLayout?: 'grid' | 'list' | 'carousel';
+  homeLayout?: 'grid' | 'list' | 'carousel' | 'compact' | 'sections';
   showShortcutCards?: boolean;
   companyName: string;
   subtitle: string;
@@ -137,7 +137,9 @@ export function parseHubConfig(input: unknown): HubConfig {
     value.homeLayout !== undefined &&
     value.homeLayout !== 'grid' &&
     value.homeLayout !== 'list' &&
-    value.homeLayout !== 'carousel'
+    value.homeLayout !== 'carousel' &&
+    value.homeLayout !== 'compact' &&
+    value.homeLayout !== 'sections'
   )
     throw new Error('Modo da Home inválido.');
   if (value.showShortcutCards !== undefined && typeof value.showShortcutCards !== 'boolean')
@@ -148,7 +150,7 @@ export function parseHubConfig(input: unknown): HubConfig {
   return {
     version: 1,
     ...(value.homeLayout !== undefined
-      ? { homeLayout: value.homeLayout as 'grid' | 'list' | 'carousel' }
+      ? { homeLayout: value.homeLayout as 'grid' | 'list' | 'carousel' | 'compact' | 'sections' }
       : {}),
     ...(value.showShortcutCards !== undefined
       ? { showShortcutCards: value.showShortcutCards as boolean }

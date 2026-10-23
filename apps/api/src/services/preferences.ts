@@ -7,9 +7,11 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   homeLayout: 'grid',
   showShortcutCards: true,
   cardOrder: [],
+  shortcutOrder: [],
+  shortcutStyle: 'cards',
   themeOverrides: null,
 };
-const columns = `home_layout AS "homeLayout", show_shortcut_cards AS "showShortcutCards", card_order AS "cardOrder", theme_overrides AS "themeOverrides"`;
+const columns = `home_layout AS "homeLayout", show_shortcut_cards AS "showShortcutCards", card_order AS "cardOrder", theme_overrides AS "themeOverrides", shortcut_order AS "shortcutOrder", shortcut_style AS "shortcutStyle"`;
 export async function readPreferences(
   pool: Pool,
   userId: string,
@@ -30,13 +32,15 @@ export async function updatePreferences(
   // Each supplied column is updated atomically; concurrent partial writes preserve other columns.
   const result = await pool.query<UserPreferences>(
     `
-    INSERT INTO user_preferences (user_id, home_layout, show_shortcut_cards, card_order, theme_overrides)
-    VALUES ($1, COALESCE($2, $10), COALESCE($3::boolean, $11::boolean), COALESCE($4::jsonb, '[]'::jsonb), $5::jsonb)
+    INSERT INTO user_preferences (user_id, home_layout, show_shortcut_cards, card_order, theme_overrides, shortcut_order, shortcut_style)
+    VALUES ($1, COALESCE($2, $10), COALESCE($3::boolean, $11::boolean), COALESCE($4::jsonb, '[]'::jsonb), $5::jsonb, COALESCE($12::jsonb, '[]'::jsonb), COALESCE($13, 'cards'))
     ON CONFLICT (user_id) DO UPDATE SET
       home_layout = CASE WHEN $6 THEN EXCLUDED.home_layout ELSE user_preferences.home_layout END,
       show_shortcut_cards = CASE WHEN $7 THEN EXCLUDED.show_shortcut_cards ELSE user_preferences.show_shortcut_cards END,
       card_order = CASE WHEN $8 THEN EXCLUDED.card_order ELSE user_preferences.card_order END,
       theme_overrides = CASE WHEN $9 THEN EXCLUDED.theme_overrides ELSE user_preferences.theme_overrides END,
+      shortcut_order = CASE WHEN $14 THEN EXCLUDED.shortcut_order ELSE user_preferences.shortcut_order END,
+      shortcut_style = CASE WHEN $15 THEN EXCLUDED.shortcut_style ELSE user_preferences.shortcut_style END,
       updated_at = NOW()
     RETURNING ${columns}`,
     [
@@ -51,6 +55,10 @@ export async function updatePreferences(
       'themeOverrides' in patch,
       defaults.homeLayout,
       defaults.showShortcutCards,
+      patch.shortcutOrder ? JSON.stringify(patch.shortcutOrder) : null,
+      patch.shortcutStyle ?? null,
+      'shortcutOrder' in patch,
+      'shortcutStyle' in patch,
     ],
   );
   return result.rows[0]!;
