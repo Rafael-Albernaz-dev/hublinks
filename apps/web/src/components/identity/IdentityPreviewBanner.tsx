@@ -1,3 +1,4 @@
+import { ServiceLogoPreview } from './LogoUploadCard';
 import { DEFAULT_HEADER_TAGLINE, DEFAULT_HOME_EYEBROW, DEFAULT_HOME_TITLE } from '../../config';
 import type { AuthenticatedWorkspace } from '../../hooks/useWorkspace';
 
@@ -11,7 +12,7 @@ export function IdentityPreviewBanner({
   return (
     <div className="hb-identity-preview" aria-label="Prévia da marca" style={style}>
       <div className="hb-identity-preview-brand">
-        <span className="logo-preview">
+        <span className="hb-logo">
           {config.logoDataUrl ? <img src={config.logoDataUrl} alt="Prévia da logo" /> : monogram}
         </span>
         <div className="hb-identity-preview-titles">
@@ -51,6 +52,12 @@ export function IdentityPreviewBanner({
         <span className="hb-eyebrow">{config.homeEyebrow || DEFAULT_HOME_EYEBROW}</span>
         <b className="hb-identity-preview-headline">{config.homeTitle || DEFAULT_HOME_TITLE}</b>
         <p>{config.subtitle}</p>
+      </div>
+      <div
+        className="logo-theme-previews hb-banner-service-previews"
+        aria-label="Prévia dos cards nos temas claro e escuro"
+      >
+        <ServiceLogoPreview logoDataUrl={config.logoDataUrl} monogram={monogram} />
       </div>
       <div className="hb-identity-preview-meta">
         <span className="hb-badge hb-badge-accent">Prévia em tempo real</span>

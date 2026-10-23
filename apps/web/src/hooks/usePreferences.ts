@@ -5,6 +5,8 @@ export const defaultPreferences: UserPreferences = {
   homeLayout: 'grid',
   showShortcutCards: true,
   cardOrder: [],
+  shortcutOrder: [],
+  shortcutStyle: 'cards',
   themeOverrides: null,
 };
 const key = (id: string) => `hublink:preferences:${id}`;
@@ -12,7 +14,14 @@ function validatePreferences(raw: unknown): UserPreferences {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid preferences');
   const value = { ...defaultPreferences, ...raw };
   if (
-    !['grid', 'list', 'carousel'].includes(value.homeLayout) ||
+    !['grid', 'list', 'carousel', 'compact', 'sections'].includes(value.homeLayout) ||
+    !['cards', 'chips'].includes(value.shortcutStyle) ||
+    !Array.isArray(value.shortcutOrder) ||
+    value.shortcutOrder.length > 4 ||
+    new Set(value.shortcutOrder).size !== value.shortcutOrder.length ||
+    value.shortcutOrder.some(
+      (id: unknown) => !['catalogo', 'cofre', 'equipe', 'identidade'].includes(id as string),
+    ) ||
     typeof value.showShortcutCards !== 'boolean' ||
     !Array.isArray(value.cardOrder) ||
     value.cardOrder.length > 100 ||

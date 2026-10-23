@@ -4,7 +4,7 @@ Hublink provides a configurable local demonstration, an authenticated React Work
 
 ## Phase 2 — Slice C / TICKET-017
 
-The Extension Center in the Workspace header replaces the passive installation dialog. It downloads an authenticated ZIP, provides copy actions for `chrome://extensions` and the repository-relative `apps/extension/dist` path, explains extraction and Load unpacked, checks the actual extension bridge, and exposes startup, New Tab, and fill-notification options. The relative source path is a development convenience; downloaded ZIP users select their extracted folder. Manual destination opening remains available when launched from a service. Browser-wide theme, extension options, and sign-out controls have distinct surfaces, visible focus, and state indicators; attention animation respects reduced motion.
+The Extension Center in the Workspace header replaces the passive installation dialog. It offers an authenticated ZIP in three local steps, a `chrome://extensions` copy action, confirmed bridge checks, and startup, New Tab, and fill-notification options. UX-018 adds an optional Chrome Web Store listing link and hides installation after detection. Manual destination opening remains available when launched from a service. Browser-wide theme, extension options, and sign-out controls have distinct surfaces, visible focus, and state indicators; attention animation respects reduced motion.
 
 Build first with `npm run build`. `GET /api/extension/package` requires an active session and returns `hublink-chrome-extension.zip` with `Cache-Control: no-store`. The deterministic in-memory ZIP Store writer uses native Node CRC32 and includes only manifest.json, background.js, autofill.js, content.js, popup.html, and popup.js from the compiled extension. Missing artifacts return 503 with build guidance; static-only files cannot form an installable package. Runtime API requests never compile source or include project configuration/secrets.
 
@@ -32,7 +32,7 @@ The company preset supplies colors, logo, texts, and optional default Home layou
 
 `services/preferences.ts` and `routes/preferences.ts` implement authenticated GET/partial PUT/DELETE for the current user's preferences. `usePreferences` serializes writes, validates a per-user localStorage cache, retries network-only fallback on online/reload, and keeps other accounts' preferences isolated. `useIdentity` loads the company preset and applies personal branding for attendants. Offline storage is a visual fallback and never grants catalog or credential access.
 
-`HomeServiceViews.tsx` provides Grid, compact List, and paged Carousel while reusing `ServiceCard` actions. Home exposes layout controls, shortcut visibility, category/vault/personal filter pills combined with search, and a polite result count. Grid supports drag/drop and Alt + arrow-key reordering; Carousel supplies previous/next controls and accessible page dots. Browser-wide light/dark theme remains independent.
+`HomeServiceViews.tsx` now provides Grid, List, Carousel, Compact, and Category Sections while reusing `ServiceCard` actions. Home exposes icon layout controls, shortcut visibility, independent category/access dropdowns combined with search, and a polite result count. Service and shortcut ordering persist per account. Carousel cycles automatically with hover/focus/explicit pause, reduced-motion support, previous/next controls, and accessible page dots. Browser-wide light/dark theme remains independent.
 
 The extension source and AES-256-GCM primitive are unchanged. Synthetic tests do not establish installed-extension, supplier login, production, or human visual acceptance. Slice C / TICKET-017 is described above; installed-browser validation and deployment remain separate gates.
 
@@ -74,10 +74,28 @@ Remaining product gates are human visual acceptance, installed Chrome and author
 
 The full check passes with 38 API tests, 24 extension tests, and 53 web tests, plus typechecking, zero-warning lint, formatting, and builds. Seven existing Chromium E2E scenarios pass separately. Validation uses dedicated `hublink_ticket017_test` and `hublink_ticket017_e2e` databases and temporary API 3178/Web 5187 servers, preserving developer ports. Two additional temporary Chromium scenarios verify the Extension Center/navbar in both themes at 390 and 1440 px, focus restoration, a real authenticated ZIP download, and the compiled 340px popup with synthetic Chrome APIs. Active/missing status buttons and the popup's primary action meet 4.5:1 text contrast in those checks. Python's ZIP reader also validates all six packaged files and CRCs. These proofs do not establish installed-Chrome startup/New Tab behavior, extension-origin cookie availability, or supplier login.
 
-## Next Slice: UX-018 (Workspace Visual Polish, Feature Adjustments & Human QA)
+## Human QA after UX-018
 
-Phase 2 development (Slices A, B, and C) is complete and committed at `97e7624`. Before proceeding to operational packaging (R8), the project pauses for hands-on human inspection and visual fine-tuning:
+Phase 2 development (Slices A, B, and C) is complete and committed at `97e7624`. UX-018 now implements the requested refinements. Before proceeding to operational packaging (R8), the remaining human review covers:
 
 - Live Workspace review across all five views (Home layouts, Catalog tables, Modals, Extension Center, Personalization).
 - Visual polish: typography spacing, badge colors, contrast in Light/Dark themes, modal transitions, and navbar polish.
 - Feature adjustments based on operator feedback before finalizing production deployment readiness.
+
+## UX-018 — Workspace presentation
+
+Implemented locally: a wide two-column Extension Center with concise status/install controls, a primary spinning connection check, connected-state installation hiding, and optional `VITE_CHROME_WEBSTORE_URL` linking to an official HTTPS Chrome Web Store listing. Missing/invalid configuration keeps the three-step ZIP flow; configured listings retain an offline toggle. Browser confirmation, publication, listing access, and installed-extension evidence remain separate.
+
+Home now offers Grid, List, Carousel, Compact, and Category Sections through labeled icon buttons. Grid omits category badges. Independent category/access dropdowns combine with search. Carousel cycles every four seconds through a translated track, wraps to the first page, pauses on hover/focus or explicit pause, and disables automatic motion for reduced-motion users. Hidden and duplicate pages are inert. Grid/List/Compact/Sections share service drag/drop and Alt + arrow-key ordering. Task shortcuts support an icon visibility toggle, drag/drop and keyboard ordering, and Cards or compact chips.
+
+Personalization places Home controls in a formal settings card. Admin layout/visibility changes stay in the company draft until save; attendant changes and shortcut format are account preferences. LogoUploadCard and IdentityPreviewBanner share real service-card previews in Light/Dark surfaces, reusing `.hb-logo` dimensions. Existing upload/remove and explicit branding save behavior remain.
+
+The user authorized the minimum preferences API extension: account-scoped validation/persistence for `compact`, `sections`, `shortcutOrder`, and `shortcutStyle`, matching company-config layout validation, and migration `006_workspace_presentation.sql`. Existing rows get empty shortcut order and Cards. Reset returns company defaults plus default shortcuts; owner/session checks, vault crypto, and extension ticket exchange are unchanged. Synthetic checks do not establish human visual approval, Chrome Web Store publication, supplier authentication, or deployment.
+
+## TICKET-018 local verification
+
+`npm run check` passed with 39 API tests, 24 unchanged extension tests, 59 web tests, typechecks, zero-warning lint, formatting, and all workspace builds. Seven existing Chromium E2E scenarios passed separately using the dedicated `hublink_ticket018_e2e` database, API 3178, and web 5187. The check used `hublink_ticket018_test`; developer services on 3177/5177 were preserved.
+
+Temporary synthetic Chromium checks covered all five layouts, the Extension Center, and Personalization at 320, 390, 679, 680, 780, 781, 1024, and 1440 px in both themes. They found no horizontal overflow or unnecessary desktop modal scrolling and verified real CSS pause/resume during carousel travel, cyclic wrap, reduced-motion manual navigation, focus restoration, native list/shortcut dragging, reload persistence, compact shortcuts, uploaded-logo previews, and connected-state options. Selected layout controls meet 4.5:1 text/icon contrast with the default and tested custom accent. Evidence and screenshots are under `/tmp/hublink-ticket018-visual/`; check and E2E logs are `/tmp/hublink-ticket018-check.log` and `/tmp/hublink-ticket018-e2e.log`.
+
+The Chrome Web Store branch is component-tested with a synthetic listing URL; no extension was published or installed from the Store. Human visual acceptance, installed-Chrome behavior, supplier login, and deployment remain pending. No commit, push, or deployment was performed.

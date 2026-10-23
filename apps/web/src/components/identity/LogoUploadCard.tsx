@@ -1,3 +1,4 @@
+import { Icon } from '../../icons';
 import type { ReactNode } from 'react';
 
 export function LogoUploadCard({
@@ -50,18 +51,7 @@ export function LogoUploadCard({
         }}
       >
         <div className="logo-theme-previews" aria-label="Prévia da logo nos modos claro e escuro">
-          <div className="logo-theme-box logo-theme-light">
-            <span className="logo-theme-tag">Light mode</span>
-            <span className="logo-dropzone-preview">
-              {logoDataUrl ? <img src={logoDataUrl} alt="Logo enviada" /> : <span>{monogram}</span>}
-            </span>
-          </div>
-          <div className="logo-theme-box logo-theme-dark">
-            <span className="logo-theme-tag">Dark mode</span>
-            <span className="logo-dropzone-preview">
-              {logoDataUrl ? <img src={logoDataUrl} alt="" /> : <span>{monogram}</span>}
-            </span>
-          </div>
+          <ServiceLogoPreview logoDataUrl={logoDataUrl} monogram={monogram} />
         </div>
         <div className="logo-dropzone-actions">
           <label className="button button-primary" htmlFor={inputId}>
@@ -86,5 +76,43 @@ export function LogoUploadCard({
         <small>Arraste uma imagem ou escolha um arquivo. PNG, JPG ou WebP · até 1 MB</small>
       </div>
     </div>
+  );
+}
+
+export function ServiceLogoPreview({
+  logoDataUrl,
+  monogram,
+}: {
+  logoDataUrl: string | null;
+  monogram: string;
+}) {
+  return (
+    <>
+      {(['light', 'dark'] as const).map((theme) => (
+        <div key={theme} className={'logo-theme-box logo-theme-' + theme}>
+          <span className="logo-theme-tag">{theme === 'light' ? 'Light mode' : 'Dark mode'}</span>
+          <div className="hb-service hb-logo-service-preview">
+            <span className="hb-service-head">
+              <span className="hb-logo">
+                {logoDataUrl ? <img src={logoDataUrl} alt="Prévia da logo no serviço" /> : monogram}
+              </span>
+              <Icon name="ArrowUpRight" />
+            </span>
+            <b className="hb-service-name">Serviço de exemplo</b>
+            <span className="hb-service-desc">Acesso da equipe</span>
+            <span className="hb-service-bottom">
+              <span className="hb-state">
+                <Icon name="Link" />
+                Link direto
+              </span>
+              <span className="hb-service-action">
+                Abrir
+                <Icon name="ArrowUpRight" />
+              </span>
+            </span>
+          </div>
+        </div>
+      ))}
+    </>
   );
 }

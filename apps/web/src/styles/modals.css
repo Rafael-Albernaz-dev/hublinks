@@ -165,3 +165,65 @@
   color: #fff;
   font-weight: 600;
 }
+
+.hublink-modal-card:has(.extension-center-wide) {
+  width: 92vw;
+  max-width: 820px;
+  max-height: min(90dvh, 640px);
+}
+.extension-center-wide {
+  margin-top: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.extension-installation {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.extension-center-wide .extension-steps {
+  gap: 8px;
+}
+.extension-center-wide .extension-steps li {
+  padding: 10px 12px;
+  gap: 5px;
+}
+.extension-steps span {
+  font-size: 12px;
+  color: var(--hb-sub);
+}
+.extension-center-wide .extension-options {
+  gap: 18px;
+  margin: 0;
+}
+.extension-options label {
+  line-height: 1.5;
+}
+.extension-store {
+  display: grid;
+  gap: 10px;
+}
+.extension-center-notice {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+.extension-spin {
+  animation: extension-spin 900ms linear infinite;
+}
+@keyframes extension-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 679px) {
+  .extension-center-wide {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .extension-spin {
+    animation: none;
+  }
+}

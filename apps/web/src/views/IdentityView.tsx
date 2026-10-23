@@ -1,3 +1,4 @@
+import { HomeLayoutCard } from '../components/identity/HomeLayoutCard';
 import type { AuthenticatedWorkspace } from '../hooks/useWorkspace';
 import { IdentityPreviewBanner } from '../components/identity/IdentityPreviewBanner';
 import { BrandTextSettingsCard } from '../components/identity/BrandTextSettingsCard';
@@ -84,53 +85,6 @@ export function IdentityView({
           {currentUser.role === 'admin' && (
             <p>Preset Global da Empresa — cores, logo e textos padrão da equipe.</p>
           )}
-          <div className="hb-layout-switcher" role="group" aria-label="Preferências da Home">
-            <label>
-              Organização da Home
-              <select
-                value={
-                  currentUser.role === 'admin'
-                    ? (config.homeLayout ?? 'grid')
-                    : preferences.homeLayout
-                }
-                onChange={(event) =>
-                  currentUser.role === 'admin'
-                    ? setConfig((current) => ({
-                        ...current,
-                        homeLayout: event.target.value as 'grid' | 'list' | 'carousel',
-                      }))
-                    : void updatePreferences({
-                        homeLayout: event.target.value as 'grid' | 'list' | 'carousel',
-                      }).catch(() => setNotice('Não foi possível salvar suas preferências.'))
-                }
-              >
-                <option value="grid">Grade</option>
-                <option value="list">Lista</option>
-                <option value="carousel">Carrossel</option>
-              </select>
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={
-                  currentUser.role === 'admin'
-                    ? (config.showShortcutCards ?? true)
-                    : preferences.showShortcutCards
-                }
-                onChange={(event) =>
-                  currentUser.role === 'admin'
-                    ? setConfig((current) => ({
-                        ...current,
-                        showShortcutCards: event.target.checked,
-                      }))
-                    : void updatePreferences({ showShortcutCards: event.target.checked }).catch(
-                        () => setNotice('Não foi possível salvar suas preferências.'),
-                      )
-                }
-              />
-              Mostrar atalhos
-            </label>
-          </div>
           {currentUser.role === 'attendant' && (
             <button type="button" onClick={() => void resetPersonalPreferences()}>
               Restaurar padrão da empresa
@@ -144,6 +98,39 @@ export function IdentityView({
                 config={config}
                 setConfig={setConfig}
                 visualColor={visualColor}
+              />
+
+              <HomeLayoutCard
+                layout={
+                  currentUser.role === 'admin'
+                    ? (config.homeLayout ?? 'grid')
+                    : preferences.homeLayout
+                }
+                showShortcuts={
+                  currentUser.role === 'admin'
+                    ? (config.showShortcutCards ?? true)
+                    : preferences.showShortcutCards
+                }
+                shortcutStyle={preferences.shortcutStyle}
+                onLayout={(homeLayout) =>
+                  currentUser.role === 'admin'
+                    ? setConfig((current) => ({ ...current, homeLayout }))
+                    : void updatePreferences({ homeLayout }).catch(() =>
+                        setNotice('Não foi possível salvar suas preferências.'),
+                      )
+                }
+                onShowShortcuts={(showShortcutCards) =>
+                  currentUser.role === 'admin'
+                    ? setConfig((current) => ({ ...current, showShortcutCards }))
+                    : void updatePreferences({ showShortcutCards }).catch(() =>
+                        setNotice('Não foi possível salvar suas preferências.'),
+                      )
+                }
+                onShortcutStyle={(shortcutStyle) =>
+                  void updatePreferences({ shortcutStyle }).catch(() =>
+                    setNotice('Não foi possível salvar suas preferências.'),
+                  )
+                }
               />
 
               <IdentityBackupCard

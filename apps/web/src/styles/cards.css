@@ -227,11 +227,6 @@
   margin: 0;
   gap: 12px;
 }
-.hb-carousel-track {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-}
 .hb-carousel-controls,
 .hb-carousel-dots {
   display: flex;
@@ -242,17 +237,6 @@
 }
 .hb-carousel-dots {
   margin: 0;
-}
-.hb-carousel-dots button {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 2px solid var(--hb-ink);
-  border-radius: 50%;
-  background: var(--hb-panel);
-}
-.hb-carousel-dots button[aria-current='true'] {
-  background: var(--hb-accent);
 }
 .hb-service.is-dragging {
   opacity: 0.5;
@@ -269,15 +253,6 @@
   .hb-service-row .hb-service-bottom {
     grid-column: 2;
   }
-  .hb-carousel-track {
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-  }
-  .hb-carousel-track .hb-service {
-    flex: 0 0 85%;
-    scroll-snap-align: start;
-  }
 }
 
 @media (max-width: 780px) {
@@ -289,5 +264,163 @@
     align-items: center;
     border-top: 0;
     padding-top: 0;
+  }
+}
+
+.hb-carousel-window {
+  overflow: hidden;
+  border-radius: var(--hb-radius);
+}
+.hb-carousel-track {
+  display: flex;
+  translate: var(--carousel-from) 0;
+  animation-duration: 4s;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation-fill-mode: forwards;
+  will-change: translate;
+}
+.hb-carousel-page {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  flex: 0 0 100%;
+  min-width: 0;
+  padding: 3px;
+}
+@keyframes carousel-cycle-a {
+  0%,
+  86% {
+    translate: var(--carousel-from) 0;
+  }
+  100% {
+    translate: var(--carousel-to) 0;
+  }
+}
+@keyframes carousel-cycle-b {
+  0%,
+  86% {
+    translate: var(--carousel-from) 0;
+  }
+  100% {
+    translate: var(--carousel-to) 0;
+  }
+}
+.hb-carousel-controls {
+  flex-wrap: wrap;
+}
+.hb-carousel-dots {
+  flex-wrap: wrap;
+}
+.hb-carousel-dots button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+}
+.hb-carousel-dots button::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hb-sub);
+  transition: width 180ms ease;
+}
+.hb-carousel-dots button[aria-current='true'] {
+  background: transparent;
+}
+.hb-carousel-dots button[aria-current='true']::after {
+  width: 18px;
+  border-radius: 8px;
+  background: var(--hb-accent);
+}
+.hb-service-row .hb-service-bottom {
+  border-top: 0;
+  padding-top: 0;
+}
+.hb-compact-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.hb-compact-grid .hb-service {
+  padding: 12px;
+  min-height: 0;
+}
+.hb-compact-grid .hb-logo {
+  height: 34px;
+  min-width: 34px;
+  padding: 4px 6px;
+  font-size: 14px;
+}
+.hb-compact-grid .hb-logo img {
+  height: 26px;
+}
+.hb-compact-grid .hb-service-name {
+  margin-top: 8px;
+  font-size: 13px;
+}
+.hb-compact-grid .hb-service-desc {
+  display: none;
+}
+.hb-compact-grid .hb-service-bottom {
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.hb-service-sections {
+  display: grid;
+  gap: 24px;
+}
+.hb-service-sections h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.hb-section-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--hb-sub);
+  background: var(--hb-surface);
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+@media (max-width: 1100px) {
+  .hb-compact-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 780px) {
+  .hb-service.hb-service-row {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+  .hb-carousel-page {
+    grid-template-columns: 1fr;
+  }
+  .hb-carousel-page .hb-service {
+    min-height: 0;
+  }
+  .hb-carousel-page .hb-service-bottom {
+    margin-top: 12px;
+  }
+  .hb-compact-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .hb-compact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hb-service-row .hb-logo {
+    max-width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hb-carousel-track {
+    animation: none;
+    will-change: auto;
   }
 }

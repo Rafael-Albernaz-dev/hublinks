@@ -51,6 +51,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 const iconNodes = {
+  LayoutGrid: [
+    ['rect', { x: '3', y: '3', width: '7', height: '7', rx: '1' }],
+    ['rect', { x: '14', y: '3', width: '7', height: '7', rx: '1' }],
+    ['rect', { x: '3', y: '14', width: '7', height: '7', rx: '1' }],
+    ['rect', { x: '14', y: '14', width: '7', height: '7', rx: '1' }],
+  ],
+  List: [['path', { d: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' }]],
+  Layers: [['path', { d: 'm12 3 10 5-10 5L2 8l10-5ZM2 12l10 5 10-5M2 16l10 5 10-5' }]],
+  Columns3: [
+    ['rect', { x: '3', y: '3', width: '18', height: '18', rx: '2' }],
+    ['path', { d: 'M9 3v18M15 3v18' }],
+  ],
+  ChevronLeft: [['path', { d: 'm15 18-6-6 6-6' }]],
+  ChevronRight: [['path', { d: 'm9 18 6-6-6-6' }]],
+  Download: [['path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3' }]],
+  Pause: [['path', { d: 'M9 4v16M15 4v16' }]],
+  Play: [['path', { d: 'm6 3 14 9-14 9V3Z' }]],
   Home: [
     ['path', { d: 'M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8' }],
     [

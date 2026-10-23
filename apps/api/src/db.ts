@@ -57,6 +57,9 @@ export async function initializeDatabase(pool: pg.Pool): Promise<void> {
     await client.query(
       await readFile(resolve(dirname(migrationPath), '005_user_personal_layer.sql'), 'utf8'),
     );
+    await client.query(
+      await readFile(resolve(dirname(migrationPath), '006_workspace_presentation.sql'), 'utf8'),
+    );
     const existingServices = await client.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM services',
     );

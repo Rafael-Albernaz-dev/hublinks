@@ -400,3 +400,60 @@
 :root[data-theme='dark'] .hb-identity-preview strong {
   color: var(--hb-accent);
 }
+
+.hb-home-layout-card .hb-check-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+}
+.hb-home-layout-card .hb-check-label input {
+  accent-color: var(--hb-accent);
+}
+.logo-theme-light {
+  --hb-panel: #fff;
+  --hb-surface: #f9fafc;
+  --hb-line: #e1e5ee;
+  --hb-ink: #202433;
+  --hb-sub: #626a7a;
+  --hb-accent: #7137d1;
+}
+.logo-theme-dark {
+  --hb-panel: #1c202b;
+  --hb-surface: #242936;
+  --hb-line: #343a4a;
+  --hb-ink: #f2f3f9;
+  --hb-sub: #b2b9c9;
+  --hb-accent: #b694ff;
+}
+.logo-theme-box {
+  min-width: 0;
+  padding: 10px;
+  align-content: start;
+}
+.hb-logo-service-preview.hb-service {
+  width: 100%;
+  min-height: 0;
+  pointer-events: none;
+}
+.hb-logo-service-preview .hb-service-bottom {
+  flex-wrap: wrap;
+}
+.hb-banner-service-previews {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.hb-identity-preview .hb-logo-service-preview .hb-service-name {
+  font-size: 14px;
+}
+.hb-identity-preview .hb-logo-service-preview .hb-service-desc {
+  font-size: 11px;
+}
+.hb-identity-preview .hb-logo-service-preview {
+  max-width: 100%;
+}
+@media (max-width: 780px) {
+  .hb-banner-service-previews {
+    grid-row: auto;
+  }
+}

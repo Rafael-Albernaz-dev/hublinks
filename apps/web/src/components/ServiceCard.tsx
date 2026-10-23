@@ -7,6 +7,7 @@ export function ServiceCard({
   service,
   className = '',
   dragProps,
+  showCategory = true,
   currentUser,
   setPage,
   query,
@@ -22,6 +23,7 @@ export function ServiceCard({
 }: {
   service: CatalogService;
   className?: string;
+  showCategory?: boolean;
   dragProps?: HTMLAttributes<HTMLAnchorElement>;
 } & Pick<
   AuthenticatedWorkspace,
@@ -132,13 +134,15 @@ export function ServiceCard({
       <span className="hb-service-desc">
         {service.description || (missing ? 'Destino ainda não configurado' : 'Acesso da equipe')}
       </span>
-      <span className="hb-badge">
-        {
-          { sva: 'SVA', crm: 'CRM', sheet: 'Planilha', sistemas: 'Sistemas', outros: 'Outros' }[
-            service.category
-          ]
-        }
-      </span>
+      {showCategory && (
+        <span className="hb-badge">
+          {
+            { sva: 'SVA', crm: 'CRM', sheet: 'Planilha', sistemas: 'Sistemas', outros: 'Outros' }[
+              service.category
+            ]
+          }
+        </span>
+      )}
       <span className="hb-service-bottom">
         <span className={'hb-state' + (pending && !missing ? ' hb-pending' : '')}>
           <Icon name={icon} />

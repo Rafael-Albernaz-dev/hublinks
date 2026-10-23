@@ -1,7 +1,7 @@
 import { SearchBar } from '../components/SearchBar';
 import { useState } from 'react';
 import { HomeServiceViews, HomeToolbar } from '../components/HomeServiceViews';
-import type { HomeFilter } from '../components/HomeServiceViews';
+import type { HomeCategory, HomeAccess } from '../components/HomeServiceViews';
 import { pages } from '../components/pages';
 import { normalizeSearch } from '../hooks/normalizeSearch';
 import type { AuthenticatedWorkspace } from '../hooks/useWorkspace';
@@ -55,7 +55,16 @@ export function HomeView({
   | 'openingServiceId'
 >) {
   const [preferenceError, setPreferenceError] = useState('');
-  const [filter, setFilter] = useState<HomeFilter>('all');
+  const [category, setCategory] = useState<HomeCategory>('all');
+  const [access, setAccess] = useState<HomeAccess>('all');
+  const [draggingShortcut, setDraggingShortcut] = useState<string | null>(null);
+  const shortcuts = [...pages.slice(1)].sort((a, b) => {
+    const rank = (id: string) => {
+      const index = preferences.shortcutOrder.indexOf(id);
+      return index < 0 ? preferences.shortcutOrder.length : index;
+    };
+    return rank(a.id) - rank(b.id);
+  });
   const ordered = [...catalog].sort((a, b) => {
     const rank = (id: string) => {
       const index = preferences.cardOrder.indexOf(id);
@@ -66,10 +75,11 @@ export function HomeView({
   const filtered = ordered.filter(
     (service) =>
       normalizeSearch(service.name + ' ' + service.category).includes(normalizeSearch(query)) &&
-      (filter === 'all' ||
-        (filter === 'personal'
+      (category === 'all' || service.category === category) &&
+      (access === 'all' ||
+        (access === 'personal'
           ? service.ownerUserId === currentUser.id
-          : service.category === filter || service.credentialType === filter)),
+          : service.credentialType === access)),
   );
   const save = (patch: Parameters<typeof updatePreferences>[0]) => {
     setPreferenceError('');
@@ -87,6 +97,15 @@ export function HomeView({
     ids.splice(to, 0, source);
     save({ cardOrder: ids.slice(0, 100) });
   }
+  function reorderShortcut(source: string, target: string) {
+    const ids = shortcuts.map((item) => item.id as string);
+    const from = ids.indexOf(source),
+      to = ids.indexOf(target);
+    if (from < 0 || to < 0 || from === to) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, source);
+    save({ shortcutOrder: ids });
+  }
   return (
     <>
       <section hidden={page !== 'inicio'} aria-label="Início">
@@ -98,19 +117,51 @@ export function HomeView({
           </div>
           <button
             type="button"
+            className="hb-icon-action"
+            aria-label={preferences.showShortcutCards ? 'Ocultar atalhos' : 'Mostrar atalhos'}
+            title={preferences.showShortcutCards ? 'Ocultar atalhos' : 'Mostrar atalhos'}
             aria-pressed={preferences.showShortcutCards}
             onClick={() => save({ showShortcutCards: !preferences.showShortcutCards })}
           >
-            {preferences.showShortcutCards ? 'Ocultar atalhos' : 'Mostrar atalhos'}
+            <Icon name={preferences.showShortcutCards ? 'EyeOff' : 'Eye'} />
           </button>
         </div>
         {preferences.showShortcutCards && (
-          <div className="hb-shortcuts">
-            {pages.slice(1).map((item, index) => (
+          <div
+            className={
+              'hb-shortcuts' + (preferences.shortcutStyle === 'chips' ? ' hb-shortcut-chips' : '')
+            }
+          >
+            {shortcuts.map((item) => (
               <button
                 key={item.id}
                 type="button"
-                className="hb-shortcut"
+                className={'hb-shortcut' + (draggingShortcut === item.id ? ' is-dragging' : '')}
+                draggable
+                onDragStart={(event) => {
+                  setDraggingShortcut(item.id);
+                  event.dataTransfer?.setData('text/plain', item.id);
+                  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (draggingShortcut) reorderShortcut(draggingShortcut, item.id);
+                  setDraggingShortcut(null);
+                }}
+                onDragEnd={() => setDraggingShortcut(null)}
+                onKeyDown={(event) => {
+                  if (
+                    !event.altKey ||
+                    !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
+                  )
+                    return;
+                  event.preventDefault();
+                  const index = shortcuts.findIndex((shortcut) => shortcut.id === item.id);
+                  const target =
+                    shortcuts[index + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1)];
+                  if (target) reorderShortcut(item.id, target.id);
+                }}
                 disabled={
                   (item.id === 'equipe' && currentUser.role !== 'admin') ||
                   (item.id === 'identidade' && apiState !== 'online')
@@ -122,12 +173,13 @@ export function HomeView({
                   <b>{item.label}</b>
                   <small>
                     {
-                      [
-                        catalog.length + ' serviços',
-                        'Individuais e equipe',
-                        'Pessoas e permissões',
-                        'Marca e aparência',
-                      ][index]
+                      {
+                        inicio: '',
+                        catalogo: catalog.length + ' serviços',
+                        cofre: 'Individuais e equipe',
+                        equipe: 'Pessoas e permissões',
+                        identidade: 'Marca e aparência',
+                      }[item.id]
                     }
                   </small>
                 </span>
@@ -143,8 +195,10 @@ export function HomeView({
             <SearchBar value={query} onChange={setQuery} label="Buscar serviços no Workspace" />
           </div>
           <HomeToolbar
-            filter={filter}
-            onFilter={setFilter}
+            category={category}
+            onCategory={setCategory}
+            access={access}
+            onAccess={setAccess}
             layout={preferences.homeLayout}
             onLayout={(homeLayout) => save({ homeLayout })}
           />
@@ -162,7 +216,7 @@ export function HomeView({
             </p>
           )}
           <HomeServiceViews
-            key={filter + query}
+            key={category + access + query + preferences.homeLayout}
             services={filtered}
             layout={preferences.homeLayout}
             onReorder={reorder}

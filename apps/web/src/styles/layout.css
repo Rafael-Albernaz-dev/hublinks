@@ -429,3 +429,57 @@
     gap: 6px;
   }
 }
+
+.hb-home-selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+.hb-home-selects select {
+  background: var(--hb-panel);
+  min-height: 44px;
+  border-color: var(--hb-sub);
+}
+.hb-layout-switcher button,
+.hb-icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 10px;
+}
+.hb-layout-switcher {
+  gap: 4px;
+}
+.hb-layout-switcher button {
+  border-color: transparent;
+}
+.hb-layout-switcher button:hover {
+  border-color: var(--hb-sub);
+}
+.hb-shortcuts.hb-shortcut-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hb-shortcut-chips .hb-shortcut {
+  min-height: 44px;
+  padding: 9px 14px;
+  border-radius: 24px;
+}
+.hb-shortcut-chips .hb-shortcut small {
+  display: none;
+}
+.hb-shortcut.is-dragging {
+  opacity: 0.5;
+}
+@media (max-width: 560px) {
+  .hb-home-selects {
+    width: 100%;
+  }
+  .hb-home-selects label {
+    flex: 1 1 140px;
+  }
+}

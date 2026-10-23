@@ -1378,6 +1378,8 @@ test('personal preferences support partial updates, isolation, validation and fu
     homeLayout: 'grid',
     showShortcutCards: true,
     cardOrder: [],
+    shortcutOrder: [],
+    shortcutStyle: 'cards',
     themeOverrides: null,
   };
   try {
@@ -1409,7 +1411,7 @@ test('personal preferences support partial updates, isolation, validation and fu
       payload: patch,
     });
     assert.equal(saved.statusCode, 200);
-    assert.deepEqual(saved.json().preferences, patch);
+    assert.deepEqual(saved.json().preferences, { ...defaults, ...patch });
     await Promise.all([
       server.inject({
         method: 'PUT',
@@ -1427,7 +1429,7 @@ test('personal preferences support partial updates, isolation, validation and fu
     assert.deepEqual(
       (await server.inject({ method: 'GET', url, headers: { cookie: a.cookie } })).json()
         .preferences,
-      { ...patch, homeLayout: 'list', showShortcutCards: true },
+      { ...defaults, ...patch, homeLayout: 'list', showShortcutCards: true },
     );
     assert.deepEqual(
       (await server.inject({ method: 'GET', url, headers: { cookie: b.cookie } })).json()
@@ -1436,6 +1438,11 @@ test('personal preferences support partial updates, isolation, validation and fu
     );
     for (const invalid of [
       { homeLayout: 'invalid' },
+      { shortcutStyle: 'invalid' },
+      { shortcutOrder: ['catalogo', 'catalogo'] },
+      { shortcutOrder: ['inicio'] },
+      { shortcutOrder: [1] },
+      { shortcutOrder: 'catalogo' },
       { showShortcutCards: 1 },
       { cardOrder: Array.from({ length: 101 }, (_, i) => String(i)) },
       { cardOrder: [1] },
@@ -1519,7 +1526,14 @@ test('personal-layer migration is idempotent and company Home defaults are inher
             headers: { cookie: user.cookie },
           })
         ).json().preferences,
-        { homeLayout: 'list', showShortcutCards: false, cardOrder: [], themeOverrides: null },
+        {
+          homeLayout: 'list',
+          showShortcutCards: false,
+          cardOrder: [],
+          shortcutOrder: [],
+          shortcutStyle: 'cards',
+          themeOverrides: null,
+        },
       );
     assert.equal(
       (
@@ -1603,5 +1617,58 @@ test('extension package is authenticated, deterministic and a complete CRC-valid
     await assert.rejects(buildExtensionZipBuffer(directory));
   } finally {
     await pool.query('DELETE FROM users WHERE id = $1', [actor.id]);
+  }
+});
+
+test('workspace presentation persists new layouts and shortcuts per account and resets them', async () => {
+  const a = await personalLayerActor('attendant'),
+    b = await personalLayerActor('attendant');
+  const migration = await readFile(
+    new URL('../migrations/006_workspace_presentation.sql', import.meta.url),
+    'utf8',
+  );
+  const url = '/api/me/preferences';
+  try {
+    for (const homeLayout of ['compact', 'sections']) {
+      const patch = {
+        homeLayout,
+        shortcutStyle: 'chips',
+        shortcutOrder: ['identidade', 'catalogo', 'cofre', 'equipe'],
+      };
+      const saved = await server.inject({
+        method: 'PUT',
+        url,
+        headers: { cookie: a.cookie },
+        payload: patch,
+      });
+      assert.equal(saved.statusCode, 200);
+      assert.deepEqual(saved.json().preferences, {
+        showShortcutCards: true,
+        cardOrder: [],
+        themeOverrides: null,
+        ...patch,
+      });
+    }
+    await pool.query(migration);
+    await pool.query(migration);
+    const stored = (
+      await server.inject({ method: 'GET', url, headers: { cookie: a.cookie } })
+    ).json().preferences;
+    assert.equal(stored.homeLayout, 'sections');
+    assert.equal(stored.shortcutStyle, 'chips');
+    assert.equal(stored.shortcutOrder[0], 'identidade');
+    const separate = (
+      await server.inject({ method: 'GET', url, headers: { cookie: b.cookie } })
+    ).json().preferences;
+    assert.equal(separate.shortcutStyle, 'cards');
+    assert.deepEqual(separate.shortcutOrder, []);
+    const reset = (
+      await server.inject({ method: 'DELETE', url, headers: { cookie: a.cookie } })
+    ).json().preferences;
+    assert.equal(reset.homeLayout, 'grid');
+    assert.equal(reset.shortcutStyle, 'cards');
+    assert.deepEqual(reset.shortcutOrder, []);
+  } finally {
+    await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[a.id, b.id]]);
   }
 });
