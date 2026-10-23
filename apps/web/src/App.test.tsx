@@ -14,6 +14,7 @@ import userEvent from '@testing-library/user-event';
 import { useExtensionBridge } from './hooks/useExtensionBridge';
 import { useWorkspaceState } from './hooks/useWorkspaceState';
 import { App } from './App';
+import { AuditView } from './views/AuditView';
 import { DEFAULT_CONFIG } from './config';
 import extensionManifest from '../../extension/static/manifest.json';
 import { defaultPreferences } from './hooks/usePreferences';
@@ -118,6 +119,8 @@ beforeEach(() => {
         authenticated = false;
         return { ok: true };
       }
+      if (url.startsWith('/api/admin/audit?'))
+        return { ok: true, json: async () => ({ events: [], total: 0 }) };
       if (url === '/api/admin/users') return { ok: true, json: async () => ({ users: [] }) };
       if (url === '/api/vault/credentials')
         return {
@@ -377,6 +380,8 @@ describe('API backed customization', () => {
       vi.fn(async (url: string, options?: RequestInit) => {
         if (url === '/api/me/preferences') return { ok: true, json: async () => ({ preferences }) };
         if (url === '/api/auth/me') return { ok: true, json: async () => ({ user: admin }) };
+        if (url.startsWith('/api/admin/audit?'))
+          return { ok: true, json: async () => ({ events: [], total: 0 }) };
         if (url === '/api/admin/users') return { ok: true, json: async () => ({ users: [] }) };
         if (options?.method === 'PUT') return { ok: false };
         return { ok: true, json: async () => apiConfig };
@@ -1108,7 +1113,7 @@ describe('Personal user layer and Home organization', () => {
     expect((screen.getByRole('button', { name: 'Equipe' }) as HTMLButtonElement).disabled).toBe(
       true,
     );
-  });
+  }, 15000);
 
   it('removes shared credential fields when an admin chooses personal scope', async () => {
     const user = userEvent.setup();
@@ -1590,4 +1595,67 @@ describe('TICKET-019 extension checks', () => {
       vi.useRealTimers();
     }
   });
+});
+
+it('shows audit only for administrators, with server-side pagination and filters', async () => {
+  const originalFetch = globalThis.fetch;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, options?: RequestInit) => {
+      if (!url.startsWith('/api/admin/audit?')) return originalFetch(url, options);
+      requests.push({ url, method: 'GET' });
+      return {
+        ok: true,
+        json: async () => ({
+          total: 51,
+          events: [
+            {
+              id: new URL(url, 'https://example.test').searchParams.get('offset'),
+              action: 'login_success',
+              actorEmail: 'actor@example.test',
+              actorUserId: 'actor',
+              targetType: 'system',
+              targetId: null,
+              ip: '192.0.2.4',
+              createdAt: '2026-01-01T12:00:00Z',
+            },
+          ],
+        }),
+      };
+    }),
+  );
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Equipe' }));
+  expect(await screen.findByRole('table', { name: 'Logs de auditoria' })).toBeTruthy();
+  expect(await screen.findByText('actor@example.test')).toBeTruthy();
+  await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+  await waitFor(() => expect(requests.some((r) => r.url.includes('offset=50'))).toBe(true));
+  await userEvent.type(screen.getByLabelText('Ação', { exact: true }), 'login_success');
+  await userEvent.click(screen.getByRole('button', { name: 'Filtrar auditoria' }));
+  await waitFor(() =>
+    expect(requests.some((r) => r.url.includes('offset=0&action=login_success'))).toBe(true),
+  );
+  cleanup();
+  signedInUser = { ...admin, role: 'attendant' };
+  requests = [];
+  render(<App />);
+  await screen.findByRole('button', { name: 'Catálogo' });
+  expect(screen.queryByRole('table', { name: 'Logs de auditoria' })).toBeNull();
+  expect(requests.some((r) => r.url.startsWith('/api/admin/audit'))).toBe(false);
+});
+
+it('lets an administrator retry an audit query after a network failure', async () => {
+  let attempts = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      if (++attempts === 1) throw new Error('Synthetic offline');
+      return { ok: true, json: async () => ({ events: [], total: 0 }) };
+    }),
+  );
+  render(<AuditView />);
+  await screen.findByText('Não foi possível carregar a auditoria.');
+  await userEvent.click(screen.getByRole('button', { name: 'Filtrar auditoria' }));
+  await screen.findByText('Nenhum evento encontrado.');
+  expect(attempts).toBe(2);
 });

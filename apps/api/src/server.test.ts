@@ -1775,3 +1775,120 @@ test('self profile: authentication, identity, duplicate email, avatar and passwo
     ]);
   }
 });
+
+test('admin audit enforces role, stable pagination, filters and safe projection', async () => {
+  const admin = await personalLayerActor('admin');
+  const user = await personalLayerActor('attendant');
+  try {
+    for (let i = 0; i < 3; i++)
+      await pool.query(
+        `INSERT INTO audit_logs (user_id, action, ip_address, details, created_at)
+       VALUES ($1, 'synthetic_audit', '192.0.2.20', $2, '2026-01-01T12:00:00Z')`,
+        [admin.id, JSON.stringify({ password: 'must-never-be-projected', ticket: 'private' })],
+      );
+    const get = (query = '', cookie = admin.cookie) =>
+      server.inject({
+        method: 'GET',
+        url: `/api/admin/audit${query}`,
+        headers: { cookie },
+      });
+    assert.equal((await server.inject('/api/admin/audit')).statusCode, 401);
+    assert.equal((await get('', user.cookie)).statusCode, 403);
+    const query = `?action=synthetic_audit&userId=${admin.id}&from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z&limit=2`;
+    const first = await get(query);
+    assert.equal(first.statusCode, 200);
+    const page = first.json();
+    assert.equal(page.total, 3);
+    assert.equal(page.events.length, 2);
+    assert.deepEqual(
+      Object.keys(page.events[0]).sort(),
+      [
+        'id',
+        'actorUserId',
+        'actorEmail',
+        'action',
+        'targetType',
+        'targetId',
+        'ip',
+        'userAgent',
+        'createdAt',
+      ].sort(),
+    );
+    assert.equal(page.events[0].actorUserId, admin.id);
+    assert.equal(page.events[0].ip, '192.0.2.20');
+    assert.ok(!first.body.includes('must-never-be-projected'));
+    const second = (await get(query + '&offset=2')).json();
+    assert.equal(second.events.length, 1);
+    assert.ok(!page.events.some((e: { id: string }) => e.id === second.events[0].id));
+    assert.deepEqual((await get(query + '&offset=20')).json(), { events: [], total: 3 });
+    assert.equal((await get(`?action=other&userId=${admin.id}`)).json().total, 0);
+    for (const invalid of [
+      'limit=201',
+      'limit=0',
+      'offset=-1',
+      'limit=abc',
+      'userId=bad',
+      'from=invalid',
+      'from=2026-02-01T00:00:00Z&to=2026-01-01T00:00:00Z',
+    ])
+      assert.equal((await get('?' + invalid)).statusCode, 400);
+  } finally {
+    await pool.query('DELETE FROM audit_logs WHERE user_id = $1', [admin.id]);
+    await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[admin.id, user.id]]);
+  }
+});
+
+test('configured origins, credentialed CORS, proxy protocol and secure cookies', async () => {
+  const oldOrigins = process.env.HUB_CLIENT_ORIGINS;
+  const oldProxy = process.env.HUB_TRUST_PROXY;
+  process.env.HUB_CLIENT_ORIGINS = 'https://hub.example.test';
+  process.env.HUB_TRUST_PROXY = 'true';
+  const isolated = createServer(path, createPool());
+  try {
+    const allowed = await isolated.inject({
+      method: 'OPTIONS',
+      url: '/api/auth/login',
+      headers: { origin: 'https://hub.example.test' },
+    });
+    assert.equal(allowed.statusCode, 204);
+    assert.equal(allowed.headers['access-control-allow-origin'], 'https://hub.example.test');
+    assert.equal(allowed.headers['access-control-allow-credentials'], 'true');
+    for (const origin of ['https://evil.example.test', 'null', 'http://localhost:5177'])
+      assert.equal(
+        (
+          await isolated.inject({
+            method: 'POST',
+            url: '/api/auth/login',
+            headers: { origin },
+            payload: {},
+          })
+        ).statusCode,
+        403,
+      );
+    const login = await isolated.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: {
+        origin: 'https://hub.example.test',
+        'x-forwarded-proto': 'https',
+        'x-forwarded-for': '192.0.2.44',
+      },
+      payload: {
+        email: process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
+        password: process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
+      },
+    });
+    assert.equal(login.statusCode, 200);
+    assert.match(String(login.headers['set-cookie']), /; Secure/);
+    const ip = await pool.query(
+      "SELECT ip_address FROM audit_logs WHERE action = 'login' ORDER BY id DESC LIMIT 1",
+    );
+    assert.equal(ip.rows[0]?.ip_address, '192.0.2.44');
+  } finally {
+    await isolated.close();
+    if (oldOrigins === undefined) delete process.env.HUB_CLIENT_ORIGINS;
+    else process.env.HUB_CLIENT_ORIGINS = oldOrigins;
+    if (oldProxy === undefined) delete process.env.HUB_TRUST_PROXY;
+    else process.env.HUB_TRUST_PROXY = oldProxy;
+  }
+});

@@ -8,6 +8,55 @@ import { audit } from '../services/audit.js';
 
 export function registerAdminRoutes(server: FastifyInstance, context: ApiContext): void {
   const { pool } = context;
+  server.get<{ Querystring: Record<string, string> }>(
+    '/api/admin/audit',
+    async (request, reply) => {
+      if (!(await adminSession(pool, request, reply))) return;
+      reply.header('Cache-Control', 'no-store');
+      const q = request.query;
+      const integer = (value: string | undefined, fallback: number) =>
+        value === undefined ? fallback : /^\d+$/.test(value) ? Number(value) : NaN;
+      const limit = integer(q.limit, 50),
+        offset = integer(q.offset, 0);
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (
+        !Number.isSafeInteger(limit) ||
+        limit < 1 ||
+        limit > 200 ||
+        !Number.isSafeInteger(offset) ||
+        offset < 0 ||
+        (q.action !== undefined && !/^[a-zA-Z0-9_.-]{1,50}$/.test(q.action)) ||
+        (q.userId !== undefined && !uuid.test(q.userId)) ||
+        [q.from, q.to].some(
+          (date) =>
+            date !== undefined &&
+            (!/^\d{4}-\d{2}-\d{2}T/.test(date) || !Number.isFinite(Date.parse(date))),
+        ) ||
+        (q.from && q.to && Date.parse(q.from) > Date.parse(q.to))
+      )
+        return reply.code(400).send({ error: 'Filtros de auditoria inválidos.' });
+      const values = [q.action ?? null, q.userId ?? null, q.from ?? null, q.to ?? null];
+      const where = `WHERE ($1::text IS NULL OR a.action = $1)
+      AND ($2::uuid IS NULL OR a.user_id = $2)
+      AND ($3::timestamptz IS NULL OR a.created_at >= $3)
+      AND ($4::timestamptz IS NULL OR a.created_at <= $4)`;
+      // One statement gives page and count the same MVCC snapshot, including empty pages.
+      const result = await pool.query<{ events: unknown[]; total: number }>(
+        `
+      SELECT (SELECT count(*)::int FROM audit_logs a ${where}) AS total,
+        COALESCE((SELECT json_agg(event ORDER BY event."createdAt" DESC, event."id"::bigint DESC)
+        FROM (SELECT a.id::text AS id, a.user_id AS "actorUserId", u.email AS "actorEmail",
+          a.action, CASE WHEN a.service_id IS NOT NULL THEN 'service'
+            WHEN a.details->>'targetUserId' IS NOT NULL THEN 'user' ELSE 'system' END AS "targetType",
+          COALESCE(a.service_id, a.details->>'targetUserId') AS "targetId",
+          a.ip_address AS ip, NULL::text AS "userAgent", a.created_at AS "createdAt"
+          FROM audit_logs a LEFT JOIN users u ON a.user_id = u.id ${where}
+          ORDER BY a.created_at DESC, a.id DESC LIMIT $5 OFFSET $6) event), '[]'::json) AS events`,
+        [...values, limit, offset],
+      );
+      return result.rows[0];
+    },
+  );
   server.get('/api/admin/users', async (request, reply) => {
     if (!(await adminSession(pool, request, reply))) return;
     const result = await pool.query<UserRow & { created_at: Date }>(

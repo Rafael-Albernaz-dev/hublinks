@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AuditView } from './AuditView';
 import { SearchBar } from '../components/SearchBar';
 import { normalizeSearch } from '../hooks/normalizeSearch';
 import type { AuthenticatedWorkspace } from '../hooks/useWorkspace';
@@ -350,6 +351,7 @@ export function TeamView({
               {adminNotice}
             </p>
           </div>
+          <AuditView />
         </section>
       )}
     </>

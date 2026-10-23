@@ -1,0 +1,56 @@
+name: ${HUB_PROJECT_NAME:-hublink-prod}
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hublink}
+      POSTGRES_USER: hublink
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - hublink_db_data:/var/lib/postgresql/data
+    networks: [hublink_net]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hublink -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  api:
+    image: ${HUB_API_IMAGE:-hublink-api:local}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    init: true
+    restart: unless-stopped
+    env_file: ${HUB_RUNTIME_ENV_FILE:-.env.production}
+    environment:
+      NODE_ENV: production
+      HUB_API_HOST: 0.0.0.0
+      HUB_TRUST_PROXY: 'true'
+      HUB_CONFIG_PATH: /app/data/config.json
+      DATABASE_URL: postgres://hublink:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hublink}
+    volumes:
+      - ${HUB_DATA_DIR:-./data/production}:/app/data
+    networks: [hublink_net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 30s
+    security_opt: [no-new-privileges:true]
+  web:
+    image: ${HUB_WEB_IMAGE:-hublink-web:local}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${HUB_WEB_PORT:-8080}:80'
+    networks: [hublink_net]
+    depends_on:
+      api:
+        condition: service_healthy
+networks:
+  hublink_net:
+    driver: bridge
+volumes:
+  hublink_db_data:

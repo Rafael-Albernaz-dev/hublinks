@@ -30,7 +30,7 @@ export function tokenHash(token: string): string {
 export function setSessionCookie(reply: FastifyReply, token: string) {
   reply.setCookie(SESSION_COOKIE, token, {
     ...COOKIE_OPTIONS,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' || reply.request.protocol === 'https',
   });
 }
 
