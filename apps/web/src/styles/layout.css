@@ -43,7 +43,7 @@
   width: 38px;
   height: 38px;
   flex: none;
-  border-radius: 11px;
+  border-radius: 12px;
   background: var(--hb-accent);
   color: var(--hb-monogram);
   font-size: 28px;
@@ -54,13 +54,6 @@
   height: 100%;
   object-fit: contain;
   padding: 4px;
-}
-.extension-status {
-  font-size: 10px;
-  letter-spacing: 0.4px;
-  padding: 6px 7px;
-  border-radius: 5px;
-  color: var(--hb-sub);
 }
 .hb-account {
   display: flex;
@@ -265,17 +258,15 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 9px 12px;
-  border: 1px solid var(--hb-ink);
-  border-radius: 12px;
+  border: 1px solid var(--hb-line);
   background: var(--hb-panel);
   color: var(--hb-ink);
-  font-weight: 650;
   line-height: 1.4;
 }
 .hb-header .extension-status.is-missing {
-  border-color: var(--hb-accent);
-  background: color-mix(in srgb, var(--hb-accent) 16%, var(--hb-panel));
+  border-color: #b453094d;
+  background: #b453090d;
+  color: var(--hb-pending);
 }
 .extension-status-dot {
   width: 8px;
@@ -287,11 +278,6 @@
 .extension-status.is-missing .extension-status-dot {
   background: #b45309;
   animation: extension-attention 2s ease-in-out infinite;
-}
-.hb-header .extension-status.is-detected {
-  background: #d1fae5;
-  color: #065f46;
-  border-color: #047857;
 }
 .extension-status.is-checking .extension-status-dot {
   background: var(--hb-ink);
@@ -398,11 +384,6 @@
   }
 }
 @media (max-width: 560px) {
-  .hb-header .extension-status {
-    font-size: 11px;
-    padding: 7px 9px;
-    gap: 5px;
-  }
   .hb-header .account-actions {
     gap: 5px;
   }
@@ -481,5 +462,133 @@
   }
   .hb-home-selects label {
     flex: 1 1 140px;
+  }
+}
+
+.hb-user-dropdown {
+  position: relative;
+  max-width: 100%;
+}
+.hb-user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  min-height: 44px;
+  max-width: 100%;
+  border-color: transparent;
+  background: transparent;
+}
+.hb-user-trigger:hover,
+.hb-user-trigger[aria-expanded='true'] {
+  background: var(--hb-soft);
+}
+.hb-user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--hb-accent);
+  color: var(--hb-monogram);
+  font-size: 12px;
+  font-weight: 650;
+}
+.hb-user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hb-user-name {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 550;
+}
+.hb-user-dropdown-menu {
+  position: absolute;
+  z-index: 40;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 240px;
+  max-width: calc(100vw - 36px);
+  padding: 6px;
+  border: 1px solid var(--hb-line);
+  border-radius: 14px;
+  background: var(--hb-panel);
+  box-shadow: 0 12px 32px #0002;
+}
+.hb-user-dropdown-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+}
+.hb-user-dropdown-menu button:hover {
+  background: var(--hb-soft);
+}
+.dropdown-divider {
+  margin: 5px 8px;
+  border-top: 1px solid var(--hb-line);
+}
+.hb-user-dropdown-menu .is-danger {
+  color: #b42318;
+}
+:root[data-theme='dark'] .hb-user-dropdown-menu .is-danger {
+  color: #ffaaa0;
+}
+.hb-header .extension-status {
+  min-height: 40px;
+  padding: 7px 12px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: 0.2px;
+  border-color: var(--hb-line);
+  transition:
+    background 180ms,
+    color 180ms,
+    border-color 180ms;
+}
+.hb-header .extension-status.is-detected,
+.extension-connection.is-detected {
+  background: #10b9811a;
+  color: #065f46;
+  border-color: #10b9814d;
+}
+:root[data-theme='dark'] .hb-header .extension-status.is-detected,
+:root[data-theme='dark'] .extension-connection.is-detected {
+  background: #10b98126;
+  color: #34d399;
+  border-color: #10b98166;
+}
+.extension-status.is-detected .extension-status-dot {
+  box-shadow: 0 0 0 3px #10b98118;
+}
+.extension-connection {
+  transition:
+    color 180ms,
+    background 180ms;
+}
+@media (max-width: 560px) {
+  .hb-header .extension-status {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: start;
+  }
+  .site-shell .hb-header .header-user {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    max-width: 100%;
+    justify-content: flex-end;
   }
 }

@@ -1599,6 +1599,20 @@ test('extension package is authenticated, deterministic and a complete CRC-valid
     assert.deepEqual([...entries.keys()], [...extensionPackageFiles]);
     const manifest = JSON.parse(entries.get('manifest.json')!.toString());
     assert.equal(manifest.manifest_version, 3);
+    assert.deepEqual(manifest.icons, {
+      '16': 'icons/icon-16.png',
+      '48': 'icons/icon-48.png',
+      '128': 'icons/icon-128.png',
+    });
+    assert.deepEqual(manifest.action.default_icon, manifest.icons);
+    for (const size of [16, 48, 128]) {
+      const icon = entries.get(`icons/icon-${size}.png`);
+      assert.ok(icon, `Missing ${size}px extension icon`);
+      assert.deepEqual(icon.subarray(0, 8), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      assert.equal(icon.toString('ascii', 12, 16), 'IHDR');
+      assert.equal(icon.readUInt32BE(16), size);
+      assert.equal(icon.readUInt32BE(20), size);
+    }
     assert.deepEqual(manifest.permissions, ['tabs', 'scripting', 'storage']);
     assert.deepEqual(manifest.host_permissions, ['https://*/*', 'http://127.0.0.1:3177/*']);
     const centralOffset = offset;
@@ -1670,5 +1684,94 @@ test('workspace presentation persists new layouts and shortcuts per account and 
     assert.deepEqual(reset.shortcutOrder, []);
   } finally {
     await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[a.id, b.id]]);
+  }
+});
+
+test('self profile: authentication, identity, duplicate email, avatar and password validation', async () => {
+  const suffix = randomBytes(6).toString('hex');
+  const email = `profile-${suffix}@example.test`;
+  const otherEmail = `profile-other-${suffix}@example.test`;
+  const cookie = await adminLogin();
+  const create = async (email: string) =>
+    server.inject({
+      method: 'POST',
+      url: '/api/admin/users',
+      headers: { cookie },
+      payload: { displayName: 'Synthetic Profile', email, password: 'synthetic-profile-password' },
+    });
+  const created = await create(email);
+  assert.equal(created.statusCode, 201);
+  assert.equal((await create(otherEmail)).statusCode, 201);
+  const login = await server.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { email, password: 'synthetic-profile-password' },
+  });
+  const ownCookie = sessionCookie(login);
+  const put = (payload: object, authenticated = true) =>
+    server.inject({
+      method: 'PUT',
+      url: '/api/auth/profile',
+      headers: authenticated ? { cookie: ownCookie } : {},
+      payload,
+    });
+  const avatar =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=';
+  try {
+    assert.equal((await put({ displayName: 'Denied' }, false)).statusCode, 401);
+    const saved = await put({
+      displayName: 'Updated profile',
+      email: ` PROFILE-UPDATED-${suffix}@EXAMPLE.TEST `,
+      avatar,
+    });
+    assert.equal(saved.statusCode, 200);
+    assert.equal(saved.json().user.displayName, 'Updated profile');
+    assert.equal(saved.json().user.email, `profile-updated-${suffix}@example.test`);
+    assert.equal(saved.json().user.avatar, avatar);
+    assert.equal('password_hash' in saved.json().user, false);
+    const me = await server.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie: ownCookie },
+    });
+    assert.equal(me.json().user.avatar, avatar);
+    assert.equal((await put({ email: otherEmail })).statusCode, 409);
+    for (const payload of [
+      { role: 'admin' },
+      { displayName: '' },
+      { email: 'invalid' },
+      { avatar: 'data:image/svg+xml;base64,PHN2Zy8+' },
+      { avatar: 'data:image/png;base64,dGV4dA==' },
+      { avatar: 'data:image/png;base64,' + Buffer.alloc(2 * 1024 * 1024 + 1).toString('base64') },
+      { newPassword: 'short', currentPassword: 'synthetic-profile-password' },
+      { newPassword: 'synthetic-new-password' },
+    ])
+      assert.equal((await put(payload)).statusCode, 400);
+    const wrong = await put({
+      currentPassword: 'wrong-password',
+      newPassword: 'synthetic-new-password',
+    });
+    assert.equal(wrong.statusCode, 400);
+    assert.equal(wrong.json().error, 'Senha atual incorreta.');
+    const changed = await put({
+      currentPassword: 'synthetic-profile-password',
+      newPassword: 'synthetic-new-password',
+      avatar: null,
+    });
+    assert.equal(changed.statusCode, 200);
+    assert.equal(changed.json().user.avatar, null);
+    const loginWith = (password: string) =>
+      server.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        remoteAddress: '192.0.2.230',
+        payload: { email: saved.json().user.email, password },
+      });
+    assert.equal((await loginWith('synthetic-profile-password')).statusCode, 401);
+    assert.equal((await loginWith('synthetic-new-password')).statusCode, 200);
+  } finally {
+    await pool.query('DELETE FROM users WHERE email = ANY($1::text[])', [
+      [email, otherEmail, `profile-updated-${suffix}@example.test`],
+    ]);
   }
 });

@@ -51,6 +51,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 const iconNodes = {
+  ChevronDown: [['path', { d: 'm6 9 6 6 6-6' }]],
   LayoutGrid: [
     ['rect', { x: '3', y: '3', width: '7', height: '7', rx: '1' }],
     ['rect', { x: '14', y: '3', width: '7', height: '7', rx: '1' }],

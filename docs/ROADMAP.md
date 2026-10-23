@@ -9,13 +9,13 @@ Updated October 18, 2026. This roadmap describes local implementation; it does n
 
 The Extension Center in the Workspace header replaces the passive installation dialog. It offers an authenticated ZIP in three local steps, a `chrome://extensions` copy action, confirmed bridge checks, and startup, New Tab, and fill-notification options. UX-018 adds an optional Chrome Web Store listing link and hides installation after detection. Manual destination opening remains available when launched from a service. Browser-wide theme, extension options, and sign-out controls have distinct surfaces, visible focus, and state indicators; attention animation respects reduced motion.
 
-Build first with `npm run build`. `GET /api/extension/package` requires an active session and returns `hublink-chrome-extension.zip` with `Cache-Control: no-store`. The deterministic in-memory ZIP Store writer uses native Node CRC32 and includes only manifest.json, background.js, autofill.js, content.js, popup.html, and popup.js from the compiled extension. Missing artifacts return 503 with build guidance; static-only files cannot form an installable package. Runtime API requests never compile source or include project configuration/secrets.
+Build first with `npm run build`. `GET /api/extension/package` requires an active session and returns `hublink-chrome-extension.zip` with `Cache-Control: no-store`. The deterministic in-memory ZIP Store writer uses native Node CRC32 and includes only manifest.json, background.js, autofill.js, content.js, popup.html, popup.js, and the three PNG icons under icons/ from the compiled extension. Missing artifacts return 503 with build guidance; static-only files cannot form an installable package. Runtime API requests never compile source or include project configuration/secrets.
 
 Startup and New Tab options are off by default and explicitly enabled per Chrome profile. Startup opens or focuses the fixed local Workspace. New Tab redirects only Chrome's New Tab URLs, rechecking the tab before update and preserving typed destinations and `about:blank` application popups. It uses tab events, without an unconditional manifest new-tab override or modification of Chrome's startup policies. Profile startup/restore timing, competing New Tab extensions, and managed browser policies require installed-Chrome validation.
 
 The only added permission is `storage`; host permissions and official Hub origins are unchanged. `chrome.storage.local` stores exactly three boolean flags: `openOnStartup`, `openOnNewTab`, and `showToastNotifications`. Unknown fields, non-booleans, credentials, tokens, tickets, cached shortcuts, and configurable Workspace URLs are rejected. This follows the ticket's stricter security gate over its broader storage examples. Settings messages accept PING, GET_SETTINGS, UPDATE_SETTINGS, and UPDATE_EXTENSION_SETTINGS; updates carry a `settings` object. External messages require an authorized Hub origin/tab; internal settings messages require the extension's own popup URL and identity. A page DOM marker alone never establishes a connection.
 
-The 340px popup shows API and active-tab status, opens/focuses the Workspace, copies its fixed URL, and edits the same three options. It fetches `/api/catalog` with the current authenticated session and `no-store` while open. Only safe HTTPS metadata is rendered, never cached in extension storage. Direct links open their configured destination; services with a vault return to the Workspace for a user-initiated ticket. Missing session/API leaves guidance to open the Workspace. Shortcut loading from the extension origin still needs installed-Chrome cookie/origin verification.
+The 340px popup shows API and active-tab status, opens/focuses the Workspace, copies its fixed URL, and edits the same three options. It fetches `/api/catalog` with the current authenticated session and `no-store` while open. Only safe HTTPS metadata is rendered, never cached in extension storage. All popup shortcuts open their configured HTTPS destination directly for manual access. Assisted autofill starts from a user-initiated ticket in the Workspace. Missing session/API leaves guidance to open the Workspace. Shortcut loading from the extension origin still needs installed-Chrome cookie/origin verification.
 
 Disabling notifications suppresses only the injected visual toast. Ticket validation, double destination checks, bounded SPA waiting, challenge detection, manual CAPTCHA/2FA, and human form submission remain unchanged. No supplier login or installation success is inferred from synthetic tests.
 
@@ -47,6 +47,7 @@ Slice C / TICKET-017 is now implemented locally as described above. UX-018 is im
 | EXT-015  | Implemented locally | Four-second SPA wait with URL revalidation, accessible challenge toast, and local API/tab status popup with Workspace shortcut.                                                |
 | Phase 2  | Implemented locally | TICKET-015 (Clean Arch & hygiene), TICKET-016 (personal layer & Home layouts), TICKET-017 (Extension Center & startup/New Tab).                                                |
 | UX-018   | Implemented locally | Five layouts, category/access dropdowns, service and shortcut ordering, wide Extension Center, optional Store link, and real service-logo previews; human acceptance pending.  |
+| UX-019   | Implemented locally | User Profile screen, header user dropdown, extension status pill redesign, silent bridge polling, direct popup shortcut links, and clean development DB.                       |
 | R8       | Planned             | On-premise operation, dynamic client origins, Docker packaging, encrypted backup/restore, audit log viewer, and rollback.                                                      |
 | R9       | Planned             | Review pilot evidence, supplier authentication, support burden, and expansion decisions.                                                                                       |
 
@@ -115,9 +116,9 @@ Before on-premise deployment, confirm capacity, DNS, TLS, proxy, master-key cust
 ## Next-session handoff
 
 1. Read AGENTS.md, README.md, docs/CONTEXT.md, docs/DECISIONS.md, and docs/OPEN_QUESTIONS.md; inspect git status --short --branch and preserve unrelated work.
-2. The UX-018 slice is fully implemented, verified, committed at `1ef9eb7`, and pushed to origin/main.
+2. The UX-019 slice is fully implemented, audited, verified, and committed.
 3. Next milestone to begin: **R8 (On-premise operation, Docker packaging, dynamic client origins, encrypted backup/restore, audit log viewer, and rollback)**.
-4. If performing live browser testing first: start `npm run dev:api` and `npm run dev:web`, inspect the 5 layouts, dropdown filters, cyclic carousel, and wide Extension Center.
+4. If performing live browser testing: development services run on 3177 and 5177 with clean baseline data.
 5. Preserve loopback ports and developer services on 3177 and 5177.
 
 ## TICKET-016 local validation
@@ -145,3 +146,17 @@ The user authorized the minimum preferences API extension: account-scoped valida
 Temporary synthetic Chromium checks covered all five layouts, the Extension Center, and Personalization at 320, 390, 679, 680, 780, 781, 1024, and 1440 px in both themes. They found no horizontal overflow or unnecessary desktop modal scrolling and verified real CSS pause/resume during carousel travel, cyclic wrap, reduced-motion manual navigation, focus restoration, native list/shortcut dragging, reload persistence, compact shortcuts, uploaded-logo previews, and connected-state options. Selected layout controls meet 4.5:1 text/icon contrast with the default and tested custom accent. Evidence and screenshots are under `/tmp/hublink-ticket018-visual/`; check and E2E logs are `/tmp/hublink-ticket018-check.log` and `/tmp/hublink-ticket018-e2e.log`.
 
 The Chrome Web Store branch is component-tested with a synthetic listing URL; no extension was published or installed from the Store. Human visual acceptance, installed-Chrome behavior, supplier login, and deployment remain pending. No commit, push, or deployment was performed.
+
+## TICKET-019 — Profile and account UX
+
+The dedicated Profile screen edits the authenticated user's display name, normalized unique email, raster avatar (PNG/JPEG/WebP, up to 2 MiB), and password with current-password verification. API validation rejects unknown fields, invalid avatar signatures/base64, and short passwords. Migration 007 adds the nullable avatar under the existing boot lock. The header replaces loose account buttons with an accessible avatar/name dropdown. Theme and logout are menu actions, alongside Profile and the Extension Center.
+
+Extension polling is silent and updates connectivity only on a changed result. Manual checking uses a separate spinner state for at least 600 ms, keeping the connected panel stable. Popup shortcuts open their safe HTTPS destination directly without credential exchange; assisted filling still begins in the Workspace. The web favicon and extension manifest share rounded purple icons.
+
+The explicit development-only `purgeDevelopmentUsers` operation preserves the exact active administrator and never runs on boot. The local development cleanup removed one secondary user and verified one remaining active administrator. Synthetic tests use separate databases; local cleanup does not establish production readiness. R8 Docker packaging, dynamic origins, backup/restore, and deployment remain pending.
+
+### TICKET-019 validation and packaging
+
+`npm run check` passes: 40 API tests, 24 extension tests, 61 web tests, typechecks, zero-warning lint, formatting, and all builds. Eight isolated Chromium E2E scenarios pass, including photo upload, identity/password update, reload persistence, and login with the changed credentials. Tests use `hublink_ticket019` / `hublink_ticket019_e2e`, API 3178, and web 5187. Development services on 3177/5177 were preserved. Synthetic visual checks cover Profile, the account dropdown, and the connected Extension Center at 320, 390, 560, 780, 1024, and 1440 px in both themes; no horizontal overflow or polling-induced dialog height change was observed. Logs and screenshots are under `/tmp/hublink-ticket019-*`.
+
+The downloadable extension ZIP includes all nine required files, including the 16, 48, and 128 px PNG icons referenced by both manifest icon maps. The authenticated-package regression test checks the icon paths, PNG signatures, dimensions, and ZIP CRCs. The packaging gate is closed. Installed-Chrome, supplier, human visual, and production acceptance remain unverified. No commit, push, or deployment was performed.

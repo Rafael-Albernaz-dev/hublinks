@@ -4,6 +4,7 @@ export type User = {
   email: string;
   role: 'admin' | 'attendant';
   active?: boolean;
+  avatar?: string | null;
 };
 export type ManagedUser = User & { createdAt: string };
 export type CatalogService = {

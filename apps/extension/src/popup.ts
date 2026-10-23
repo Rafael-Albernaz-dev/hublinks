@@ -160,12 +160,12 @@ export async function initPopup(
           const address = doc.createElement('small');
           address.textContent = url.href;
           button.append(name, address);
-          button.title = service.credentialType === 'none' ? url.href : 'Abrir pelo Workspace';
+          button.title = url.href;
           button.addEventListener('click', () => {
             if (!tabs?.create) return;
-            void (
-              service.credentialType === 'none' ? tabs.create({ url: url.href }) : openWorkspace()
-            ).catch(() => notice('Não foi possível abrir o atalho.'));
+            void tabs
+              .create({ url: url.href })
+              .catch(() => notice('Não foi possível abrir o atalho.'));
           });
           links.push(button);
         }

@@ -1,4 +1,5 @@
 import type { AuthenticatedWorkspace } from '../hooks/useWorkspace';
+import { UserDropdown } from './UserDropdown';
 import { Icon } from '../icons';
 export function Header({
   setPage,
@@ -89,43 +90,18 @@ export function Header({
               : 'Instalar extensão'}
         </button>
         <div className="header-user">
-          <span className="hb-account">
-            {currentUser.displayName}
-            <small>{currentUser.role === 'admin' ? 'Admin' : 'Usuário'}</small>
-          </span>
-          <div className="account-actions">
-            <button
-              className="hb-icon-button"
-              type="button"
-              aria-label="Central da Extensão e inicialização"
-              title="Extensão e inicialização"
-              onClick={() => {
-                setExtensionModal(null);
-                setShowExtensionGuide(true);
-              }}
-            >
-              <Icon name="Settings2" />
-            </button>
-            <button
-              className="hb-icon-button"
-              type="button"
-              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-              aria-label={theme === 'light' ? 'Mudar para tema escuro' : 'Mudar para tema claro'}
-              title={theme === 'light' ? 'Tema escuro' : 'Tema claro'}
-            >
-              <Icon name={theme === 'light' ? 'Moon' : 'Sun'} />
-            </button>
-            <button
-              className="hb-icon-button"
-              type="button"
-              disabled={authBusy}
-              onClick={() => void logout()}
-              aria-label="Sair da conta"
-              title="Sair"
-            >
-              <Icon name="LogOut" />
-            </button>
-          </div>
+          <UserDropdown
+            {...{
+              currentUser,
+              setPage,
+              setExtensionModal,
+              setShowExtensionGuide,
+              setTheme,
+              theme,
+              authBusy,
+              logout,
+            }}
+          />
         </div>
       </header>
     </>

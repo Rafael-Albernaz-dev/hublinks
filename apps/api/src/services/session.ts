@@ -19,6 +19,7 @@ export function publicUser(row: UserRow): User {
     email: row.email,
     role: row.role,
     active: row.active ?? true,
+    avatar: row.avatar ?? null,
   };
 }
 
@@ -48,7 +49,7 @@ export async function activeSession(
        FROM users AS u
        WHERE s.user_id = u.id AND u.active = TRUE AND s.token_hash = $1 AND s.revoked_at IS NULL
          AND s.last_seen_at > NOW() - INTERVAL '365 days'
-       RETURNING s.id AS session_id, u.id, u.display_name, u.email, u.role, u.active`,
+       RETURNING s.id AS session_id, u.id, u.display_name, u.email, u.role, u.active, u.avatar`,
     [tokenHash(token)],
   );
   const session = result.rows[0];

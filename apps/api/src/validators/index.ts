@@ -472,3 +472,67 @@ export function preferencesInput(body: unknown): Partial<UserPreferences> | null
     return null;
   }
 }
+
+export type ProfileInput = {
+  displayName?: string;
+  email?: string;
+  avatar?: string | null;
+  currentPassword?: string;
+  newPassword?: string;
+};
+
+export function profileInput(body: unknown): ProfileInput | null {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const b = body as Record<string, unknown>;
+  if (
+    !Object.keys(b).length ||
+    Object.keys(b).some(
+      (key) => !['displayName', 'email', 'avatar', 'currentPassword', 'newPassword'].includes(key),
+    )
+  )
+    return null;
+  const input: ProfileInput = {};
+  if ('displayName' in b) {
+    if (
+      typeof b.displayName !== 'string' ||
+      !b.displayName.trim() ||
+      b.displayName.trim().length > 80
+    )
+      return null;
+    input.displayName = b.displayName.trim();
+  }
+  if ('email' in b) {
+    if (typeof b.email !== 'string') return null;
+    const email = b.email.trim().toLowerCase();
+    if (email.length > 255 || !/^\S+@\S+\.\S+$/.test(email)) return null;
+    input.email = email;
+  }
+  if ('avatar' in b) {
+    if (b.avatar !== null) {
+      if (typeof b.avatar !== 'string' || b.avatar.length > 2_796_250) return null;
+      const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(b.avatar);
+      if (!match) return null;
+      const bytes = Buffer.from(match[2]!, 'base64');
+      if (!bytes.length || bytes.length > 2 * 1024 * 1024 || bytes.toString('base64') !== match[2])
+        return null;
+      const valid =
+        match[1] === 'png'
+          ? bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+          : match[1] === 'jpeg'
+            ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
+            : bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
+      if (!valid) return null;
+    }
+    input.avatar = b.avatar as string | null;
+  }
+  for (const key of ['currentPassword', 'newPassword'] as const) {
+    if (key in b) {
+      if (typeof b[key] !== 'string' || b[key].length > 1024) return null;
+      input[key] = b[key];
+    }
+  }
+  if (input.newPassword !== undefined && (input.newPassword.length < 8 || !input.currentPassword))
+    return null;
+  if (input.currentPassword !== undefined && input.newPassword === undefined) return null;
+  return input;
+}

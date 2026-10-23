@@ -5,4 +5,4 @@ export const pages = [
   { id: 'equipe', label: 'Equipe', icon: 'Users' },
   { id: 'identidade', label: 'Personalização', icon: 'Palette' },
 ] as const;
-export type Page = (typeof pages)[number]['id'];
+export type Page = (typeof pages)[number]['id'] | 'perfil';

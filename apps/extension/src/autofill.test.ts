@@ -560,7 +560,9 @@ describe('rich popup controls', () => {
       expect(create).toHaveBeenCalledWith({ url: 'https://example.test/sheet' }),
     );
     shortcuts[1]!.click();
-    await vi.waitFor(() => expect(create).toHaveBeenCalledWith({ url: 'http://127.0.0.1:5177' }));
+    await vi.waitFor(() =>
+      expect(create).toHaveBeenCalledWith({ url: 'https://example.test/login' }),
+    );
   });
   it('reverts failed saves and does not show a stale catalog after an unauthorized response', async () => {
     const { initPopup } = await import('./popup');
