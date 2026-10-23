@@ -21,7 +21,13 @@ function readUser(value: unknown): User {
   ) {
     throw new Error('Invalid user');
   }
-  return { id: user.id, displayName: user.displayName, email: user.email, role: user.role };
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    email: user.email,
+    role: user.role,
+    avatar: 'avatar' in user && typeof user.avatar === 'string' ? user.avatar : null,
+  };
 }
 export function useAuth(
   state: Pick<
@@ -111,5 +117,21 @@ export function useAuth(
       setAuthBusy(false);
     }
   }
-  return { login, logout };
+  async function updateProfile(input: {
+    displayName: string;
+    email: string;
+    avatar: string | null;
+    currentPassword?: string;
+    newPassword?: string;
+  }) {
+    const response = await fetch('/api/auth/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const body = (await response.json()) as { error?: string };
+    if (!response.ok) throw new Error(body.error ?? 'Não foi possível salvar o perfil.');
+    setCurrentUser(readUser(body));
+  }
+  return { login, logout, updateProfile };
 }

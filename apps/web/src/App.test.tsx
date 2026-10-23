@@ -1,7 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+  renderHook,
+  act,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useExtensionBridge } from './hooks/useExtensionBridge';
+import { useWorkspaceState } from './hooks/useWorkspaceState';
 import { App } from './App';
 import { DEFAULT_CONFIG } from './config';
 import extensionManifest from '../../extension/static/manifest.json';
@@ -97,6 +108,10 @@ beforeEach(() => {
         };
       if (url === '/api/auth/login') {
         authenticated = true;
+        return { ok: true, json: async () => ({ user: signedInUser }) };
+      }
+      if (url === '/api/auth/profile') {
+        signedInUser = { ...signedInUser, ...JSON.parse(options?.body as string) };
         return { ok: true, json: async () => ({ user: signedInUser }) };
       }
       if (url === '/api/auth/logout') {
@@ -398,7 +413,8 @@ describe('API backed customization', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar no Hublink' }));
     expect(await screen.findByRole('link', { name: /PARTIU!/ })).not.toBeNull();
     expect(screen.getByText('Administrador')).not.toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Sair da conta' }));
+    await user.click(screen.getByRole('button', { name: /Menu do usuário/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Sair da conta' }));
     expect(await screen.findByRole('button', { name: 'Entrar no Hublink' })).not.toBeNull();
     expect(screen.queryByRole('link', { name: /PARTIU!/ })).toBeNull();
   });
@@ -612,10 +628,12 @@ describe('Workspace design system', () => {
     localStorage.setItem('hublink-theme', 'light');
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'Mudar para tema escuro' }));
+    await user.click(await screen.findByRole('button', { name: /Menu do usuário/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Mudar para tema escuro' }));
     expect(document.documentElement.dataset.theme).toBe('dark');
     expect(localStorage.getItem('hublink-theme')).toBe('dark');
-    await user.click(screen.getByRole('button', { name: 'Mudar para tema claro' }));
+    await user.click(screen.getByRole('button', { name: /Menu do usuário/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Mudar para tema claro' }));
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 
@@ -798,23 +816,26 @@ describe('Workspace interaction boundaries', () => {
 });
 
 describe('Workspace UX refinements', () => {
-  it('keeps theme and logout icon buttons in the header', async () => {
+  it('concentrates account actions in the dropdown and restores focus on Escape', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByText('Empresa da API');
-    const header = document.querySelector('.hb-header')!;
-    const theme = screen.getByRole('button', { name: 'Mudar para tema escuro' });
-    const logout = screen.getByRole('button', { name: 'Sair da conta' });
-    expect(header.contains(theme)).toBe(true);
-    expect(header.contains(logout)).toBe(true);
-    expect(theme.querySelector('svg.lucide')).not.toBeNull();
-    expect(logout.querySelector('svg.lucide')).not.toBeNull();
-    expect(document.querySelector('.hb-footer')?.contains(logout)).toBe(false);
-    await user.click(theme);
-    expect(
-      screen.getByRole('button', { name: 'Mudar para tema claro' }).getAttribute('title'),
-    ).toBe('Tema claro');
-    await user.click(logout);
+    const trigger = await screen.findByRole('button', { name: /Menu do usuário/ });
+    expect(trigger.querySelector('.hb-user-avatar')).not.toBeNull();
+    expect(document.querySelector('.account-actions')).toBeNull();
+    await user.click(trigger);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('menuitem', { name: 'Sair da conta' })).not.toBeNull();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    await user.click(trigger);
+    await user.click(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+    await user.click(trigger);
+    await user.click(screen.getByRole('menuitem', { name: 'Mudar para tema escuro' }));
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    await user.click(trigger);
+    await user.click(screen.getByRole('menuitem', { name: 'Sair da conta' }));
     expect(await screen.findByRole('button', { name: 'Entrar no Hublink' })).not.toBeNull();
   });
 
@@ -1240,7 +1261,8 @@ describe('extension center and startup settings', () => {
     render(<App />);
     const active = await screen.findByRole('button', { name: 'Extensão ativa' });
     expect(active.classList.contains('is-detected')).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'Central da Extensão e inicialização' }));
+    await user.click(screen.getByRole('button', { name: /Menu do usuário/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Central da Extensão' }));
     for (const [label, key, value] of [
       ['Abrir Hublink ao iniciar o Chrome', 'openOnStartup', true],
       ['Abrir Hublink em uma Nova Guia', 'openOnNewTab', true],
@@ -1490,5 +1512,82 @@ describe('TICKET-018 workspace polish', () => {
       (screen.getByRole('group', { name: 'Configurações do Chrome' }) as HTMLFieldSetElement)
         .disabled,
     ).toBe(false);
+  });
+});
+
+describe('TICKET-019 profile', () => {
+  it('saves personal identity and rejects mismatched password confirmation', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /Menu do usuário/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Meu Perfil' }));
+    expect(screen.getByRole('heading', { name: 'Meu Perfil' })).not.toBeNull();
+    await user.clear(screen.getByLabelText('Nome de exibição'));
+    await user.type(screen.getByLabelText('Nome de exibição'), 'Novo Nome');
+    await user.clear(screen.getByLabelText('E-mail'));
+    await user.type(screen.getByLabelText('E-mail'), 'new@example.test');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+    expect(await screen.findByText('Perfil atualizado com sucesso.')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Menu do usuário: Novo Nome' })).not.toBeNull();
+    expect(requests.find((item) => item.url === '/api/auth/profile')?.body).toEqual({
+      displayName: 'Novo Nome',
+      email: 'new@example.test',
+      avatar: null,
+    });
+    await user.type(screen.getByLabelText('Senha atual'), 'synthetic-current');
+    await user.type(screen.getByLabelText('Nova senha'), 'synthetic-new');
+    await user.type(screen.getByLabelText('Confirmar nova senha'), 'different');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+    expect(screen.getByText('A confirmação da nova senha não confere.')).not.toBeNull();
+    expect(requests.filter((item) => item.url === '/api/auth/profile')).toHaveLength(1);
+  });
+});
+
+describe('TICKET-019 extension checks', () => {
+  it('polls silently and keeps the manual spinner for 600 ms without losing connectivity', async () => {
+    vi.useFakeTimers();
+    const states: string[] = [];
+    const sendMessage = vi.fn((_id: string, _msg: unknown, callback: (value: unknown) => void) =>
+      callback({
+        status: 'ok',
+        settings: { openOnStartup: false, openOnNewTab: false, showToastNotifications: true },
+      }),
+    );
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+    const hook = renderHook(() => {
+      const state = useWorkspaceState();
+      const bridge = useExtensionBridge(state);
+      states.push(state.extensionState);
+      return { state, bridge };
+    });
+    try {
+      await act(async () => {});
+      expect(hook.result.current.state.extensionState).toBe('detected');
+      states.length = 0;
+      act(() => hook.result.current.state.setShowExtensionGuide(true));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(8000);
+      });
+      expect(sendMessage).toHaveBeenCalledTimes(3);
+      expect(states).not.toContain('checking');
+      let check: Promise<boolean>;
+      act(() => {
+        check = hook.result.current.bridge.recheckExtension();
+      });
+      expect(hook.result.current.bridge.extensionChecking).toBe(true);
+      expect(hook.result.current.state.extensionState).toBe('detected');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(599);
+      });
+      expect(hook.result.current.bridge.extensionChecking).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+        expect(await check!).toBe(true);
+      });
+      expect(hook.result.current.bridge.extensionChecking).toBe(false);
+    } finally {
+      hook.unmount();
+      vi.useRealTimers();
+    }
   });
 });

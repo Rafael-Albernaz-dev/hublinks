@@ -1,3 +1,4 @@
+import { ProfileView } from './views/ProfileView';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
 import { useWorkspace } from './hooks/useWorkspace';
@@ -37,6 +38,7 @@ export function App() {
       <Header {...model} />
       <Navigation {...model} />
       <main className="hb-main" id="inicio">
+        {page === 'perfil' && <ProfileView key={model.currentUser.id} {...model} />}
         <HomeView {...model} />
 
         <CatalogView {...model} />

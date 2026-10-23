@@ -11,6 +11,9 @@ export const extensionPackageFiles = [
   'content.js',
   'popup.html',
   'popup.js',
+  'icons/icon-16.png',
+  'icons/icon-48.png',
+  'icons/icon-128.png',
 ] as const;
 
 // ZIP Store, fixed DOS date 1980-01-01, fixed entry order, no machine-specific paths.

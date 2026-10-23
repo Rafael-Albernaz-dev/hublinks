@@ -1,5 +1,5 @@
 import { issueOpeningTicket } from './useVault';
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import type { CatalogService, ChromeBridge, ExtensionReply, ExtensionSettings } from '../types';
 import type { WorkspaceState } from './useWorkspaceState';
 function extensionMessage(message: unknown): Promise<ExtensionReply> {
@@ -58,24 +58,43 @@ export function useExtensionBridge(
   } = state;
 
   const checkId = useRef(0);
-  const recheckExtension = useCallback(async () => {
-    const id = ++checkId.current;
-    setExtensionState('checking');
-    try {
-      const reply = await extensionMessage({ type: 'PING' });
-      if (id !== checkId.current) return false;
-      const ready = reply.status === 'ok';
-      setExtensionState(ready ? 'detected' : 'missing');
-      if (ready && validSettings(reply.settings)) setExtensionSettings(reply.settings);
-      return ready;
-    } catch {
-      if (id === checkId.current) setExtensionState('missing');
-      return false;
-    }
-  }, [setExtensionState, setExtensionSettings]);
+  const manualCheck = useRef(false);
+  const [extensionChecking, setExtensionChecking] = useState(false);
+  const recheckExtension = useCallback(
+    async (silent = false) => {
+      if (manualCheck.current) return false;
+      const id = ++checkId.current;
+      if (!silent) {
+        manualCheck.current = true;
+        setExtensionChecking(true);
+      }
+      try {
+        const [reply] = await Promise.all([
+          extensionMessage({ type: 'PING' }).catch(() => null),
+          silent ? Promise.resolve() : new Promise((resolve) => window.setTimeout(resolve, 600)),
+        ]);
+        if (id !== checkId.current) return false;
+        const ready = reply?.status === 'ok';
+        setExtensionState(ready ? 'detected' : 'missing');
+        if (ready && validSettings(reply?.settings))
+          setExtensionSettings((previous) =>
+            JSON.stringify(previous) === JSON.stringify(reply.settings)
+              ? previous
+              : reply.settings!,
+          );
+        return ready;
+      } finally {
+        if (!silent) {
+          manualCheck.current = false;
+          if (id === checkId.current) setExtensionChecking(false);
+        }
+      }
+    },
+    [setExtensionState, setExtensionSettings],
+  );
   useEffect(() => {
     const active = () => {
-      void recheckExtension();
+      void recheckExtension(true);
     };
     window.addEventListener('hublink-extension-active', active);
     active();
@@ -87,7 +106,7 @@ export function useExtensionBridge(
   useEffect(() => {
     if (!showExtensionGuide) return;
     const interval = window.setInterval(() => {
-      void recheckExtension();
+      void recheckExtension(true);
     }, 4000);
     return () => window.clearInterval(interval);
   }, [showExtensionGuide, recheckExtension]);
@@ -177,7 +196,13 @@ export function useExtensionBridge(
       setOpeningServiceId(null);
     }
   }
-  return { openVaultService, recheckExtension, updateExtensionSettings, downloadExtensionPackage };
+  return {
+    extensionChecking,
+    openVaultService,
+    recheckExtension,
+    updateExtensionSettings,
+    downloadExtensionPackage,
+  };
 }
 
 function validSettings(value: unknown): value is ExtensionSettings {

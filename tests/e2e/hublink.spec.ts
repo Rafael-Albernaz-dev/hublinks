@@ -26,7 +26,7 @@ async function login(
   await page.getByRole('textbox', { name: 'E-mail' }).fill(email);
   await page.getByLabel('Senha').fill(password);
   await page.getByRole('button', { name: 'Entrar no Hublink' }).click();
-  await expect(page.getByRole('button', { name: 'Sair da conta' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Menu do usuário/ })).toBeVisible();
 }
 
 test.beforeEach(async ({ page, request }) => {
@@ -214,8 +214,9 @@ test('login persists across reload and logout blocks links again', async ({ page
   await expect(page.getByRole('button', { name: 'Entrar no Hublink' })).toBeVisible();
   await login(page);
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Sair da conta' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sair da conta' }).click();
+  await expect(page.getByRole('button', { name: /Menu do usuário/ })).toBeVisible();
+  await page.getByRole('button', { name: /Menu do usuário/ }).click();
+  await page.getByRole('menuitem', { name: 'Sair da conta' }).click();
   await expect(page.getByRole('button', { name: 'Entrar no Hublink' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Telas do Workspace' })).toHaveCount(0);
   await expect(page.locator('.hb-service')).toHaveCount(0);
@@ -258,6 +259,56 @@ test('admin password reset blocks an attendant session on reload', async ({ page
     await expect(page.locator('.hb-service')).toHaveCount(0);
   } finally {
     await pool.query('DELETE FROM users WHERE email = $1', [email]);
+    await pool.end();
+  }
+});
+
+test('own profile persists identity, photo and a password change through a new login', async ({
+  page,
+  request,
+}) => {
+  const suffix = Date.now();
+  const email = `profile-e2e-${suffix}@example.test`;
+  const updatedEmail = `profile-updated-e2e-${suffix}@example.test`;
+  const created = await request.post(`${apiBase}/api/admin/users`, {
+    data: { displayName: 'Synthetic Profile', email, password: 'synthetic-profile-123' },
+  });
+  expect(created.status()).toBe(201);
+  const id: string = (await created.json()).user.id;
+  const pool = new pg.Pool({
+    connectionString:
+      process.env.E2E_DATABASE_URL ??
+      `postgres://hublink:hublink_dev_password@127.0.0.1:${process.env.HUB_DB_PORT ?? '5439'}/hublink_e2e`,
+  });
+  try {
+    await page.goto('/');
+    await login(page, email, 'synthetic-profile-123');
+    await page.getByRole('button', { name: /Menu do usuário/ }).click();
+    await page.getByRole('menuitem', { name: 'Meu Perfil' }).click();
+    await page.getByLabel('Nome de exibição').fill('Updated Synthetic Profile');
+    await page.getByLabel('E-mail').fill(updatedEmail);
+    await page
+      .getByLabel('Foto do perfil')
+      .setInputFiles({ name: 'avatar.png', mimeType: 'image/png', buffer: logo });
+    await expect(page.getByAltText('Prévia do perfil')).toBeVisible();
+    await page.getByLabel('Senha atual', { exact: true }).fill('synthetic-profile-123');
+    await page.getByLabel('Nova senha', { exact: true }).fill('synthetic-updated-123');
+    await page.getByLabel('Confirmar nova senha', { exact: true }).fill('synthetic-updated-123');
+    await page.getByRole('button', { name: 'Salvar alterações' }).click();
+    await expect(page.getByText('Perfil atualizado com sucesso.')).toBeVisible();
+    await page.getByRole('button', { name: 'Menu do usuário: Updated Synthetic Profile' }).click();
+    await page.getByRole('menuitem', { name: 'Sair da conta' }).click();
+    await login(page, updatedEmail, 'synthetic-updated-123');
+    await page.reload();
+    const trigger = page.getByRole('button', {
+      name: 'Menu do usuário: Updated Synthetic Profile',
+    });
+    await expect(trigger.locator('img')).toHaveAttribute('src', /^data:image\/png;base64,/);
+    await trigger.click();
+    await page.getByRole('menuitem', { name: 'Meu Perfil' }).click();
+    await expect(page.getByLabel('E-mail')).toHaveValue(updatedEmail);
+  } finally {
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
     await pool.end();
   }
 });

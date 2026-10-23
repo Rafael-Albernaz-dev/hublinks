@@ -67,7 +67,7 @@ Home combines text search with independent category (SVA, CRM, spreadsheets, sys
 
 ## Workspace Navigation and Appearance
 
-The authenticated portal follows the approved Workspace design, with five visible destinations:
+The authenticated portal follows the approved Workspace design, with five task destinations in the navigation bar and a Profile screen in the account dropdown:
 
 | Screen         | Purpose                                                                                                                                                                               | Access                                                                             |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -79,7 +79,7 @@ The authenticated portal follows the approved Workspace design, with five visibl
 
 Search ignores accents and case and matches service names and categories. The result count is announced through a polite live region. Cards offer **Abrir**, **Cadastrar**, or **Configurar** according to the destination, credential status, and user role. Direct links open with `noopener noreferrer`; vault opening retains the confirmed extension bridge, single-use ticket, and manual-login fallback. Passwords are never listed or revealed in Acessos. Team management uses `/api/admin/users` (`GET`, `POST`, `PUT /:id`, and `POST /:id/reset-password`), revoking active sessions immediately when an account is deactivated or has its password reset.
 
-The light and dark themes use the approved CSS tokens and Lucide 1.17.0 SVG geometry at 16 px with a 1.6 stroke. Icon buttons beside the account in the header switch the theme and sign out. The theme choice remains browser-local under `hublink-theme`; system preference supplies the initial theme when no choice is saved. A chosen brand color updates the Workspace accent, selected surfaces, focus outlines, actions, and identity preview immediately. Optional text and background colors override `--hb-text` and `--hb-bg` when configured.
+The light and dark themes use the approved CSS tokens and Lucide 1.17.0 SVG geometry at 16 px with a 1.6 stroke. The avatar/name dropdown in the header opens My Profile and the Extension Center, switches the theme, and signs out. The theme choice remains browser-local under `hublink-theme`; system preference supplies the initial theme when no choice is saved. A chosen brand color updates the Workspace accent, selected surfaces, focus outlines, actions, and identity preview immediately. Optional text and background colors override `--hb-text` and `--hb-bg` when configured.
 
 Home offers optional task shortcuts and Grid, List, Carousel, Compact, and Category Sections views. Services outside Carousel support drag and drop and Alt + arrow-key reordering; dropdowns combine search, category, and access scope. Grid uses three service columns on desktop. At 780 px and below, the standard Home grid uses two columns. Compact uses five columns on large screens, four below 1100 px, three below 780 px, and two below 560 px. Catálogo, Acessos, and Equipe render structured `<table class="hb-table">` views with dedicated columns and filter toolbars, while administrative actions open accessible modal dialogs (`role="dialog"`, `aria-modal="true"`) with Escape key dismissal and focus restoration.
 
@@ -113,7 +113,7 @@ flowchart TD
 
 `apps/web/src/App.tsx` composes the session gate, shell, views, and dialogs. The frontend uses React 19 hooks without an additional state-management dependency:
 
-- `views/`: Home, Catalog, Access, Team, Personalization (`IdentityView`), and Login presentation.
+- `views/`: Home, Catalog, Access, Team, Personalization (`IdentityView`), Profile, and Login presentation.
 - `components/`: header, navigation, service cards, shared search, and the accessible `ModalDialog` primitive. `components/identity/` contains the live preview, brand text settings, reusable logo upload card, and palette/JSON backup cards; `IdentityView` retains their original layout and save controls.
 - `modals/`: accessible modal dialogs for the service editor (`CatalogEditor` with automatic favicon capture and Light/Dark logo preview), service deletion confirmation, shared/individual credential management, extension installation guidance, user creation/editing (`AttendantForm`), and password reset (`ResetPasswordForm`).
 - `hooks/`: authentication, catalog CRUD, vault writes and ticket issuance, extension messaging, team administration, personalization drafts/import/export, browser-local theme, and `useServiceFavicon` for the existing debounced/manual favicon capture state. Dedicated hooks preserve dialog focus, session cleanup, and one-time catalog animation.
@@ -182,13 +182,13 @@ Open `http://localhost:5177` or `http://127.0.0.1:5177` in Google Chrome.
 
 The Extension Center in the Workspace header replaces the passive installation dialog. Its wide two-column panel offers an authenticated ZIP in three local installation steps, a `chrome://extensions` copy action, a primary bridge check, and startup, New Tab, and fill-notification options. Installation steps disappear after a confirmed connection. Manual destination opening remains available when launched from a service. Browser-wide theme, extension options, and sign-out controls have distinct surfaces, visible focus, and state indicators; attention animation respects reduced motion.
 
-Build first with `npm run build`. `GET /api/extension/package` requires an active session and returns `hublink-chrome-extension.zip` with `Cache-Control: no-store`. The deterministic in-memory ZIP Store writer uses native Node CRC32 and includes only manifest.json, background.js, autofill.js, content.js, popup.html, and popup.js from the compiled extension. Missing artifacts return 503 with build guidance; static-only files cannot form an installable package. Runtime API requests never compile source or include project configuration/secrets.
+Build first with `npm run build`. `GET /api/extension/package` requires an active session and returns `hublink-chrome-extension.zip` with `Cache-Control: no-store`. The deterministic in-memory ZIP Store writer uses native Node CRC32 and includes only manifest.json, background.js, autofill.js, content.js, popup.html, popup.js, and the three PNG icons under icons/ from the compiled extension. Missing artifacts return 503 with build guidance; static-only files cannot form an installable package. Runtime API requests never compile source or include project configuration/secrets.
 
 Startup and New Tab options are off by default and explicitly enabled per Chrome profile. Startup opens or focuses the fixed local Workspace. New Tab redirects only Chrome's New Tab URLs, rechecking the tab before update and preserving typed destinations and `about:blank` application popups. It uses tab events, without an unconditional manifest new-tab override or modification of Chrome's startup policies. Profile startup/restore timing, competing New Tab extensions, and managed browser policies require installed-Chrome validation.
 
 The only added permission is `storage`; host permissions and official Hub origins are unchanged. `chrome.storage.local` stores exactly three boolean flags: `openOnStartup`, `openOnNewTab`, and `showToastNotifications`. Unknown fields, non-booleans, credentials, tokens, tickets, cached shortcuts, and configurable Workspace URLs are rejected. This follows the ticket's stricter security gate over its broader storage examples. Settings messages accept PING, GET_SETTINGS, UPDATE_SETTINGS, and UPDATE_EXTENSION_SETTINGS; updates carry a `settings` object. External messages require an authorized Hub origin/tab; internal settings messages require the extension's own popup URL and identity. A page DOM marker alone never establishes a connection.
 
-The 340px popup shows API and active-tab status, opens/focuses the Workspace, copies its fixed URL, and edits the same three options. It fetches `/api/catalog` with the current authenticated session and `no-store` while open. Only safe HTTPS metadata is rendered, never cached in extension storage. Direct links open their configured destination; services with a vault return to the Workspace for a user-initiated ticket. Missing session/API leaves guidance to open the Workspace. Shortcut loading from the extension origin still needs installed-Chrome cookie/origin verification.
+The 340px popup shows API and active-tab status, opens/focuses the Workspace, copies its fixed URL, and edits the same three options. It fetches `/api/catalog` with the current authenticated session and `no-store` while open. Only safe HTTPS metadata is rendered, never cached in extension storage. All popup shortcuts open their configured HTTPS destination directly for manual access. Assisted autofill starts from a user-initiated ticket in the Workspace. Missing session/API leaves guidance to open the Workspace. Shortcut loading from the extension origin still needs installed-Chrome cookie/origin verification.
 
 Disabling notifications suppresses only the injected visual toast. Ticket validation, double destination checks, bounded SPA waiting, challenge detection, manual CAPTCHA/2FA, and human form submission remain unchanged. No supplier login or installation success is inferred from synthetic tests.
 
@@ -312,3 +312,28 @@ Migration `006_workspace_presentation.sql` extends only presentation preferences
 Temporary synthetic Chromium checks covered all five layouts, the Extension Center, and Personalization at 320, 390, 679, 680, 780, 781, 1024, and 1440 px in both themes. They found no horizontal overflow or unnecessary desktop modal scrolling and verified real CSS pause/resume during carousel travel, cyclic wrap, reduced-motion manual navigation, focus restoration, native list/shortcut dragging, reload persistence, compact shortcuts, uploaded-logo previews, and connected-state options. Selected layout controls meet 4.5:1 text/icon contrast with the default and tested custom accent. Evidence and screenshots are under `/tmp/hublink-ticket018-visual/`; check and E2E logs are `/tmp/hublink-ticket018-check.log` and `/tmp/hublink-ticket018-e2e.log`.
 
 The Chrome Web Store branch is component-tested with a synthetic listing URL; no extension was published or installed from the Store. Human visual acceptance, installed-Chrome behavior, supplier login, and deployment remain pending. No commit, push, or deployment was performed.
+
+## Profile and account menu (TICKET-019)
+
+Open **Meu Perfil** from the avatar/name dropdown to edit your display name, unique email, optional profile photo, and password. PNG, JPEG, and WebP photos are limited to 2 MiB; the server rejects SVG, malformed base64, oversized payloads, and mismatched image signatures. The browser previews decodable images before saving. Password changes require the current password, a minimum of eight characters, and matching confirmation. `PUT /api/auth/profile` accepts only the authenticated user's allowlisted fields; email conflicts return 409. Migration `007_user_profile_avatar.sql` runs idempotently under the existing startup lock. Profile updates keep existing Hub sessions; supplier sessions are independent.
+
+The dropdown supports Escape, outside-click dismissal, arrow/Home/End navigation, and focus restoration. The Extension Center polls silently every four seconds while open. Manual checks keep the spinner visible for at least 600 ms and preserve the current connection panel until the result arrives. Purple rounded branding is shared by the web favicon and extension icons. Popup shortcuts open the configured HTTPS destination directly, including services with credentials; they do not issue a ticket or fill credentials. Start assisted autofill from the Workspace.
+
+Database initialization seeds only the initial administrator account and never deletes existing users. For an explicitly authorized **local development** cleanup, first review the target and administrator; the routine below only accepts a database named `hublink`, aborts unless the exact active admin exists, and deletes all other users. Foreign-key cascades also remove those users' sessions, personal cards, preferences, tickets, and individual credentials; shared catalog entries and the retained admin remain. Audit rows retain their existing foreign-key behavior. Never use this routine for production or as an automatic boot step.
+
+```bash
+node --import tsx --input-type=module - <<'JS'
+import { createPool, purgeDevelopmentUsers } from './apps/api/src/db.ts';
+const pool = createPool();
+try {
+  const removed = await purgeDevelopmentUsers(pool, process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local');
+  console.log({ removedSecondaryUsers: removed });
+} finally {
+  await pool.end();
+}
+JS
+```
+
+R8 deployment, dynamic origins, encrypted backup/restore, and installed-Chrome acceptance remain separate work.
+
+The compiled unpacked extension and authenticated downloadable ZIP both include the three PNG icons referenced by the manifest. Package regression tests verify icon paths, PNG signatures, dimensions, and ZIP CRCs. See `docs/CONTEXT.md` for validation and remaining acceptance boundaries.

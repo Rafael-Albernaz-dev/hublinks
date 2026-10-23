@@ -7,6 +7,7 @@ export type User = {
   email: string;
   role: 'admin' | 'attendant';
   active?: boolean;
+  avatar?: string | null;
 };
 export type UserRow = {
   id: string;
@@ -14,6 +15,7 @@ export type UserRow = {
   email: string;
   role: 'admin' | 'attendant';
   active?: boolean;
+  avatar?: string | null;
 };
 export type CredentialUserRow = UserRow & { password_hash: string };
 export type SessionRow = UserRow & { session_id: string };

@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../types/index.js';
 import { randomBytes } from 'node:crypto';
-import { verifyPassword } from '../auth.js';
+import { hashPassword, verifyPassword } from '../auth.js';
 import type { CredentialUserRow } from '../types/index.js';
-import { credentials } from '../validators/index.js';
+import { credentials, profileInput } from '../validators/index.js';
 import {
   activeSession,
   publicUser,
@@ -52,6 +52,59 @@ export function registerAuthRoutes(server: FastifyInstance, context: ApiContext)
     }
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { status: 'ok' };
+  });
+
+  server.put('/api/auth/profile', { bodyLimit: 3 * 1024 * 1024 }, async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const session = await activeSession(pool, request, reply);
+    if (!session) return;
+    const input = profileInput(request.body);
+    if (!input)
+      return reply.code(400).send({
+        error:
+          'Dados inválidos. Use uma imagem PNG, JPEG ou WebP de até 2 MB e senha de pelo menos 8 caracteres.',
+      });
+    if (input.newPassword && !rateLimit('login', request, reply)) return;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const found = await client.query<CredentialUserRow>(
+        'SELECT * FROM users WHERE id = $1 AND active = TRUE FOR UPDATE',
+        [session.id],
+      );
+      const user = found.rows[0];
+      if (!user) {
+        await client.query('ROLLBACK');
+        return reply.code(401).send({ error: 'Não autenticado.' });
+      }
+      if (
+        input.newPassword &&
+        !(await verifyPassword(input.currentPassword!, user.password_hash))
+      ) {
+        await client.query('ROLLBACK');
+        return reply.code(400).send({ error: 'Senha atual incorreta.' });
+      }
+      const updated = await client.query<CredentialUserRow>(
+        `UPDATE users SET display_name = $2, email = $3, avatar = $4, password_hash = $5, updated_at = NOW()
+         WHERE id = $1 RETURNING *`,
+        [
+          user.id,
+          input.displayName ?? user.display_name,
+          input.email ?? user.email,
+          input.avatar === undefined ? (user.avatar ?? null) : input.avatar,
+          input.newPassword ? await hashPassword(input.newPassword) : user.password_hash,
+        ],
+      );
+      await client.query('COMMIT');
+      return { user: publicUser(updated.rows[0]!) };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error && typeof error === 'object' && 'code' in error && error.code === '23505')
+        return reply.code(409).send({ error: 'Este e-mail já está em uso.' });
+      throw error;
+    } finally {
+      client.release();
+    }
   });
 
   server.get('/api/auth/me', async (request, reply) => {

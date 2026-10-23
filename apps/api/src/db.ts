@@ -60,6 +60,9 @@ export async function initializeDatabase(pool: pg.Pool): Promise<void> {
     await client.query(
       await readFile(resolve(dirname(migrationPath), '006_workspace_presentation.sql'), 'utf8'),
     );
+    await client.query(
+      await readFile(resolve(dirname(migrationPath), '007_user_profile_avatar.sql'), 'utf8'),
+    );
     const existingServices = await client.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM services',
     );
@@ -163,5 +166,31 @@ export async function initializeDatabase(pool: pg.Pool): Promise<void> {
     } finally {
       client.release();
     }
+  }
+}
+
+/** Explicit local-development cleanup; never called during initialization. */
+export async function purgeDevelopmentUsers(pool: pg.Pool, adminEmail: string): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const target = await client.query<{ name: string }>('SELECT current_database() AS name');
+    if (target.rows[0]?.name !== 'hublink')
+      throw new Error('Cleanup requires the hublink development database.');
+    await client.query('LOCK TABLE users IN ACCESS EXCLUSIVE MODE');
+    const admin = await client.query<{ id: string }>(
+      'SELECT id FROM users WHERE email = $1 AND role = $2 AND active = TRUE',
+      [adminEmail.trim().toLowerCase(), 'admin'],
+    );
+    if (admin.rowCount !== 1)
+      throw new Error('Cleanup requires exactly one matching active administrator.');
+    const deleted = await client.query('DELETE FROM users WHERE id <> $1', [admin.rows[0]!.id]);
+    await client.query('COMMIT');
+    return deleted.rowCount ?? 0;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
 }

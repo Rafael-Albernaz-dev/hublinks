@@ -9,6 +9,7 @@ export function ExtensionModal({
   setExtensionModal,
   extensionModal,
   extensionState,
+  extensionChecking,
   extensionSettings,
   updateExtensionSettings,
   recheckExtension,
@@ -18,6 +19,7 @@ export function ExtensionModal({
   | 'setShowExtensionGuide'
   | 'setExtensionModal'
   | 'extensionModal'
+  | 'extensionChecking'
   | 'extensionState'
   | 'extensionSettings'
   | 'updateExtensionSettings'
@@ -158,18 +160,19 @@ export function ExtensionModal({
           <button
             className="button button-primary"
             type="button"
-            disabled={extensionState === 'checking'}
-            onClick={() =>
+            disabled={extensionChecking || extensionState === 'checking'}
+            onClick={() => {
+              setNotice('');
               void recheckExtension().then((ready) =>
                 setNotice(ready ? 'Conexão confirmada.' : 'Instale ou recarregue a extensão.'),
-              )
-            }
+              );
+            }}
           >
             <Icon
               name="RefreshCw"
-              className={extensionState === 'checking' ? 'lucide extension-spin' : 'lucide'}
+              className={extensionChecking ? 'lucide extension-spin' : 'lucide'}
             />
-            Verificar conexão agora
+            {extensionChecking ? 'Verificando...' : 'Verificar conexão agora'}
           </button>
         </div>
         <fieldset className="extension-options" disabled={extensionState !== 'detected' || busy}>
@@ -192,11 +195,17 @@ export function ExtensionModal({
           ))}
           {extensionState !== 'detected' && <small>Conecte a extensão para editar.</small>}
         </fieldset>
-        {notice && (
-          <p className="notice extension-center-notice" role="status" aria-live="polite">
-            {notice}
-          </p>
-        )}
+        <p
+          className={
+            'notice extension-center-notice' +
+            (notice === 'Conexão confirmada.' ? ' is-confirmed' : '')
+          }
+          role="status"
+          aria-live="polite"
+        >
+          {notice === 'Conexão confirmada.' && <Icon name="Check" />}
+          {notice}
+        </p>
         {extensionModal?.targetUrl && (
           <button
             className="button button-outline extension-center-notice"

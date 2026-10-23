@@ -227,3 +227,20 @@
     animation: none;
   }
 }
+
+.extension-installation > .button:last-child {
+  min-width: 230px;
+  min-height: 44px;
+}
+.extension-center-notice[role='status'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+.extension-center-notice.is-confirmed {
+  color: #065f46;
+}
+:root[data-theme='dark'] .extension-center-notice.is-confirmed {
+  color: #34d399;
+}
