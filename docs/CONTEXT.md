@@ -18,7 +18,7 @@ Disabling notifications suppresses only the injected visual toast. Ticket valida
 
 ## Workspace behavior
 
-The navigation bar offers Início, Catálogo, Acessos, Equipe, and Personalização; the account dropdown adds Meu Perfil. Home provides task shortcuts, accent/case-insensitive search, private service cards, and a centered company/year footer. Catálogo, Acessos, and Equipe use structured `.hb-table` views and filters. Service creation/editing/deletion, credential writes, and user management use accessible dialogs with Escape dismissal and focus restoration. The avatar/name dropdown opens My Profile and the Extension Center, switches the browser-local theme, and signs out.
+The navigation bar offers Início, Catálogo, Acessos, Equipe, Auditoria (administrators only), and Personalização; the account dropdown adds Meu Perfil. Home provides task shortcuts, accent/case-insensitive search, private service cards, and a centered company/year footer. Catálogo, Acessos, Equipe, and Auditoria use structured `.hb-table` views and filters. Service creation/editing/deletion, credential writes, and user management use accessible dialogs with Escape dismissal and focus restoration. The avatar/name dropdown opens My Profile and the Extension Center, switches the browser-local theme, and signs out.
 
 Personalization retains the live brand preview, company name, optional bicolor navbar text, editable header/home copy, one company-logo dropzone with Light/Dark previews, accent RGB/Hex/native inputs, optional text/background colors, explicit save, and JSON import/export. Logo resolution guidance is advisory; existing upload validation checks MIME and size. This slice does not add a second logo, new presets, pixel-dimension rejection, or new contrast enforcement.
 

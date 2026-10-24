@@ -16,7 +16,7 @@ export function Navigation({
             type="button"
             aria-current={page === item.id ? 'page' : undefined}
             disabled={
-              (item.id === 'equipe' && currentUser.role !== 'admin') ||
+              ((item.id === 'equipe' || item.id === 'auditoria') && currentUser.role !== 'admin') ||
               (item.id === 'identidade' && apiState !== 'online')
             }
             onClick={() => setPage(item.id)}

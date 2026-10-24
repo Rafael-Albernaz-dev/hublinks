@@ -118,7 +118,7 @@ test('initial page displays identity and private catalog state', async ({ page }
       .or(page.getByRole('heading', { name: 'Catálogo vazio' })),
   ).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Telas do Workspace' });
-  for (const name of ['Início', 'Catálogo', 'Acessos', 'Equipe', 'Personalização'])
+  for (const name of ['Início', 'Catálogo', 'Acessos', 'Equipe', 'Auditoria', 'Personalização'])
     await expect(nav.getByRole('button', { name, exact: true })).toBeEnabled();
   await navigate(page, 'Acessos');
   await expect(page.getByRole('heading', { name: 'Acessos da equipe', exact: true })).toBeVisible();
@@ -126,6 +126,8 @@ test('initial page displays identity and private catalog state', async ({ page }
   await expect(
     page.getByRole('heading', { name: 'Equipe e permissões', exact: true }),
   ).toBeVisible();
+  await navigate(page, 'Auditoria');
+  await expect(page.getByRole('heading', { name: 'Logs de auditoria', exact: true })).toBeVisible();
 });
 
 test('edits branding and creates a private card with a logo', async ({ page }) => {

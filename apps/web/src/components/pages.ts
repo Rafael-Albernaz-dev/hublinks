@@ -3,6 +3,7 @@ export const pages = [
   { id: 'catalogo', label: 'Catálogo', icon: 'Grid2x2' },
   { id: 'cofre', label: 'Acessos', icon: 'KeyRound' },
   { id: 'equipe', label: 'Equipe', icon: 'Users' },
+  { id: 'auditoria', label: 'Auditoria', icon: 'Shield' },
   { id: 'identidade', label: 'Personalização', icon: 'Palette' },
 ] as const;
 export type Page = (typeof pages)[number]['id'] | 'perfil';

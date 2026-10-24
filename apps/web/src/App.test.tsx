@@ -595,6 +595,7 @@ describe('Workspace design system', () => {
       ['Catálogo', 'Catálogo de Serviços'],
       ['Acessos', 'Acessos da equipe'],
       ['Equipe', 'Equipe e permissões'],
+      ['Auditoria', 'Logs de auditoria'],
       ['Personalização', 'Personalização do seu hub'],
     ];
     for (const [name, heading] of destinations) {
@@ -647,6 +648,9 @@ describe('Workspace design system', () => {
     render(<App />);
     await screen.findByText('Empresa da API');
     expect((screen.getByRole('button', { name: 'Equipe' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect((screen.getByRole('button', { name: 'Auditoria' }) as HTMLButtonElement).disabled).toBe(
       true,
     );
     expect(
@@ -1111,6 +1115,9 @@ describe('Personal user layer and Home organization', () => {
     ).toBe('Empresa da API');
     expect(preferences.themeOverrides).toBeNull();
     expect((screen.getByRole('button', { name: 'Equipe' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect((screen.getByRole('button', { name: 'Auditoria' }) as HTMLButtonElement).disabled).toBe(
       true,
     );
   }, 15000);
@@ -1625,7 +1632,7 @@ it('shows audit only for administrators, with server-side pagination and filters
     }),
   );
   render(<App />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Equipe' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Auditoria' }));
   expect(await screen.findByRole('table', { name: 'Logs de auditoria' })).toBeTruthy();
   expect(await screen.findByText('actor@example.test')).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
