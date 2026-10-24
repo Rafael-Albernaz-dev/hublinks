@@ -46,7 +46,10 @@ export function AuditView() {
   }, [offset, query, revision]);
   return (
     <section aria-labelledby="audit-title">
-      <h2 id="audit-title">Auditoria</h2>
+      <div className="hb-page-intro">
+        <h1 id="audit-title">Logs de auditoria</h1>
+        <p>Histórico de acessos, autenticações e operações sensíveis do sistema.</p>
+      </div>
       <form
         className="catalog-toolbar audit-filters"
         onSubmit={(event) => {

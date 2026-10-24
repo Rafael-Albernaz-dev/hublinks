@@ -58,13 +58,15 @@ export function HomeView({
   const [category, setCategory] = useState<HomeCategory>('all');
   const [access, setAccess] = useState<HomeAccess>('all');
   const [draggingShortcut, setDraggingShortcut] = useState<string | null>(null);
-  const shortcuts = [...pages.slice(1)].sort((a, b) => {
-    const rank = (id: string) => {
-      const index = preferences.shortcutOrder.indexOf(id);
-      return index < 0 ? preferences.shortcutOrder.length : index;
-    };
-    return rank(a.id) - rank(b.id);
-  });
+  const shortcuts = pages
+    .filter((item) => ['catalogo', 'cofre', 'equipe', 'identidade'].includes(item.id))
+    .sort((a, b) => {
+      const rank = (id: string) => {
+        const index = preferences.shortcutOrder.indexOf(id);
+        return index < 0 ? preferences.shortcutOrder.length : index;
+      };
+      return rank(a.id) - rank(b.id);
+    });
   const ordered = [...catalog].sort((a, b) => {
     const rank = (id: string) => {
       const index = preferences.cardOrder.indexOf(id);
@@ -178,6 +180,7 @@ export function HomeView({
                         catalogo: catalog.length + ' serviços',
                         cofre: 'Individuais e equipe',
                         equipe: 'Pessoas e permissões',
+                        auditoria: 'Logs e segurança',
                         identidade: 'Marca e aparência',
                       }[item.id]
                     }

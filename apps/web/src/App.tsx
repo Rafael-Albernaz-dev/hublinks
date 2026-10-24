@@ -11,6 +11,7 @@ import { HomeView } from './views/HomeView';
 import { IdentityView } from './views/IdentityView';
 import { LoginView } from './views/LoginView';
 import { TeamView } from './views/TeamView';
+import { AuditView } from './views/AuditView';
 export function App() {
   const workspace = useWorkspace();
   if (!workspace.authChecked)
@@ -44,6 +45,7 @@ export function App() {
         <CatalogView {...model} />
         <AccessView {...model} />
         <TeamView {...model} />
+        {page === 'auditoria' && model.currentUser.role === 'admin' && <AuditView />}
         <IdentityView {...model} />
         {openingNotice && (
           <p role="status" className="notice">
