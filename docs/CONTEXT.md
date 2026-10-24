@@ -102,7 +102,16 @@ The Chrome Web Store branch is component-tested with a synthetic listing URL; no
 
 ## Next Step / Handoff Checkpoint
 
-UX-019 is complete, verified, and authorized for commit. The next operational milestone is **R8 (on-premise operation, dynamic client origins, Docker packaging, encrypted backup/restore, audit log viewer, and rollback)**. TICKET-020 now supplies local packaging and recovery tooling; deployment requires the host-specific gates below.
+Milestone R8 (Docker packaging, operational tooling, backup/restore), audit tab separation, and complete database baseline cleanup (single admin, zero services, zero credentials, clean config) are complete, verified, and pushed to `main`.
+
+Next session resumption:
+
+1. Inspect the target on-premise production server state before publishing:
+   - Audit running services, existing Docker containers, and occupied ports (`ss -tulpn`, `docker ps`).
+   - Check existing host reverse proxy (Nginx, Traefik, Apache) on 80/443 and domain/DNS setup.
+   - Choose a conflict-free loopback port for `HUB_WEB_PORT` (e.g. 8080 or custom) and prepare `.env.production`.
+2. Start Hublink containers: `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build`.
+3. Configure the reverse proxy route and issue the TLS certificate.
 
 ## TICKET-019 — Profile and account UX
 
