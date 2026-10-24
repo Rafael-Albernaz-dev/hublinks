@@ -66,7 +66,7 @@ export async function initializeDatabase(pool: pg.Pool): Promise<void> {
     const existingServices = await client.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM services',
     );
-    const seedPilot = freshDatabase || existingServices.rows[0]?.count === '0';
+    const seedPilot = freshDatabase && process.env.HUB_SEED_PILOT !== 'false';
     getMasterKey();
 
     const admin = await client.query('SELECT 1 FROM users WHERE role = $1 LIMIT 1', ['admin']);
