@@ -61,6 +61,7 @@ export async function createCatalogService(
   input: CatalogInput,
   session: SessionRow,
   ip: string,
+  preventPersonalDuplicate = false,
 ): Promise<ServiceResult<CatalogItem | null>> {
   const userId = session.id;
   const personal = session.role !== 'admin' || input.scope === 'personal';
@@ -77,6 +78,23 @@ export async function createCatalogService(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    if (preventPersonalDuplicate && personal) {
+      // Serialize extension saves for this owner, including concurrent popup attempts.
+      await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      const duplicate = await client.query(
+        'SELECT 1 FROM services WHERE owner_user_id = $1 AND target_url = $2',
+        [userId, input.targetUrl],
+      );
+      if (duplicate.rowCount) {
+        await client.query('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 409,
+          error: 'Este endereço já está nos seus cards pessoais.',
+        };
+      }
+    }
+
     await client.query(
       `INSERT INTO services (id, name, description, category, credential_type, target_url, has_action, logo_data_url, owner_user_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,

@@ -85,7 +85,8 @@
         margin-top: 8px;
       }
       button:focus-visible,
-      input:focus-visible {
+      input:focus-visible,
+      select:focus-visible {
         outline: 3px solid #fbbf24;
         outline-offset: 3px;
       }
@@ -111,6 +112,30 @@
         width: 18px;
         height: 18px;
         flex-shrink: 0;
+      }
+      #bookmark-form label {
+        display: block;
+      }
+      #bookmark-form input,
+      #bookmark-form select {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        height: auto;
+        margin-top: 4px;
+        padding: 8px;
+        border: 1px solid #777f9d;
+        border-radius: 10px;
+        background: #272b3c;
+        color: #f4f3ff;
+        font: inherit;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      #bookmark-feedback {
+        overflow-wrap: anywhere;
+        color: #fde68a;
       }
       #quick-shortcuts {
         display: grid;
@@ -152,6 +177,35 @@
     <p id="tab-status" class="status" role="status" aria-live="polite">Verificando aba ativa…</p>
     <button id="open-hublink" type="button">Abrir Hublink Workspace</button>
     <button id="copy-workspace" type="button">Copiar URL do Hub</button>
+    <section aria-labelledby="bookmark-title">
+      <h2 id="bookmark-title">Página atual</h2>
+      <button id="save-page" type="button" disabled>Salvar no Hublink</button>
+      <form id="bookmark-form" hidden>
+        <label for="bookmark-name"
+          >Nome<input id="bookmark-name" required minlength="2" maxlength="80"
+        /></label>
+        <label for="bookmark-url"
+          >Endereço HTTPS<input id="bookmark-url" type="url" required maxlength="2048"
+        /></label>
+        <label for="bookmark-category"
+          >Categoria<select id="bookmark-category">
+            <option value="outros">Outros</option>
+            <option value="sva">SVA</option>
+            <option value="crm">CRM</option>
+            <option value="sheet">Planilhas</option>
+            <option value="sistemas">Sistemas</option>
+          </select></label
+        >
+        <p>
+          Card pessoal, sem cofre. Revise o endereço antes de salvar: ele pode conter dados
+          sensíveis.
+        </p>
+        <button id="bookmark-submit" type="submit">Salvar link</button>
+        <button id="bookmark-cancel" type="button">Cancelar</button>
+      </form>
+      <p id="bookmark-feedback" role="status" aria-live="polite"></p>
+      <button id="view-bookmark" type="button" hidden>Ver no Hublink</button>
+    </section>
     <section aria-labelledby="options-title">
       <h2 id="options-title">Opções rápidas</h2>
       <label><input id="opt-startup" type="checkbox" />Abrir Hublink ao iniciar o Chrome</label>

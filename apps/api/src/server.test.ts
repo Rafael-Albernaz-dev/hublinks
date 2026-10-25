@@ -1892,3 +1892,130 @@ test('configured origins, credentialed CORS, proxy protocol and secure cookies',
     else process.env.HUB_TRUST_PROXY = oldProxy;
   }
 });
+
+test('extension bookmarks require bound origin/session and create only owner-scoped direct links', async () => {
+  const admin = await personalLayerActor('admin');
+  const owner = await personalLayerActor('attendant');
+  const other = await personalLayerActor('attendant');
+  const payload = {
+    name: 'Saved synthetic page',
+    category: 'outros',
+    targetUrl: 'https://bookmark.example.test/path?view=1#section',
+  };
+  const save = (
+    cookie: string | undefined,
+    body: unknown = payload,
+    origin: string | undefined = extensionOrigin,
+  ) =>
+    server.inject({
+      method: 'POST',
+      url: '/api/extension/bookmarks',
+      headers: { ...(cookie ? { cookie } : {}), ...(origin ? { origin } : {}) },
+      payload: body as object,
+    });
+  try {
+    assert.equal((await save(undefined)).statusCode, 401);
+    for (const origin of [
+      '',
+      'https://untrusted.example.test',
+      `chrome-extension://${'b'.repeat(32)}`,
+      'http://127.0.0.1:5177',
+    ]) {
+      assert.equal((await save(owner.cookie, payload, origin)).statusCode, 403);
+    }
+    for (const body of [
+      null,
+      [],
+      { ...payload, scope: 'global' },
+      { ...payload, ownerUserId: other.id },
+      { ...payload, credentialType: 'shared' },
+      { ...payload, password: 'synthetic' },
+      { ...payload, targetUrl: 'http://example.test' },
+      { ...payload, targetUrl: 'https://user:pass@example.test' },
+      { ...payload, targetUrl: '' },
+      { ...payload, category: 'unknown' },
+      { ...payload, name: 'x' },
+    ]) {
+      assert.equal((await save(owner.cookie, body)).statusCode, 400);
+    }
+    const preflight = await server.inject({
+      method: 'OPTIONS',
+      url: '/api/extension/bookmarks',
+      headers: { origin: extensionOrigin, 'access-control-request-method': 'POST' },
+    });
+    assert.equal(preflight.statusCode, 204);
+    assert.equal(preflight.headers['access-control-allow-origin'], extensionOrigin);
+    assert.equal(preflight.headers['access-control-allow-credentials'], 'true');
+    const results = await Promise.all([save(owner.cookie), save(owner.cookie)]);
+    assert.deepEqual(results.map((result) => result.statusCode).sort(), [201, 409]);
+    const created = results.find((result) => result.statusCode === 201)!;
+    const item = created.json().service;
+    assert.equal(item.scope, 'personal');
+    assert.equal(item.ownerUserId, owner.id);
+    assert.equal(item.credentialType, 'none');
+    assert.equal(item.hasCredential, false);
+    assert.equal(item.targetUrl, payload.targetUrl);
+    assert.equal(item.logoDataUrl, null);
+    assert.equal(created.headers['cache-control'], 'no-store');
+    const ownList = await server.inject({
+      method: 'GET',
+      url: '/api/catalog',
+      headers: { cookie: owner.cookie, origin: extensionOrigin },
+    });
+    assert.equal(ownList.statusCode, 200);
+    assert.equal(ownList.headers['cache-control'], 'no-store');
+    assert.ok(ownList.json().services.some((entry: { id: string }) => entry.id === item.id));
+    for (const actor of [other, admin]) {
+      const list = await server.inject({
+        method: 'GET',
+        url: '/api/catalog',
+        headers: { cookie: actor.cookie, origin: extensionOrigin },
+      });
+      assert.ok(!list.json().services.some((entry: { id: string }) => entry.id === item.id));
+      const saved = await save(actor.cookie);
+      assert.equal(saved.statusCode, 201);
+      assert.equal(saved.json().service.ownerUserId, actor.id);
+      assert.equal(saved.json().service.scope, 'personal');
+    }
+    for (const [method, url] of [
+      ['GET', '/api/admin/users'],
+      ['POST', '/api/catalog/services'],
+      ['PUT', '/api/config'],
+    ] as const) {
+      assert.equal(
+        (
+          await server.inject({
+            method,
+            url,
+            headers: { cookie: admin.cookie, origin: extensionOrigin },
+            ...(method !== 'GET' ? { payload } : {}),
+          })
+        ).statusCode,
+        403,
+      );
+    }
+    const audit = await pool.query('SELECT details FROM audit_logs WHERE service_id = $1', [
+      item.id,
+    ]);
+    assert.equal(JSON.stringify(audit.rows).includes(payload.targetUrl), false);
+    const noIcon = await save(owner.cookie, {
+      ...payload,
+      targetUrl: 'https://synthetic.internal/path',
+    });
+    assert.equal(noIcon.statusCode, 201);
+    assert.equal(noIcon.json().service.logoDataUrl, null);
+    await pool.query('UPDATE sessions SET revoked_at = NOW() WHERE user_id = $1', [owner.id]);
+    assert.equal(
+      (await save(owner.cookie, { ...payload, targetUrl: 'https://revoked.example.test/' }))
+        .statusCode,
+      401,
+    );
+  } finally {
+    await pool.query('DELETE FROM services WHERE owner_user_id = ANY($1::uuid[])', [
+      [owner.id, other.id, admin.id],
+    ]);
+    await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [
+      [owner.id, other.id, admin.id],
+    ]);
+  }
+});

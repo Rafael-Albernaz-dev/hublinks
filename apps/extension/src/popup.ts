@@ -1,3 +1,4 @@
+import { initBookmarks } from './bookmarks';
 import { DEFAULT_EXTENSION_SETTINGS } from './settings';
 import type { ExtensionSettings } from './settings';
 import { isWorkspace, openWorkspace, WORKSPACE_URL } from './workspace';
@@ -78,6 +79,7 @@ export async function initPopup(
     });
   }
   await Promise.all([
+    initBookmarks(doc, fetchFn),
     (async () => {
       let online = false;
       try {
