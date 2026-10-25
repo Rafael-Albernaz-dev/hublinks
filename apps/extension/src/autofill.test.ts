@@ -593,3 +593,99 @@ describe('rich popup controls', () => {
     expect(document.querySelectorAll('#quick-shortcuts button')).toHaveLength(0);
   });
 });
+
+describe('save current page in Hublink', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+  async function setup(
+    url = 'https://example.test/path?view=1#section',
+    response = new Response('{}', { status: 201 }),
+  ) {
+    const { readFileSync } = await import('node:fs');
+    const { initBookmarks } = await import('./bookmarks');
+    document.body.innerHTML = readFileSync('static/popup.html', 'utf8');
+    const create = vi.fn().mockResolvedValue({});
+    vi.stubGlobal('chrome', {
+      tabs: { query: vi.fn().mockResolvedValue([{ url, title: 'Synthetic page' }]), create },
+    });
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(response);
+    await initBookmarks(document, fetchFn);
+    return {
+      fetchFn,
+      create,
+      start: document.querySelector<HTMLButtonElement>('#save-page')!,
+      form: document.querySelector<HTMLFormElement>('#bookmark-form')!,
+      feedback: document.querySelector('#bookmark-feedback')!,
+    };
+  }
+  it('reviews editable metadata and saves only after confirmation, then opens a fresh Workspace', async () => {
+    const s = await setup();
+    expect(s.fetchFn).not.toHaveBeenCalled();
+    s.start.click();
+    expect(document.activeElement?.id).toBe('bookmark-name');
+    expect(s.form.hidden).toBe(false);
+    (document.getElementById('bookmark-name') as HTMLInputElement).value = 'Edited page';
+    (document.getElementById('bookmark-category') as HTMLSelectElement).value = 'sheet';
+    s.form.dispatchEvent(new Event('submit', { cancelable: true }));
+    s.form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect(s.feedback.textContent).toContain('Link salvo'));
+    expect(s.fetchFn).toHaveBeenCalledTimes(1);
+    const [url, options] = s.fetchFn.mock.calls[0]!;
+    expect(url).toBe('http://127.0.0.1:3177/api/extension/bookmarks');
+    expect(options).toMatchObject({ method: 'POST', credentials: 'include', cache: 'no-store' });
+    expect(JSON.parse(options!.body as string)).toEqual({
+      name: 'Edited page',
+      category: 'sheet',
+      targetUrl: 'https://example.test/path?view=1#section',
+    });
+    expect(s.form.hidden).toBe(true);
+    document.getElementById('view-bookmark')!.click();
+    await vi.waitFor(() => expect(s.create).toHaveBeenCalledWith({ url: 'http://127.0.0.1:5177' }));
+  });
+  it('cancels without writing and restores focus', async () => {
+    const s = await setup();
+    s.start.click();
+    document.getElementById('bookmark-cancel')!.click();
+    expect(s.form.hidden).toBe(true);
+    expect(document.activeElement).toBe(s.start);
+    expect(s.fetchFn).not.toHaveBeenCalled();
+  });
+  it.each([
+    'chrome://newtab/',
+    'http://example.test/',
+    'javascript:alert(1)',
+    'https://user:pass@example.test/',
+  ])('rejects unsupported active tab %s', async (url) => {
+    const s = await setup(url);
+    expect(s.start.disabled).toBe(true);
+    expect(s.fetchFn).not.toHaveBeenCalled();
+  });
+  it.each([
+    [401, 'Entre no Workspace'],
+    [409, 'já está'],
+    [403, 'Não foi possível'],
+    [500, 'Não foi possível'],
+  ])('keeps the draft after HTTP %s', async (status, message) => {
+    const s = await setup(undefined, new Response('{}', { status: status as number }));
+    s.start.click();
+    s.form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect(s.feedback.textContent).toContain(message));
+    expect(s.form.hidden).toBe(false);
+    expect(document.querySelector<HTMLInputElement>('#bookmark-name')!.disabled).toBe(false);
+  });
+  it('rejects edited unsafe URLs and retains the draft after network failure', async () => {
+    const s = await setup();
+    s.start.click();
+    const url = document.querySelector<HTMLInputElement>('#bookmark-url')!;
+    url.value = 'http://example.test/';
+    s.form.dispatchEvent(new Event('submit', { cancelable: true }));
+    expect(s.fetchFn).not.toHaveBeenCalled();
+    url.value = 'https://example.test/';
+    s.fetchFn.mockRejectedValue(new Error('offline'));
+    s.form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect(s.feedback.textContent).toContain('API indisponível'));
+    expect(s.form.hidden).toBe(false);
+  });
+});

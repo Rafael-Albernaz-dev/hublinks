@@ -63,9 +63,6 @@ export async function initializeDatabase(pool: pg.Pool): Promise<void> {
     await client.query(
       await readFile(resolve(dirname(migrationPath), '007_user_profile_avatar.sql'), 'utf8'),
     );
-    const existingServices = await client.query<{ count: string }>(
-      'SELECT count(*)::text AS count FROM services',
-    );
     const seedPilot = freshDatabase && process.env.HUB_SEED_PILOT !== 'false';
     getMasterKey();
 

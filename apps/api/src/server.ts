@@ -66,6 +66,24 @@ export function createServer(
     applySecurityHeaders(reply);
     if (request.url.split('?')[0] === '/api/vault/tickets')
       reply.header('Cache-Control', 'no-store');
+    const routePath = request.url.split('?')[0];
+    const extensionCatalogRequest =
+      request.headers.origin === extensionOrigin &&
+      ((routePath === '/api/catalog' && ['GET', 'OPTIONS'].includes(request.method)) ||
+        (routePath === '/api/extension/bookmarks' && ['POST', 'OPTIONS'].includes(request.method)));
+    if (extensionCatalogRequest) {
+      reply.header('Cache-Control', 'no-store');
+      reply.header('Access-Control-Allow-Origin', extensionOrigin!);
+      reply.header('Access-Control-Allow-Credentials', 'true');
+      reply.header('Vary', 'Origin');
+      reply.header('Access-Control-Allow-Headers', 'Content-Type');
+      reply.header(
+        'Access-Control-Allow-Methods',
+        routePath === '/api/catalog' ? 'GET, OPTIONS' : 'POST, OPTIONS',
+      );
+      if (request.method === 'OPTIONS') return reply.code(204).send();
+      return;
+    }
     if (request.url.split('?')[0] !== '/api/vault/exchange') {
       const origin = request.headers.origin;
       if (origin && !origins.includes(origin))
