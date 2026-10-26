@@ -1,7 +1,8 @@
-export const WORKSPACE_URL = 'http://127.0.0.1:5177';
+import { ALLOWED_ORIGINS, WORKSPACE_URL } from './config';
+export { WORKSPACE_URL } from './config';
 export function isWorkspace(url: string | undefined): boolean {
   try {
-    return [WORKSPACE_URL, 'http://localhost:5177'].includes(new URL(url ?? '').origin);
+    return ALLOWED_ORIGINS.has(new URL(url ?? '').origin);
   } catch {
     return false;
   }

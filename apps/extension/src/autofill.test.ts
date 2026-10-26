@@ -204,7 +204,7 @@ describe('toolbar popup', () => {
       expect.objectContaining({ cache: 'no-store' }),
     );
     expect(document.getElementById('api-status')?.dataset.state).toBe('online');
-    expect(document.getElementById('api-status')?.textContent).toBe('API local conectada');
+    expect(document.getElementById('api-status')?.textContent).toBe('API conectada');
     expect(document.getElementById('tab-status')?.textContent).toContain('Página HTTPS ativa');
     document.getElementById('open-hublink')!.click();
     await vi.waitFor(() => expect(create).toHaveBeenCalledWith({ url: 'http://127.0.0.1:5177' }));
@@ -222,7 +222,7 @@ describe('toolbar popup', () => {
     vi.stubGlobal('chrome', { tabs: { query, update, create }, windows: { update: focus } });
     await initPopup(document, vi.fn<typeof fetch>().mockRejectedValue(new Error('offline')));
     expect(document.getElementById('api-status')?.dataset.state).toBe('offline');
-    expect(document.getElementById('api-status')?.textContent).toBe('API local indisponível');
+    expect(document.getElementById('api-status')?.textContent).toBe('API indisponível');
     expect(document.getElementById('tab-status')?.textContent).toContain('Você está no Hublink');
     document.getElementById('open-hublink')!.click();
     await vi.waitFor(() => expect(focus).toHaveBeenCalledWith(3, { focused: true }));

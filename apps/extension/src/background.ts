@@ -1,8 +1,7 @@
 /* eslint-disable no-useless-assignment -- Intentional best-effort release of plaintext references. */
 import { getExtensionSettings, respondToSettings } from './settings';
 import { openWorkspace, isNewTab, WORKSPACE_URL } from './workspace';
-const ALLOWED_ORIGINS = new Set(['http://127.0.0.1:5177', 'http://localhost:5177']);
-const API_ORIGIN = 'http://127.0.0.1:3177';
+import { ALLOWED_ORIGINS, API_ORIGIN } from './config';
 
 type OpenService = { type: 'OPEN_SERVICE'; ticket: string; serviceId: string; targetUrl: string };
 type AutofillResult = { status: 'filled_only' | 'filled_pending_challenge' | 'form_not_found' };

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run src/autofill.test.ts --environment jsdom"
+    "test": "node --test build-config.test.mjs && vitest run src/autofill.test.ts --environment jsdom"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.5",

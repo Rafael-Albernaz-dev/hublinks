@@ -1,4 +1,5 @@
 import { WORKSPACE_URL } from './workspace';
+import { API_ORIGIN } from './config';
 
 function httpsUrl(value: string): URL | null {
   try {
@@ -65,7 +66,7 @@ export async function initBookmarks(doc: Document, fetchFn: typeof fetch): Promi
     notice('Salvando link…');
     void (async () => {
       try {
-        const response = await fetchFn('http://127.0.0.1:3177/api/extension/bookmarks', {
+        const response = await fetchFn(`${API_ORIGIN}/api/extension/bookmarks`, {
           method: 'POST',
           credentials: 'include',
           cache: 'no-store',
