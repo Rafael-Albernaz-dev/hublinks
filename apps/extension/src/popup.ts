@@ -1,4 +1,5 @@
 import { initBookmarks } from './bookmarks';
+import { API_ORIGIN } from './config';
 import { DEFAULT_EXTENSION_SETTINGS } from './settings';
 import type { ExtensionSettings } from './settings';
 import { isWorkspace, openWorkspace, WORKSPACE_URL } from './workspace';
@@ -83,7 +84,7 @@ export async function initPopup(
     (async () => {
       let online = false;
       try {
-        const response = await fetchFn('http://127.0.0.1:3177/health', {
+        const response = await fetchFn(`${API_ORIGIN}/health`, {
           cache: 'no-store',
           signal: AbortSignal.timeout(3000),
         });
@@ -92,7 +93,7 @@ export async function initPopup(
         /* Offline is a normal state. */
       }
       if (apiStatus) {
-        apiStatus.textContent = online ? 'API local conectada' : 'API local indisponível';
+        apiStatus.textContent = online ? 'API conectada' : 'API indisponível';
         apiStatus.dataset.state = online ? 'online' : 'offline';
       }
     })(),
@@ -128,7 +129,7 @@ export async function initPopup(
       if (!list) return;
       list.textContent = 'Entre no Workspace para carregar seus atalhos.';
       try {
-        const response = await fetchFn('http://127.0.0.1:3177/api/catalog', {
+        const response = await fetchFn(`${API_ORIGIN}/api/catalog`, {
           credentials: 'include',
           cache: 'no-store',
           signal: AbortSignal.timeout(3000),
