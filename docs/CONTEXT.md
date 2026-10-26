@@ -1,5 +1,39 @@
 # Project state
 
+## Public pilot deployed — October 26, 2026
+
+The user resumed deployment. `https://hublink.atlassoftware.ia.br` now serves the authenticated Hublink Workspace through its dedicated host Nginx HTTPS virtual host. HTTP redirects to HTTPS (301); the ACME webroot remains available. The already-issued certificate is valid until January 23, 2027. Certbot's timer is enabled, and `/etc/letsencrypt/renewal-hooks/deploy/30-hublink-nginx-reload` validates/reloads Nginx only for the Hublink domain; its actual invocation passed. An ACME renewal dry run was not performed.
+
+Reused the existing `/home/deploy/hublink` source, private `.env.production`, database volume and immutable image tags: API `hublink-api:c5d46ca-pilot2` (`sha256:6d377745ce8be511e4a572c3eadda2b0290202fd591b2c11e59eac26e63b2f86`) and Web `hublink-web:c5d46ca-pilot1` (`sha256:906f02affbfe82cf2f0dffdab2ff2379d29d520fac9f99ae31777f19e6219315`). All three `hublink-prod` containers are healthy. Web binds only to `127.0.0.1:8080`; API/PostgreSQL have no host ports. API runs as `uid=1000(node)`. Current database baseline: one administrator, zero services, zero vault credentials. Bootstrap password and vault/database secrets remain only in protected server files and were not printed. The temporary public-pilot exception without Hub 2FA remains authorized in `OPEN_QUESTIONS.md`.
+
+Before opening the application proxy, created `/home/deploy/hublink-backups/backup_20261026T160733Z_6182.enc` (SHA-256 `1ac180b1d60558d0202be1c6988104b303ab7b046ff66377acb5a928ee1d6de6`). Verified its HMAC, decryption, exact archive members, internal checksums, JSON config version and PostgreSQL dump readability through `pg_restore --list`, without restoring production. The backup passphrase remains in the protected `/home/deploy/.config/hublink/backup.env`. Durable off-host retention, separately controlled key custody and an actual recovery rehearsal are still pending; this is a verified server-local backup, not completed disaster-recovery acceptance.
+
+Deployment validation passed:
+
+- Workstation requests through normal public DNS returned HTTPS 200 for `/health`; the VPN/private-IP route with the same valid TLS hostname also returned 200. HTTP returned the expected HTTPS redirect. The external web-fetch tool could not access the site, so independent external-network/human acceptance is not inferred from the workstation's VPN-connected path.
+- A real Chromium browser using the public hostname completed administrator login, verified Secure/HttpOnly/SameSite=Lax session flags, reload persistence and logout. No TLS-error bypass, endpoint interception, screenshots or tracing were used.
+- The actual unpacked extension copied from the deployed API container loaded with its stable ID, completed the real external PING/Workspace detection, and its popup fetched the authenticated catalog with the real browser session. The browser observed no localhost requests. This validates the tested installed-Chromium production-origin session/bridge; no supplier access, assisted credential filling, startup/New Tab, page-saving production write or Web Store distribution was tested.
+- Server-side HTTPS smoke passed: unauthenticated catalog rejection, admin identity, empty catalog, wrong/local-origin rejection, authenticated nine-file extension ZIP with valid CRCs and correct manifest origin binding, logout and revocation. Its first run incorrectly required local fallback strings to be absent from the compiled JavaScript; the corrected harness checks manifest binding and the installed browser checks effective network behavior. No production source change was needed. The immediate post-reload TLS probe initially reached an old Nginx worker; subsequent probes on all tested paths passed.
+- Atlas remains healthy and returns HTTPS 200. Its containers were not restarted, and its Nginx site checksum remains `648b3dfedd68b9285161dd3a7ac8d304ade5e1fc60219ff9058eb2a0c7721f88`.
+
+Temporary sanitized validation scripts/results are `/tmp/hublink-production-smoke.py`, `/tmp/hublink-production-browser.cjs` and `/tmp/hublink-production-browser.log` on the workstation; `/tmp` artifacts are not durable records. The source delta remains uncommitted over `c5d46ca`; no commit, push or hosted-CI claim accompanies this deployment. Full local check results from October 25 are retained below; no redundant full suite was run for the infrastructure-only resumption.
+
+## Public pilot preparation — October 25, 2026
+
+The user selected `https://hublink.atlassoftware.ia.br` on the existing Atlas host and explicitly authorized a temporary public pilot without Hub 2FA. This exception is recorded in `OPEN_QUESTIONS.md`; 2FA remains unresolved for the longer-term deployment. Hublink must use its own Compose project, PostgreSQL volume, runtime vault key and loopback web port; Atlas services and its Nginx site are preserved.
+
+`HUB_EXTENSION_ORIGIN` now selects one exact HTTPS origin at build time for the packaged extension. Worker, popup, bookmark saving, Workspace recognition and generated manifest share that origin. Production builds exclude localhost from external-message/content-script allowlists and remove the local HTTP API host permission. The stable manifest key/ID, approved HTTPS filling permission, destination checks, manual submission and human CAPTCHA/2FA boundary remain unchanged. Unconfigured builds preserve the local bridge. Compose passes this non-secret value into the API image's extension build; it is not a runtime user setting.
+
+Validation: `npm run check` passed using the separate synthetic database `hublink_deploy_20261025_check`: 43 API tests, 35 existing extension tests, three build/origin tests, 63 Web tests, typechecks, zero-warning lint, formatting and workspace builds. No new E2E run or production browser login was completed in this session.
+
+The server source is under `/home/deploy/hublink`. Private `.env.production` has a fresh database password, vault key, generated administrator password, exact HTTPS origins and `HUB_SEED_PILOT=false`; no runtime secret was printed or copied into the repository. The data directory belongs to container UID/GID 1000. The backup passphrase exists in a separate protected server file; no operational backup, off-host copy or recovery rehearsal has been completed for this installation.
+
+The source initially contained restrictive file permissions; the first API image could not read `/app/package.json` as its non-root user. Runtime Dockerfile copies now explicitly belong to `node:node`. The corrected image `hublink-api:c5d46ca-pilot2`, Web image `hublink-web:c5d46ca-pilot1` and PostgreSQL 16 all reached healthy state in the isolated `hublink-prod` Compose project. This deployed source includes an uncommitted local delta over `c5d46ca`; no commit or push was performed.
+
+**Historical pause on October 25 (superseded by the authorized October 26 resumption above):** Hublink's three containers were stopped with database volume, images, runtime keys and configuration preserved. The HTTP-only Hublink site served ACME and returned 503 elsewhere. The certificate had been issued, but no application HTTPS proxy or renewal reload hook had been installed and no production browser login had been tested. Temporary drafts in `/tmp` did not survive to the next session and were recreated/reviewed before use.
+
+Atlas's Nginx site checksum remained `648b3dfedd68b9285161dd3a7ac8d304ade5e1fc60219ff9058eb2a0c7721f88`, and Atlas returned HTTP 200 through its existing local TLS route. Its containers were not restarted. The Hublink ACME challenge succeeded from the public validation service, while an outbound request from the server to its own public IP timed out; this does not establish a missing NAT rule and could reflect hairpin routing. Verify the network path before requesting changes. Public web traffic uses TCP 80/443 to the host gateway; Hublink's 8080 entry must remain loopback, and API/database ports must remain private.
+
 Hublink provides a configurable local demonstration, an authenticated React Workspace, a loopback Fastify API backed by PostgreSQL, and a Chrome MV3 companion. The detailed supplier research and operational destinations remain outside this repository. Local synthetic validation does not establish production readiness or supplier authentication.
 
 ## Phase 2 — Slice C / TICKET-017
@@ -102,16 +136,13 @@ The Chrome Web Store branch is component-tested with a synthetic listing URL; no
 
 ## Next Step / Handoff Checkpoint
 
-Milestone R8 (Docker packaging, operational tooling, backup/restore), audit tab separation, and complete database baseline cleanup (single admin, zero services, zero credentials, clean config) are complete, verified, and pushed to `main`.
+The public pilot is running; deployment is no longer paused. Read the October 26 deployment evidence above before any operation.
 
-Next session resumption:
-
-1. Inspect the target on-premise production server state before publishing:
-   - Audit running services, existing Docker containers, and occupied ports (`ss -tulpn`, `docker ps`).
-   - Check existing host reverse proxy (Nginx, Traefik, Apache) on 80/443 and domain/DNS setup.
-   - Choose a conflict-free loopback port for `HUB_WEB_PORT` (e.g. 8080 or custom) and prepare `.env.production`.
-2. Start Hublink containers: `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build`.
-3. Configure the reverse proxy route and issue the TLS certificate.
+1. Operator/human first access and validation from the intended external network remain to be recorded. Retrieve the generated bootstrap password privately via SSH; do not put it in chat, Git, logs or screenshots. Change it from My Profile after first access.
+2. The extension installed in an existing personal Chrome profile still needs its production package reloaded; the disposable Chromium proof does not modify the operator's Chrome profile.
+3. Finish durable off-host encrypted-backup retention, separately controlled key custody and an actual isolated restore rehearsal before relying on the vault for real operational credentials. Do not run a production restore as a test.
+4. Reuse `/home/deploy/hublink`, `hublink-prod`, the retained images, private environment and volume for future updates. Recheck current host state and back up before changes; do not regenerate secrets or reinitialize data. Preserve Atlas and the private 8080/API/database bindings.
+5. 2FA, longer-term pilot acceptance, monitoring/retention and authorized supplier journeys remain separate work. No supplier login or human acceptance is established by this deployment.
 
 ## TICKET-019 — Profile and account UX
 

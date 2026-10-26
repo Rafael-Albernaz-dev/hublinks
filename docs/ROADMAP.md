@@ -116,15 +116,10 @@ Before on-premise deployment, confirm capacity, DNS, TLS, proxy, master-key cust
 ## Next-session handoff
 
 1. Read AGENTS.md, README.md, docs/CONTEXT.md, docs/DECISIONS.md, and docs/OPEN_QUESTIONS.md; inspect git status --short --branch and preserve unrelated work.
-2. Milestone R8 (TICKET-020) and audit tab separation are fully implemented, verified, committed, pushed to origin/main, and the baseline database has been completely cleaned (single admin user, empty catalog, empty vault, reset config).
-3. Next session resumption: Inspect the target on-premise production server state before publishing:
-   - Check existing production services, running Docker containers, and occupied ports (`ss -tulpn`, `docker ps`).
-   - Check existing reverse proxy setup (Nginx, Traefik, Apache) on ports 80/443 and available domain / subdomain routes.
-   - Select a conflict-free loopback port for `HUB_WEB_PORT` (e.g., 8080 or custom) and prepare `.env.production`.
-   - Start Hublink production containers via `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build`.
-   - Configure the reverse proxy route and issue the TLS certificate.
-4. If performing live browser testing: development services run on 3177 and 5177 with clean baseline data.
-5. Preserve loopback ports and developer services on 3177 and 5177.
+2. **October 26 checkpoint: public pilot deployed after the user resumed.** `/home/deploy/hublink` and the existing private secrets/database volume were reused. The three `hublink-prod` containers are healthy behind the dedicated HTTPS Nginx route at `https://hublink.atlassoftware.ia.br`; the certificate-renewal reload hook was installed and tested. No Atlas container restart or site change occurred.
+3. Verified HTTPS login/cookie flags, origin rejection, empty catalog, packaged extension ZIP and logout, plus a real public-hostname Chromium journey with the actual production-origin extension/PING and popup authenticated catalog. A server-local encrypted pre-publication backup passed HMAC/decryption/content/dump checks. Read CONTEXT for exact paths, image IDs and evidence limits; no supplier journey or human acceptance was tested.
+4. Next: operator first access/password change, personal Chrome extension reload, independent external-network acceptance, durable off-host retention/key custody and an isolated restore rehearsal. Keep 8080 loopback and API/database private. Reuse the installation and retained keys; never re-provision or restore production merely as a test. The temporary no-2FA public-pilot exception remains explicitly authorized.
+5. Preserve local development ports/services on 3177 and 5177. The production-origin extension build changes and non-root image ownership fix are an uncommitted delta over local `c5d46ca`; no commit or push was performed in this deployment session.
 
 ## TICKET-016 local validation
 
