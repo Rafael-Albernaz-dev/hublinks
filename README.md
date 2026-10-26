@@ -69,6 +69,10 @@ Set `VITE_CHROME_WEBSTORE_URL` before starting or building the web app to show a
 
 ## Workspace and access
 
+The sign-in screen uses the Hublink icon and Workspace typography, colors and panel styling. It follows the browser's saved light/dark theme and adapts to narrow screens. Sign-in fields, autocomplete and the existing account/session flow are unchanged.
+
+Browser icons use the same Hublink mark in SVG, a multi-size ICO, a 32 px PNG and a 180 px Apple touch icon. Versioned icon URLs refresh previously cached failures. The Web image explicitly makes its public static files readable by Nginx, including assets copied from restrictive source permissions.
+
 | Area           | Available actions                                                                           |
 | -------------- | ------------------------------------------------------------------------------------------- |
 | Início         | Search, filter, open, and reorder cards; choose Grid, List, Carousel, Compact, or Sections. |

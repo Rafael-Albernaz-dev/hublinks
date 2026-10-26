@@ -18,13 +18,24 @@ export function LoginView({
   | 'authBusy'
 >) {
   return (
-    <>
-      <div className="auth-screen">
-        <form className="auth-card" onSubmit={(event) => void login(event)}>
-          <span className="auth-mark">H</span>
-          <span className="eyebrow">ACESSO AO HUB</span>
-          <h1>Bem-vindo ao Hublink</h1>
-          <p>Entre com sua conta para acessar os links da equipe.</p>
+    <main className="auth-screen">
+      <form
+        className="auth-card"
+        aria-labelledby="auth-title"
+        onSubmit={(event) => void login(event)}
+      >
+        <div className="auth-brand">
+          <img src="/favicon.svg?v=2" width="44" height="44" alt="" aria-hidden="true" />
+          <span>
+            Hublink
+            <small>HUB DA EQUIPE</small>
+          </span>
+        </div>
+        <header className="auth-intro">
+          <h1 id="auth-title">Bem-vindo ao Hublink</h1>
+          <p>Entre com sua conta para acessar seu Workspace.</p>
+        </header>
+        <div className="auth-fields">
           <label>
             E-mail
             <input
@@ -45,16 +56,17 @@ export function LoginView({
               onChange={(event) => setLoginPassword(event.target.value)}
             />
           </label>
-          {loginError && (
-            <p className="form-error" role="alert">
-              {loginError}
-            </p>
-          )}
-          <button className="button button-primary" type="submit" disabled={authBusy}>
-            Entrar no Hublink
-          </button>
-        </form>
-      </div>
-    </>
+        </div>
+        {loginError && (
+          <p className="form-error" role="alert">
+            {loginError}
+          </p>
+        )}
+        <button className="button button-primary" type="submit" disabled={authBusy}>
+          Entrar no Hublink
+        </button>
+        <p className="auth-caption">Acesso exclusivo para contas da equipe.</p>
+      </form>
+    </main>
   );
 }

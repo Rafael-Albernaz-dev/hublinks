@@ -174,21 +174,68 @@
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 32px 16px;
+  background: radial-gradient(ellipse at top, var(--hb-soft), transparent 65%), var(--hb-bg);
 }
 .auth-card {
   display: grid;
-  gap: 18px;
+  gap: 24px;
   max-width: 440px;
   width: 100%;
-  padding: 32px;
+  padding: clamp(24px, 5vw, 36px);
   border: 1px solid var(--hb-line);
   border-radius: var(--hb-radius);
   background: var(--hb-panel);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 5%);
 }
-.auth-mark {
-  color: var(--hb-accent);
-  font-size: 28px;
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--hb-line);
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.8px;
+  line-height: 1.15;
+}
+.auth-brand img {
+  flex: none;
+  width: 44px;
+  height: 44px;
+}
+.auth-brand small {
+  display: block;
+  margin-top: 5px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 1.7px;
+}
+.auth-intro h1 {
+  margin: 0 0 10px;
+  font-size: clamp(24px, 3vw, 28px);
+  letter-spacing: -0.8px;
+  line-height: 1.2;
+}
+.auth-fields {
+  display: grid;
+  gap: 18px;
+}
+.auth-fields label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.auth-fields input {
+  min-height: 46px;
+  border-color: color-mix(in srgb, var(--hb-sub) 75%, var(--hb-panel));
+}
+.auth-card > .button {
+  min-height: 46px;
+  font-weight: 600;
+}
+.auth-caption {
+  text-align: center;
+  font-size: 12px;
 }
 .hb-footer .account-actions {
   margin-left: auto;
