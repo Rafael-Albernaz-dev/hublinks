@@ -47,7 +47,7 @@ npm run build
 
 The Extension Center also offers an authenticated ZIP download after the build. Extract it before loading. Reload the extension after rebuilding.
 
-The local extension ID is `nhodfnpljikjfeoihaimabljdenmfbio`. Its Workspace origins are `http://127.0.0.1:5177` and `http://localhost:5177`; its API is `http://127.0.0.1:3177`. Changing API configuration alone does not reconfigure these extension addresses.
+The extension ID is `nhodfnpljikjfeoihaimabljdenmfbio`. Default builds use Workspace origins `http://127.0.0.1:5177` and `http://localhost:5177`, with API `http://127.0.0.1:3177`. For a deployed installation, set `HUB_EXTENSION_ORIGIN` to one exact HTTPS origin (without a trailing slash) when building. The compiled worker, popup, page saving, content script and external-message allowlist then use only that origin; the extension ID stays the same. Changing runtime API configuration alone does not rebuild the extension. Reload the unpacked extension after replacing its files.
 
 Startup and New Tab options are off by default and apply per Chrome profile. Popup shortcuts open destinations directly; assisted autofill starts from a card in the Workspace.
 
@@ -125,13 +125,15 @@ Production uses `docker-compose.prod.yml`: only the web entry is published, on `
 
 Prepare a private `.env.production` from `.env.example` with unique database and vault secrets, explicit administrator credentials, and exact HTTPS client origins. Protect it with mode `0600`. Make the configured data directory writable by the API container's UID/GID `1000`.
 
+Set `HUB_EXTENSION_ORIGIN` to the same official HTTPS origin as `HUB_CLIENT_ORIGINS` before building the production API image. Compose passes this non-secret build argument to the packaged extension. A local production-origin build can also use `HUB_EXTENSION_ORIGIN=https://hub.example.com npm run build -w @hublink/extension`. The URL must be an exact HTTPS origin; paths, credentials, wildcards, query strings and fragments are rejected. Preserve the unpacked extension's key/ID; no Web Store distribution is implied.
+
 ```bash
 export HUB_RUNTIME_ENV_FILE=.env.production
 docker compose --env-file "$HUB_RUNTIME_ENV_FILE" -f docker-compose.prod.yml build
 docker compose --env-file "$HUB_RUNTIME_ENV_FILE" -f docker-compose.prod.yml up -d --no-build --wait
 ```
 
-Use immutable image tags and retain the previous images and vault key. Deployments and updates are operator-initiated; CI runs checks, not automatic on-premise deployment. Remote extension operation requires a separate origin/distribution change.
+Use immutable image tags and retain the previous images and vault key. Deployments and updates are operator-initiated; CI runs checks, not automatic on-premise deployment. Installed-browser HTTPS session and extension behavior require validation after deployment.
 
 Backup and restore use `scripts/backup.sh` and `scripts/restore.sh`. They require private runtime secrets, a separate backup passphrase, and a maintenance window. Restore replaces the selected project's data; PostgreSQL and config-file replacement are not one atomic transaction. Follow the [recovery and rollback playbook](docs/ROLLBACK.md) for the complete procedure.
 
