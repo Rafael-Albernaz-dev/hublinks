@@ -1,5 +1,13 @@
 # Project state
 
+## Login presentation refinement — October 26, 2026 (awaiting deployment)
+
+The favicon follow-up confirmed that production's `/favicon.svg` returns HTTP 403: its copied file is mode `0600`, owned by root, and unreadable by the Nginx worker. The Web Dockerfile now makes only the public static directory readable/traversable (`a+rX`). The existing official SVG supplies a 16/32/48 px ICO, a 32 px PNG and a 180 px Apple touch icon; the HTML declares all formats with versioned URLs to refresh cached failures. A local build of the final Web image served all four icons and the legacy `/favicon.ico` with HTTP 200 and correct MIME types/dimensions; readability was also checked as the `nginx` user. The temporary container was removed. These favicon fixes are local with the login refinement; production still uses the previous image until publication is authorized.
+
+The sign-in card now groups the existing Hublink favicon/wordmark, Workspace typography and introductory text. The isolated plain-text H is removed. Spacing, a subtle theme-aware background, input boundaries and mobile padding use the existing theme tokens. Email/password labels, autocomplete, submission, errors, disabled behavior and authentication/session logic are preserved. The login still uses the system light/dark palette; account/company custom branding loads after authentication as before.
+
+Validation: all 63 existing Web tests, Web typechecking, lint, focused formatting and Web build pass. A temporary Chromium harness with synthetic API responses checked 320, 390, 780 and 1440 px in both themes: loaded icon, no horizontal overflow, keyboard order/visible focus, text/button contrast at least 4.5:1, input boundaries at least 3:1 and existing failed-login handling. Captures and metrics are under `/tmp/hublink-login-visual/` and are temporary local evidence, not human acceptance. The preview uses only local port 5191. The user authorized source push and CI; this does not update the on-premise installation. The public server still serves the previously deployed login and favicon until a separate deployment.
+
 ## Public pilot deployed — October 26, 2026
 
 The user resumed deployment. `https://hublink.atlassoftware.ia.br` now serves the authenticated Hublink Workspace through its dedicated host Nginx HTTPS virtual host. HTTP redirects to HTTPS (301); the ACME webroot remains available. The already-issued certificate is valid until January 23, 2027. Certbot's timer is enabled, and `/etc/letsencrypt/renewal-hooks/deploy/30-hublink-nginx-reload` validates/reloads Nginx only for the Hublink domain; its actual invocation passed. An ACME renewal dry run was not performed.
