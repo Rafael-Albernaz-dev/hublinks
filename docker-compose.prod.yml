@@ -20,6 +20,8 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      args:
+        HUB_EXTENSION_ORIGIN: ${HUB_EXTENSION_ORIGIN:-}
     init: true
     restart: unless-stopped
     env_file: ${HUB_RUNTIME_ENV_FILE:-.env.production}
