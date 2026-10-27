@@ -1,0 +1,61 @@
+{
+  "title": "Rural Conecta - referência de identidade",
+  "date": "2026-10-27",
+  "format": "design-reference-only; not a Hublink configuration import",
+  "brand": {
+    "primary": "#3D6A2F",
+    "highlight": "#98B432",
+    "dark": "#374F1E",
+    "intermediate": "#5C8634",
+    "secondaryDark": "#345126"
+  },
+  "lightRecommendation": {
+    "companyNamePart1": "#3D6A2F",
+    "companyNamePart2": "#374F1E",
+    "background": "#F5F7F2",
+    "surface": "#FFFFFF",
+    "text": "#202A1B",
+    "secondaryText": "#56624D",
+    "primaryButtonBackground": "#3D6A2F",
+    "primaryButtonText": "#FFFFFF",
+    "primaryButtonHover": "#345126",
+    "link": "#3D6A2F",
+    "logoTile": "#3D6A2F",
+    "logoArtwork": "#FFFFFF",
+    "focusRing": "#3D6A2F"
+  },
+  "darkDesignDirection": {
+    "requiresThemeSpecificImplementation": true,
+    "companyNamePart1": "#FFFFFF",
+    "companyNamePart2": "#98B432",
+    "background": "#141B12",
+    "surface": "#1D2719",
+    "text": "#F4F7EF",
+    "secondaryText": "#BBC6B2",
+    "primaryButtonBackground": "#98B432",
+    "primaryButtonText": "#141B12",
+    "link": "#98B432",
+    "logoTile": "#3D6A2F",
+    "logoArtwork": "#FFFFFF",
+    "focusRing": "#98B432"
+  },
+  "currentHublinkLightSettings": {
+    "color": {
+      "r": 61,
+      "g": 106,
+      "b": 47
+    },
+    "brandPrimaryText": "Rural",
+    "brandPrimaryColor": "#3D6A2F",
+    "brandSecondaryText": "Conecta",
+    "brandSecondaryColor": "#374F1E",
+    "textColor": null,
+    "backgroundColor": null
+  },
+  "notes": [
+    "Colors are reference values only; this file is not importable Hub configuration.",
+    "The current manual accent and name colors are shared across themes.",
+    "Keep logo tile green independently from a lime accent in a future dark implementation.",
+    "Neutral colors are proposals; leaving current optional fields blank keeps the existing theme neutrals."
+  ]
+}
