@@ -1,12 +1,22 @@
 # Project state
 
-## Login presentation refinement — October 26, 2026 (awaiting deployment)
+## Login and browser icons deployed — October 27, 2026
 
-The favicon follow-up confirmed that production's `/favicon.svg` returns HTTP 403: its copied file is mode `0600`, owned by root, and unreadable by the Nginx worker. The Web Dockerfile now makes only the public static directory readable/traversable (`a+rX`). The existing official SVG supplies a 16/32/48 px ICO, a 32 px PNG and a 180 px Apple touch icon; the HTML declares all formats with versioned URLs to refresh cached failures. A local build of the final Web image served all four icons and the legacy `/favicon.ico` with HTTP 200 and correct MIME types/dimensions; readability was also checked as the `nginx` user. The temporary container was removed. These favicon fixes are local with the login refinement; production still uses the previous image until publication is authorized.
+Published the Web from commit `a1d0c64` as `hublink-web:a1d0c64` (`sha256:8c509cbf702c364a05e0ba1ff262242391720b4e2d27ff41a964aa692e42444a`) in the existing `hublink-prod` installation. The source passed [hosted CI](https://github.com/Rafael-Albernaz-dev/hublinks/actions/runs/40548669320). Production now serves the refined sign-in card and the versioned SVG, ICO, 32 px PNG and Apple touch icon. Before this update, the public SVG returned 403 and `/favicon.ico` incorrectly returned the application's HTML fallback.
+
+Before replacement, created `/home/deploy/hublink-backups/backup_20261027T175821Z_21335.enc` (SHA-256 `0f40ecdc82de7a8f9bd05805fff05fe9c600ab4c57de2f71d8622ddbce88668b`). Verified its HMAC, decryption, exact members, internal checksums, config version and PostgreSQL dump readability without restoring production. The backup procedure briefly paused and resumed Hublink API/Web. The API keeps `hublink-api:c5d46ca-pilot2`; PostgreSQL and Atlas retained their container identities and uptime, and both host Nginx site checksums are unchanged. The prior Web image and protected rollback files remain available.
+
+The new image passed an isolated container check before activation. After activation, HTTPS requests through the public hostname returned 200 for `/health` and all four icons, with the expected MIME types and exact source bytes. An anonymous Chromium session verified the actual sign-in page at 390 and 1440 px in both themes: new branding and Workspace copy, loaded logo, existing labeled fields/button, no horizontal overflow, no JavaScript errors and no localhost requests. This verification used valid TLS and no endpoint interception, credentials or personal browser session. The three production containers are healthy; Web still binds only to `127.0.0.1:8080`.
+
+Release, backup and public-browser verification records are retained privately under `/home/deploy/hublink/releases/a1d0c64/`. Anonymous login captures and workstation metrics are temporary files under `/tmp/hublink-deploy-a1d0c64/`. This Web update did not repeat the authenticated session or installed-extension journeys recorded for the initial deployment below.
+
+## Login presentation refinement — October 26, 2026 (deployed October 27)
+
+The favicon follow-up confirmed that production's `/favicon.svg` returned HTTP 403: its copied file was mode `0600`, owned by root, and unreadable by the Nginx worker. The Web Dockerfile now makes only the public static directory readable/traversable (`a+rX`). The existing official SVG supplies a 16/32/48 px ICO, a 32 px PNG and a 180 px Apple touch icon; the HTML declares all formats with versioned URLs to refresh cached failures. A local build of the final Web image served all four icons and the legacy `/favicon.ico` with HTTP 200 and correct MIME types/dimensions; readability was also checked as the `nginx` user. The temporary container was removed. These fixes and the login refinement were deployed on October 27 as recorded above.
 
 The sign-in card now groups the existing Hublink favicon/wordmark, Workspace typography and introductory text. The isolated plain-text H is removed. Spacing, a subtle theme-aware background, input boundaries and mobile padding use the existing theme tokens. Email/password labels, autocomplete, submission, errors, disabled behavior and authentication/session logic are preserved. The login still uses the system light/dark palette; account/company custom branding loads after authentication as before.
 
-Validation: all 63 existing Web tests, Web typechecking, lint, focused formatting and Web build pass. A temporary Chromium harness with synthetic API responses checked 320, 390, 780 and 1440 px in both themes: loaded icon, no horizontal overflow, keyboard order/visible focus, text/button contrast at least 4.5:1, input boundaries at least 3:1 and existing failed-login handling. Captures and metrics are under `/tmp/hublink-login-visual/` and are temporary local evidence, not human acceptance. The preview uses only local port 5191. The user authorized source push and CI; this does not update the on-premise installation. The public server still serves the previously deployed login and favicon until a separate deployment.
+Validation: all 63 existing Web tests, Web typechecking, lint, focused formatting and Web build pass. A temporary Chromium harness with synthetic API responses checked 320, 390, 780 and 1440 px in both themes: loaded icon, no horizontal overflow, keyboard order/visible focus, text/button contrast at least 4.5:1, input boundaries at least 3:1 and existing failed-login handling. Captures and metrics are under `/tmp/hublink-login-visual/` and are temporary local evidence, not human acceptance. The preview uses only local port 5191. The October 27 verification above records what is now served in production.
 
 ## Public pilot deployed — October 26, 2026
 
@@ -144,7 +154,7 @@ The Chrome Web Store branch is component-tested with a synthetic listing URL; no
 
 ## Next Step / Handoff Checkpoint
 
-The public pilot is running; deployment is no longer paused. Read the October 26 deployment evidence above before any operation.
+The public pilot is running. Read the October 27 Web update and October 26 initial deployment evidence above before any operation.
 
 1. Operator/human first access and validation from the intended external network remain to be recorded. Retrieve the generated bootstrap password privately via SSH; do not put it in chat, Git, logs or screenshots. Change it from My Profile after first access.
 2. The extension installed in an existing personal Chrome profile still needs its production package reloaded; the disposable Chromium proof does not modify the operator's Chrome profile.
