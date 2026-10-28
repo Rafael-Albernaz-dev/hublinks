@@ -8,7 +8,7 @@ RUN npm ci
 COPY apps/web apps/web
 RUN npm run build -w @hublink/web
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30.6-alpine
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 # Public files may retain restrictive source permissions through Vite's copy.
