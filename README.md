@@ -129,6 +129,8 @@ Individual checks: `npm run typecheck`, `npm run lint`, `npm run format:check`, 
 
 CI additionally runs `npm audit --audit-level=moderate` and browser E2E against a separate database. E2E uses Vite's actual API proxy to port `3178`, with no endpoint interception. Regressions cover session/ticket revocation, cross-owner access, audit-write rollback, secret-free errors/logs, no-store responses, lock-wait expiry, private DNS answers, redirects, streamed image size, account switches and origin-only favicon requests. See the [security review](docs/SECURITY_REVIEW_2026-10-28.md) for findings and evidence limits.
 
+CI also builds the production API/Web images and runs `python3 scripts/check-images.py --api-image hublink-api:ci --web-image hublink-web:ci --origin https://hub.example.test`. Build the API image with that same `HUB_EXTENSION_ORIGIN`. The check requires Python 3 and Docker; it creates and removes its own network, PostgreSQL and synthetic accounts. It checks the actual Nginx/API response headers, authentication, password-change session rotation, packaged extension origin/ZIP and public icon bytes. Private API locations disable Nginx's inherited `expires` rule so upstream `no-store` survives the production proxy.
+
 The page-saving feature passed 43 API tests, 35 extension tests, 63 web tests, and eight existing E2E scenarios. A separate run with the unpacked extension in an isolated Chromium profile verified the popup/session/API/database/Workspace journey using synthetic data. See [validation evidence and remaining gates](docs/CONTEXT.md#extension-page-saving). Local checks do not establish production or supplier acceptance.
 
 ## Deployment and recovery

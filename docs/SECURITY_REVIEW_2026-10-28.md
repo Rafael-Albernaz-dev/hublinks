@@ -27,6 +27,10 @@ SSRF handling follows [OWASP's SSRF guidance](https://cheatsheetseries.owasp.org
 
 ## Access boundaries checked
 
+**Production-package follow-up:** after commit `11f31e9` passed hosted CI, a disposable test of the actual images found that Nginx's inherited `expires -1` replaced upstream API `no-store` with `no-cache` on successful responses. No new image was activated. API/health proxy locations now use `expires off`, and CI builds/runs the real images through `scripts/check-images.py`, with a disposable database and synthetic credentials. The check examines all Cache-Control header fields rather than assuming only one. This adds production-proxy coverage beyond the Vite browser suite; it is still an isolated HTTP check, not production TLS acceptance.
+
+The Web runtime base also moves from Nginx 1.27 to 1.30.6, the stable patch listed by the [official download page](https://nginx.org/en/download.html), after checking the [official security advisories](https://nginx.org/en/security_advisories.html). Package verification records the actual Nginx version. This is not an operating-system vulnerability scan or a patch of the host-managed TLS gateway.
+
 - Anonymous callers received 401 for catalog, credential metadata, identity, users, audit, preferences and extension-package routes. Configuration was the exception and is now protected too.
 - Catalog and vault list responses contained metadata, without usernames/passwords, encrypted credential columns or password hashes.
 - Another user and another administrator could not list, reveal, overwrite, ticket or delete an owner's personal service in the exercised cases. Global catalog mutations and shared credential management retain server-side admin checks.

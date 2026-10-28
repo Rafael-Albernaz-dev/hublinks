@@ -45,3 +45,9 @@ jobs:
           JS
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - name: Build production images
+        run: |
+          docker build --label org.opencontainers.image.revision="$GITHUB_SHA" --build-arg HUB_EXTENSION_ORIGIN=https://hub.example.test -f apps/api/Dockerfile -t hublink-api:ci .
+          docker build --label org.opencontainers.image.revision="$GITHUB_SHA" -f apps/web/Dockerfile -t hublink-web:ci .
+      - name: Verify packaged API and Nginx boundaries
+        run: python3 scripts/check-images.py --api-image hublink-api:ci --web-image hublink-web:ci --origin https://hub.example.test
