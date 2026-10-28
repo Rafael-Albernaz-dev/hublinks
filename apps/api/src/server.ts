@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +34,8 @@ export function createServer(
     const url = new URL(origin);
     if (!['https:', 'http:'].includes(url.protocol) || url.origin !== origin)
       throw new Error('HUB_CLIENT_ORIGINS must contain exact HTTP(S) origins');
+    if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:')
+      throw new Error('Production client origins must use HTTPS');
   }
   if (
     process.env.NODE_ENV === 'production' &&
@@ -43,10 +45,51 @@ export function createServer(
       'Production requires client origins and explicit initial administrator credentials',
     );
   const server = Fastify({
-    logger: true,
+    logger: {
+      serializers: {
+        req(request: FastifyRequest) {
+          return {
+            method: request.method,
+            url: request.url?.split('?')[0],
+            hostname: request.hostname,
+            remoteAddress: request.ip,
+          };
+        },
+      },
+      redact: {
+        paths: [
+          'req.headers.cookie',
+          'req.headers.authorization',
+          'res.headers["set-cookie"]',
+          'req.body',
+          'body',
+        ],
+        censor: '[REDACTED]',
+      },
+    },
     bodyLimit: 10 * 1024 * 1024,
     trustProxy: process.env.HUB_TRUST_PROXY === 'true',
   });
+  server.setNotFoundHandler((_request, reply) =>
+    reply.code(404).send({ error: 'Rota não encontrada.' }),
+  );
+  server.setErrorHandler(
+    (error: Error & { statusCode?: number; code?: string }, request, reply) => {
+      const status =
+        error.statusCode && error.statusCode >= 400 && error.statusCode < 600
+          ? error.statusCode
+          : 500;
+      if (status >= 500) {
+        // Error messages from parsers/drivers can contain submitted values. Log a code only.
+        const code =
+          error.code && /^[A-Z0-9_]{1,64}$/.test(error.code) ? error.code : 'INTERNAL_ERROR';
+        request.log.error({ code }, 'Request failed');
+      }
+      return reply
+        .code(status)
+        .send({ error: status >= 500 ? 'Erro interno do servidor.' : 'Requisição inválida.' });
+    },
+  );
   void server.register(cookie);
   server.addHook('onReady', async () => initializeDatabase(pool));
   const DEFAULT_EXTENSION_ID = 'nhodfnpljikjfeoihaimabljdenmfbio';
@@ -64,9 +107,8 @@ export function createServer(
   };
   server.addHook('onRequest', async (request, reply) => {
     applySecurityHeaders(reply);
-    if (request.url.split('?')[0] === '/api/vault/tickets')
-      reply.header('Cache-Control', 'no-store');
-    const routePath = request.url.split('?')[0];
+    const routePath = request.url.split('?')[0] ?? '';
+    if (routePath.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
     const extensionCatalogRequest =
       request.headers.origin === extensionOrigin &&
       ((routePath === '/api/catalog' && ['GET', 'OPTIONS'].includes(request.method)) ||

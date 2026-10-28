@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { DEFAULT_CONFIG } from '../config';
 import type { User } from '../types';
 import type { WorkspaceState } from './useWorkspaceState';
@@ -46,6 +46,7 @@ export function useAuth(
     | 'setPage'
     | 'setManagedUsers'
     | 'setNotice'
+    | 'currentUser'
   >,
 ) {
   const {
@@ -64,6 +65,8 @@ export function useAuth(
     setManagedUsers,
     setNotice,
   } = state;
+  const activeUserId = useRef(state.currentUser?.id);
+  activeUserId.current = state.currentUser?.id;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -124,12 +127,14 @@ export function useAuth(
     currentPassword?: string;
     newPassword?: string;
   }) {
+    const userId = activeUserId.current;
     const response = await fetch('/api/auth/profile', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     });
     const body = (await response.json()) as { error?: string };
+    if (activeUserId.current !== userId) return;
     if (!response.ok) throw new Error(body.error ?? 'Não foi possível salvar o perfil.');
     setCurrentUser(readUser(body));
   }

@@ -26,6 +26,7 @@ export default defineConfig({
       command: 'npm run dev:web',
       url: 'http://127.0.0.1:5177',
       reuseExistingServer: false,
+      env: { HUB_API_PORT: '3178' },
     },
   ],
 });

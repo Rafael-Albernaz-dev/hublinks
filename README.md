@@ -85,6 +85,12 @@ Browser icons use the same Hublink mark in SVG, a multi-size ICO, a 32 px PNG an
 
 Personal cards remain private even from other administrators. Direct links open without the vault. Vault cards use the extension; passwords are never listed by the web client. CAPTCHA, 2FA, and form submission remain manual.
 
+Changing your email or password requires your current password. The API revokes all previous sessions and their opening tickets, then issues a new session for the current browser. Other browsers must sign in again. Ordinary profile edits retain the current session.
+
+All configuration reads now require authentication, including `GET /api/config`; configuration writes require an administrator. This closes the legacy anonymous JSON endpoint, which could include saved links. All API responses use `Cache-Control: no-store`. The frontend ignores late catalog, credential, team and profile responses from a previous account.
+
+The login request contains the credentials you enter, visible in your own browser's DevTools before HTTPS encrypts transport. Login/profile/session responses expose only public account fields, never Hub passwords or hashes. Vault listings expose metadata only. The separate reveal API still allows an administrator to reveal shared credentials and a user to reveal their own individual credentials, as defined by the existing access contract; React does not call it. Assisted autofill delivers supplier credentials to the extension and destination form. Someone controlling that browser can inspect them; this is not a mechanism for keeping a supplier password secret from its authorized browser user.
+
 Branding changes require an explicit save. Resetting personal preferences restores company defaults. Account layout/order preferences synchronize through the API; the light/dark theme remains browser-local. An offline preference cache grants no catalog or credential access. JSON exports can contain user-entered data.
 
 ## Configuration
@@ -121,6 +127,8 @@ Create each database once. `npm run check` runs typechecks, zero-warning lint, f
 
 Individual checks: `npm run typecheck`, `npm run lint`, `npm run format:check`, and `npm run test -w @hublink/extension` (or `@hublink/api` / `@hublink/web`).
 
+CI additionally runs `npm audit --audit-level=moderate` and browser E2E against a separate database. E2E uses Vite's actual API proxy to port `3178`, with no endpoint interception. Regressions cover session/ticket revocation, cross-owner access, audit-write rollback, secret-free errors/logs, no-store responses, lock-wait expiry, private DNS answers, redirects, streamed image size, account switches and origin-only favicon requests. See the [security review](docs/SECURITY_REVIEW_2026-10-28.md) for findings and evidence limits.
+
 The page-saving feature passed 43 API tests, 35 extension tests, 63 web tests, and eight existing E2E scenarios. A separate run with the unpacked extension in an isolated Chromium profile verified the popup/session/API/database/Workspace journey using synthetic data. See [validation evidence and remaining gates](docs/CONTEXT.md#extension-page-saving). Local checks do not establish production or supplier acceptance.
 
 ## Deployment and recovery
@@ -156,6 +164,8 @@ tests/e2e/       Isolated browser regression scenarios
 The authenticated catalog lives in PostgreSQL; legacy demo JSON links remain separate. Sessions use opaque HttpOnly cookies with 365-day rolling inactivity expiry. Hub passwords use scrypt; vault records use AES-256-GCM with a runtime key. Opening tickets expire after 30 seconds and are consumed once. The server rechecks authorization, and the extension verifies the destination before filling.
 
 Page saving uses `POST /api/extension/bookmarks`, accepting only name, category, and HTTPS URL. The server forces personal ownership and no vault. Only the bound extension origin receives credentialed access to that POST and catalog GET/preflights; other route restrictions remain. Favicon lookup receives only the destination origin.
+
+Favicon discovery contacts only the destination origin, without sending hostnames to a third-party favicon service. It validates and pins the DNS answers used by each HTTPS socket, rejects private/reserved IPv4 and IPv6 destinations, refuses redirects, and stops streaming above 200 KB. Sites that require redirects may need a manually uploaded logo. Discovery and extension page-saving requests share a 30-per-minute IP budget. API logs omit query strings and redact bodies, authorization and session headers; unexpected errors return a generic message and log only an error code. Production client origins must use HTTPS.
 
 Revoking a Hub session does not end supplier sessions or change spreadsheet permissions. The repository contains no operational destinations or customer data. Do not treat the local pilot, broad HTTPS autofill permission, or a successful build as production readiness.
 

@@ -1,5 +1,11 @@
 # Project state
 
+## Security review and local fixes — October 28, 2026
+
+The repository-wide review and fixes are recorded in [SECURITY_REVIEW_2026-10-28.md](SECURITY_REVIEW_2026-10-28.md). Changes close anonymous configuration reads, revoke/replace sessions after sensitive profile edits, enforce actual ticket deadlines, make sensitive writes/audits atomic, prevent private-network favicon requests, suppress secret-bearing logs/errors, and reject stale frontend account responses. CI now includes dependency auditing and E2E through the real development proxy. These source changes have not been committed, published or deployed. Earlier production evidence below describes the older installation, not these fixes.
+
+Final local validation passed: full `npm run check` (typechecks, zero-warning lint, formatting, 52 API tests, 3 extension build-contract tests, 36 extension DOM tests, 68 Web tests, and all builds), nine E2E scenarios through the real Vite proxy, and `npm audit --audit-level=moderate` with zero reported vulnerabilities. PostgreSQL 16 and all accounts/data were temporary and isolated from existing services. The build retains the inherited non-blocking JavaScript chunk-size warning. Hosted CI, production TLS/images/sessions, installed-extension behavior and suppliers were not revalidated. The temporary database container was removed after validation; synthetic logs remain temporarily under `/tmp/hublink-security-audit-20261028-gxIHHw/`.
+
 ## Login and browser icons deployed — October 27, 2026
 
 Published the Web from commit `a1d0c64` as `hublink-web:a1d0c64` (`sha256:8c509cbf702c364a05e0ba1ff262242391720b4e2d27ff41a964aa692e42444a`) in the existing `hublink-prod` installation. The source passed [hosted CI](https://github.com/Rafael-Albernaz-dev/hublinks/actions/runs/40548669320). Production now serves the refined sign-in card and the versioned SVG, ICO, 32 px PNG and Apple touch icon. Before this update, the public SVG returned 403 and `/favicon.ico` incorrectly returned the application's HTML fallback.

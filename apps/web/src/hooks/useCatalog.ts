@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CatalogService } from '../types';
 import type { WorkspaceActions } from '../types/actions';
 import type { WorkspaceState } from './useWorkspaceState';
@@ -31,26 +31,32 @@ export function useCatalog(
     setAddingCatalog,
   } = state;
   const { loadVaultCredentials } = actions;
+  const activeId = useRef(currentUser?.id);
+  activeId.current = currentUser?.id;
   useEffect(() => {
+    setCatalog([]);
     if (!currentUser) {
-      setCatalog([]);
       return;
     }
     void loadCatalog();
   }, [currentUser]);
   async function loadCatalog() {
+    const ownerId = currentUser?.id;
     try {
       const response = await fetch('/api/catalog');
+      if (activeId.current !== ownerId) return;
       if (response.status === 401) {
         setCurrentUser(null);
         return;
       }
       if (!response.ok) throw new Error('Falha ao carregar o catálogo privado.');
       const result = (await response.json()) as { services: CatalogService[] };
+      if (activeId.current !== ownerId) return;
       if (!Array.isArray(result.services)) throw new Error('Catálogo inválido.');
       setCatalog(result.services);
       setCatalogError('');
     } catch (cause) {
+      if (activeId.current !== ownerId) return;
       setCatalogError(cause instanceof Error ? cause.message : 'Falha ao carregar o catálogo.');
     }
   }
@@ -80,6 +86,9 @@ export function useCatalog(
         const error = (await response.json().catch(() => ({}))) as { error?: string };
         throw new Error(error.error || 'Não foi possível salvar o card.');
       }
+      const saved = (await response.json()) as { service?: { id?: unknown } };
+      if (!saved.service || typeof saved.service.id !== 'string')
+        throw new Error('A API retornou uma confirmação de card inválida.');
       setEditingCatalogId(null);
       setAddingCatalog(false);
       await loadCatalog();

@@ -39,6 +39,7 @@ export function credentials(body: unknown): CredentialsInput | null {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
   if (!('email' in body) || !('password' in body)) return null;
   if (typeof body.email !== 'string' || typeof body.password !== 'string') return null;
+  if (body.password.length > 1024) return null;
   const email = body.email.trim().toLowerCase();
   if (email.length < 3 || email.length > 255 || !/^\S+@\S+\.\S+$/.test(email)) return null;
   return { email, password: body.password };
@@ -533,6 +534,11 @@ export function profileInput(body: unknown): ProfileInput | null {
   }
   if (input.newPassword !== undefined && (input.newPassword.length < 8 || !input.currentPassword))
     return null;
-  if (input.currentPassword !== undefined && input.newPassword === undefined) return null;
+  if (
+    input.currentPassword !== undefined &&
+    input.newPassword === undefined &&
+    input.email === undefined
+  )
+    return null;
   return input;
 }

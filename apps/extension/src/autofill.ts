@@ -1,4 +1,6 @@
 /* eslint-disable no-useless-assignment -- Intentional best-effort release of plaintext references. */
+import { matchesAuthorizedLocation } from './destination';
+export { matchesAuthorizedLocation } from './destination';
 export interface AutofillCredentials {
   username: string;
   password: string;
@@ -195,20 +197,6 @@ type FillMessage = AutofillCredentials & {
   targetUrl: string;
   showToastNotifications?: boolean;
 };
-
-export function matchesAuthorizedLocation(actual: string, target: string): boolean {
-  try {
-    const current = new URL(actual);
-    const approved = new URL(target);
-    return (
-      current.protocol === 'https:' &&
-      current.origin === approved.origin &&
-      current.href.startsWith(approved.href)
-    );
-  } catch {
-    return false;
-  }
-}
 
 // The bundled file is injected only after a single user-initiated ticket exchange.
 if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {

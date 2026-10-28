@@ -2,6 +2,7 @@
 import { getExtensionSettings, respondToSettings } from './settings';
 import { openWorkspace, isNewTab, WORKSPACE_URL } from './workspace';
 import { ALLOWED_ORIGINS, API_ORIGIN } from './config';
+import { matchesAuthorizedLocation as approvedLocation } from './destination';
 
 type OpenService = { type: 'OPEN_SERVICE'; ticket: string; serviceId: string; targetUrl: string };
 type AutofillResult = { status: 'filled_only' | 'filled_pending_challenge' | 'form_not_found' };
@@ -10,21 +11,6 @@ function validTarget(value: string): boolean {
   try {
     const url = new URL(value);
     return url.protocol === 'https:' && !!url.hostname && !url.username && !url.password;
-  } catch {
-    return false;
-  }
-}
-
-function approvedLocation(actual: string | undefined, target: string): boolean {
-  if (!actual) return false;
-  try {
-    const current = new URL(actual);
-    const approved = new URL(target);
-    return (
-      current.protocol === 'https:' &&
-      current.origin === approved.origin &&
-      current.href.startsWith(approved.href)
-    );
   } catch {
     return false;
   }

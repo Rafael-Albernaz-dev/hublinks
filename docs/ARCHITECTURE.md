@@ -1,5 +1,7 @@
 # Arquitetura
 
+> Atualização de segurança de 28/10/2026: `GET /api/config` agora exige sessão, assim como o catálogo; `PUT /api/config` exige administrador. As seções históricas R1 abaixo não descrevem a autorização atual. Veja o [README](../README.md) e a [revisão de segurança](SECURITY_REVIEW_2026-10-28.md) para as fronteiras implementadas.
+
 ```mermaid
 flowchart LR
   C[Cliente da demonstração] --> W[Web React :5177]

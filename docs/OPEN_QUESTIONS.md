@@ -1,5 +1,7 @@
 # Perguntas e gates da variante privada
 
+**Limite de sigilo no navegador, verificado em 28/10/2026:** o fluxo atual entrega credenciais à extensão e ao formulário de destino. Um usuário que controla o navegador pode inspecioná-las. O cabeçalho `Origin` da extensão restringe navegadores, mas pode ser reproduzido por um cliente HTTP que já tenha um bilhete válido; não é atestado criptográfico de instalação. O contrato atual permite revelação individual pelo dono e compartilhada pelo admin. Se a exigência for ocultar a senha de fornecedor até do usuário autorizado, será necessário decidir outra integração (por exemplo, federação ou sessão delegada suportada pelo fornecedor), com prova específica. Criptografar ou ofuscar o payload em React não resolve essa fronteira. Nenhuma dessas integrações foi presumida nesta correção.
+
 O contrato aprovado para o **piloto local** está em `docs/PRIVATE_SPEC.md`. “Adiado” abaixo não autoriza exposição remota nem uso de credenciais reais. A numeração preserva as perguntas originais.
 
 1. **Origem, TLS e proxy — resolvido para piloto local; produção em aberto.** Banco, API e administração permanecem em rede local/loopback. A origem oficial fixa, domínio, TLS, proxy e ID estável da extensão precisam ser definidos e testados antes de R6 ou acesso remoto.

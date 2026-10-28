@@ -14,9 +14,10 @@ export function applySecurityHeaders(reply: FastifyReply): void {
 }
 
 export function createRateLimiter(options: ServerOptions = {}): ApiContext['rateLimit'] {
-  const limits: Record<'login' | 'tickets', RateLimitConfig> = {
+  const limits: Record<'login' | 'tickets' | 'icons', RateLimitConfig> = {
     login: { max: 20, windowMs: 60_000, ...options.loginRateLimit },
     tickets: { max: 30, windowMs: 60_000, ...options.ticketRateLimit },
+    icons: { max: 30, windowMs: 60_000 },
   };
   for (const limit of Object.values(limits)) {
     if (

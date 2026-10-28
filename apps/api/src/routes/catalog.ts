@@ -25,6 +25,7 @@ export function registerCatalogRoutes(server: FastifyInstance, context: ApiConte
     const session = await activeSession(pool, request, reply);
     if (!session) return;
     const body = request.body;
+    if (!context.rateLimit('icons', request, reply)) return;
     if (
       !body ||
       typeof body !== 'object' ||
@@ -76,6 +77,7 @@ export function registerCatalogRoutes(server: FastifyInstance, context: ApiConte
   server.get<{ Querystring: { url?: string } }>('/api/catalog/favicon', async (request, reply) => {
     const session = await activeSession(pool, request, reply);
     if (!session) return;
+    if (!context.rateLimit('icons', request, reply)) return;
     const result = await discoverServiceFavicon(request.query?.url);
     if (!result.ok) return reply.code(result.statusCode).send({ error: result.error });
     return { logoDataUrl: result.logoDataUrl, host: result.host };

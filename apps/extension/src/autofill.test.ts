@@ -114,6 +114,18 @@ describe('universal assisted autofill', () => {
 });
 
 describe('bounded SPA waiting and feedback', () => {
+  it('rejects sibling paths and altered fixed queries/fragments at both destination checks', () => {
+    const target = 'https://portal.example.test/login';
+    expect(matchesAuthorizedLocation(`${target}-untrusted`, target)).toBe(false);
+    expect(matchesAuthorizedLocation(`${target}/step`, target)).toBe(true);
+    expect(matchesAuthorizedLocation(`${target}?tenant=other`, `${target}?tenant=approved`)).toBe(
+      false,
+    );
+    expect(matchesAuthorizedLocation(`${target}#other`, `${target}#approved`)).toBe(false);
+    expect(
+      matchesAuthorizedLocation('https://user:password@portal.example.test/login', target),
+    ).toBe(false);
+  });
   it('fills a delayed SPA form and disconnects after the first fill', async () => {
     const { waitForAndExecuteAutofill } = await import('./autofill');
     const pending = waitForAndExecuteAutofill(document, creds, 200);

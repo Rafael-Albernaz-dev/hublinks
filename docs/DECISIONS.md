@@ -1,5 +1,9 @@
 # Decisions and provenance
 
+## Security corrections — October 28, 2026
+
+The user authorized repository-wide security review and fixes. Configuration reads now require an active session; earlier references below to anonymous `GET /api/config` are historical. Email/password changes require the current password, revoke every previous session, and replace the current browser's token; pre-change tickets therefore fail. All API responses use no-store. Favicon sockets validate/pin public DNS addresses, refuse redirects and bound response size. The existing vault reveal ownership/role contract remains; browser autofill and extension-origin headers cannot conceal credentials from someone controlling an authorized browser. See [the review](SECURITY_REVIEW_2026-10-28.md).
+
 The SVA variant comes from research document DRS v0.37 (October 14, 2026), kept outside this portfolio repository. Check its decision IDs and status legend before implementing the private variant. This summary omits its operational links.
 
 ## Confirmed in the DRS

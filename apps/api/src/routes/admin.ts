@@ -72,8 +72,10 @@ export function registerAdminRoutes(server: FastifyInstance, context: ApiContext
     if (!admin) return;
     const input = attendantInput(request.body);
     if (!input) return reply.code(400).send({ error: 'Dados do usuário inválidos.' });
+    const client = await pool.connect();
     try {
-      const result = await pool.query<UserRow & { created_at: Date }>(
+      await client.query('BEGIN');
+      const result = await client.query<UserRow & { created_at: Date }>(
         `INSERT INTO users (display_name, email, password_hash, role, active)
          VALUES ($1, $2, $3, $4, TRUE)
          RETURNING id, display_name, email, role, active, created_at`,
@@ -84,11 +86,13 @@ export function registerAdminRoutes(server: FastifyInstance, context: ApiContext
           input.role ?? 'attendant',
         ],
       );
-      await audit(pool, admin.id, 'user_created', request.ip);
+      await audit(client, admin.id, 'user_created', request.ip);
       const row = result.rows[0];
       if (!row) throw new Error('User creation returned no row');
+      await client.query('COMMIT');
       return reply.code(201).send({ user: { ...publicUser(row), createdAt: row.created_at } });
     } catch (error) {
+      await client.query('ROLLBACK');
       if (
         typeof error === 'object' &&
         error !== null &&
@@ -98,6 +102,8 @@ export function registerAdminRoutes(server: FastifyInstance, context: ApiContext
         return reply.code(409).send({ error: 'E-mail já cadastrado.' });
       }
       throw error;
+    } finally {
+      client.release();
     }
   });
 
@@ -174,6 +180,7 @@ export function registerAdminRoutes(server: FastifyInstance, context: ApiContext
         body === null ||
         !('password' in body) ||
         typeof body.password !== 'string' ||
+        body.password.length > 1024 ||
         body.password.length < 8
       )
         return reply.code(400).send({ error: 'Dados inválidos.' });
