@@ -1,4 +1,4 @@
-import { adminSession } from '../services/session.js';
+import { activeSession, adminSession } from '../services/session.js';
 import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../types/index.js';
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
@@ -8,7 +8,8 @@ import { parseConfig, DEFAULT_CONFIG } from '../validators/index.js';
 
 export function registerConfigRoutes(server: FastifyInstance, context: ApiContext): void {
   const { configPath } = context;
-  server.get('/api/config', async (_request, reply) => {
+  server.get('/api/config', async (request, reply) => {
+    if (!(await activeSession(context.pool, request, reply))) return;
     try {
       await mkdir(dirname(configPath), { recursive: true });
       try {

@@ -109,7 +109,11 @@ export type ApiContext = {
   pool: Pool;
   configPath: string;
   extensionOrigin: string | null;
-  rateLimit: (bucket: 'login' | 'tickets', request: FastifyRequest, reply: FastifyReply) => boolean;
+  rateLimit: (
+    bucket: 'login' | 'tickets' | 'icons',
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => boolean;
 };
 
 export type UserThemeOverrides = Partial<

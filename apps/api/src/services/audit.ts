@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
 
 export async function audit(
-  pool: Pool,
+  pool: Pick<Pool, 'query'>,
   userId: string | null,
   action: string,
   ip: string,

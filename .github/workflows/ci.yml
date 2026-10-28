@@ -23,6 +23,7 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgres://hublink:hublink_dev_password@127.0.0.1:5432/hublink_test
+      E2E_DATABASE_URL: postgres://hublink:hublink_dev_password@127.0.0.1:5432/hublink_e2e
       HUB_MASTER_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
       VAULT_MASTER_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
     steps:
@@ -32,4 +33,15 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=moderate
       - run: npm run check
+      - name: Create isolated browser-test database
+        run: |
+          node --input-type=module <<'JS'
+          import pg from 'pg';
+          const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+          try { await pool.query('CREATE DATABASE hublink_e2e'); }
+          finally { await pool.end(); }
+          JS
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { VaultCredentialMeta } from '../types';
 import type { WorkspaceActions } from '../types/actions';
 import type { WorkspaceState } from './useWorkspaceState';
@@ -52,18 +52,24 @@ export function useVault(
     setEditingVaultKey,
   } = state;
   const { loadCatalog, openVaultService } = actions;
+  const activeId = useRef(currentUser?.id);
+  activeId.current = currentUser?.id;
   async function loadVaultCredentials(): Promise<boolean> {
+    const ownerId = currentUser?.id;
     try {
       const response = await fetch('/api/vault/credentials');
+      if (activeId.current !== ownerId) return false;
       if (response.status === 401) {
         setCurrentUser(null);
         return false;
       }
       if (!response.ok) throw new Error('Could not load vault credentials');
       const data = (await response.json()) as { credentials: VaultCredentialMeta[] };
+      if (activeId.current !== ownerId) return false;
       setVaultCredentials(data.credentials || []);
       return true;
     } catch {
+      if (activeId.current !== ownerId) return false;
       setVaultNotice('Não foi possível carregar as credenciais do cofre.');
       return false;
     }

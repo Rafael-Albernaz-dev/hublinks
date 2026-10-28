@@ -112,7 +112,15 @@ beforeEach(() => {
         return { ok: true, json: async () => ({ user: signedInUser }) };
       }
       if (url === '/api/auth/profile') {
-        signedInUser = { ...signedInUser, ...JSON.parse(options?.body as string) };
+        const input = JSON.parse(options?.body as string) as Record<string, unknown>;
+        signedInUser = {
+          ...signedInUser,
+          ...Object.fromEntries(
+            Object.entries(input).filter(([key]) =>
+              ['displayName', 'email', 'avatar'].includes(key),
+            ),
+          ),
+        };
         return { ok: true, json: async () => ({ user: signedInUser }) };
       }
       if (url === '/api/auth/logout') {
@@ -141,7 +149,9 @@ beforeEach(() => {
       if (url === '/api/catalog/services' && method === 'POST') {
         const body = JSON.parse(options?.body as string) as Record<string, unknown>;
         const service = {
-          ...body,
+          ...Object.fromEntries(
+            Object.entries(body).filter(([key]) => !['username', 'password'].includes(key)),
+          ),
           id: 'new-card',
           ownerUserId: body.scope === 'personal' ? signedInUser.id : null,
           hasAction: Boolean(body.targetUrl),
@@ -154,7 +164,15 @@ beforeEach(() => {
         const id = url.split('/').at(-1);
         const body = JSON.parse(options?.body as string) as Record<string, unknown>;
         catalogItems = catalogItems.map((item) =>
-          item.id === id ? { ...item, ...body, hasAction: Boolean(body.targetUrl) } : item,
+          item.id === id
+            ? {
+                ...item,
+                ...Object.fromEntries(
+                  Object.entries(body).filter(([key]) => !['username', 'password'].includes(key)),
+                ),
+                hasAction: Boolean(body.targetUrl),
+              }
+            : item,
         );
         return {
           ok: true,
@@ -1538,12 +1556,14 @@ describe('TICKET-019 profile', () => {
     await user.type(screen.getByLabelText('Nome de exibição'), 'Novo Nome');
     await user.clear(screen.getByLabelText('E-mail'));
     await user.type(screen.getByLabelText('E-mail'), 'new@example.test');
+    await user.type(screen.getByLabelText('Senha atual'), 'synthetic-current');
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
     expect(await screen.findByText('Perfil atualizado com sucesso.')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Menu do usuário: Novo Nome' })).not.toBeNull();
     expect(requests.find((item) => item.url === '/api/auth/profile')?.body).toEqual({
       displayName: 'Novo Nome',
       email: 'new@example.test',
+      currentPassword: 'synthetic-current',
       avatar: null,
     });
     await user.type(screen.getByLabelText('Senha atual'), 'synthetic-current');

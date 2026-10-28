@@ -64,7 +64,7 @@ export function registerAuthRoutes(server: FastifyInstance, context: ApiContext)
         error:
           'Dados inválidos. Use uma imagem PNG, JPEG ou WebP de até 2 MB e senha de pelo menos 8 caracteres.',
       });
-    if (input.newPassword && !rateLimit('login', request, reply)) return;
+    if (input.currentPassword && !rateLimit('login', request, reply)) return;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -77,9 +77,11 @@ export function registerAuthRoutes(server: FastifyInstance, context: ApiContext)
         await client.query('ROLLBACK');
         return reply.code(401).send({ error: 'Não autenticado.' });
       }
+      const emailChanged = input.email !== undefined && input.email !== user.email;
       if (
-        input.newPassword &&
-        !(await verifyPassword(input.currentPassword!, user.password_hash))
+        (input.newPassword || emailChanged) &&
+        (!input.currentPassword ||
+          !(await verifyPassword(input.currentPassword, user.password_hash)))
       ) {
         await client.query('ROLLBACK');
         return reply.code(400).send({ error: 'Senha atual incorreta.' });
@@ -95,7 +97,26 @@ export function registerAuthRoutes(server: FastifyInstance, context: ApiContext)
           input.newPassword ? await hashPassword(input.newPassword) : user.password_hash,
         ],
       );
-      await client.query('COMMIT');
+      if (input.newPassword || emailChanged) {
+        await client.query(
+          'UPDATE sessions SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL',
+          [user.id],
+        );
+        // Replace this browser's session too, so pre-change tickets cannot survive the change.
+        const token = randomBytes(32).toString('hex');
+        await client.query(
+          'INSERT INTO sessions (user_id, token_hash, last_seen_at) VALUES ($1, $2, NOW())',
+          [user.id, tokenHash(token)],
+        );
+        await client.query(
+          'INSERT INTO audit_logs (user_id, action, ip_address) VALUES ($1, $2, $3)',
+          [user.id, input.newPassword ? 'password_changed' : 'email_changed', request.ip],
+        );
+        await client.query('COMMIT');
+        setSessionCookie(reply, token);
+      } else {
+        await client.query('COMMIT');
+      }
       return { user: publicUser(updated.rows[0]!) };
     } catch (error) {
       await client.query('ROLLBACK');

@@ -57,6 +57,347 @@ async function adminLogin() {
   return sessionCookie(response);
 }
 
+test('security: sessions, credentials and tickets cannot survive a password or email change', async () => {
+  const adminCookie = await adminLogin();
+  const email = `security-${randomBytes(6).toString('hex')}@example.test`;
+  const initialPassword = 'synthetic-before-password';
+  const created = await server.inject({
+    method: 'POST',
+    url: '/api/admin/users',
+    headers: { cookie: adminCookie },
+    payload: { displayName: 'Synthetic Security', email, password: initialPassword },
+  });
+  assert.equal(created.statusCode, 201);
+  const userId: string = created.json().user.id;
+  const login = () =>
+    server.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: '192.0.2.241',
+      payload: { email, password: initialPassword },
+    });
+  try {
+    const first = await login(),
+      second = await login();
+    assert.deepEqual(Object.keys(first.json().user).sort(), [
+      'active',
+      'avatar',
+      'displayName',
+      'email',
+      'id',
+      'role',
+    ]);
+    assert.equal(first.body.includes(initialPassword), false);
+    const cookie = sessionCookie(first),
+      otherCookie = sessionCookie(second);
+    const made = await server.inject({
+      method: 'POST',
+      url: '/api/catalog/services',
+      headers: { cookie },
+      payload: {
+        name: 'Synthetic private security',
+        category: 'sva',
+        credentialType: 'individual',
+        targetUrl: 'https://security.example.test/login',
+      },
+    });
+    const serviceId: string = made.json().service.id;
+    assert.equal(
+      (
+        await server.inject({
+          method: 'PUT',
+          url: `/api/vault/credentials/${serviceId}`,
+          headers: { cookie },
+          payload: { username: 'synthetic-user', password: 'synthetic-vault-secret' },
+        })
+      ).statusCode,
+      200,
+    );
+    const ticket = await server.inject({
+      method: 'POST',
+      url: '/api/vault/tickets',
+      headers: { cookie },
+      payload: { serviceId },
+    });
+    assert.equal(ticket.statusCode, 200);
+    const changed = await server.inject({
+      method: 'PUT',
+      url: '/api/auth/profile',
+      headers: { cookie },
+      payload: { currentPassword: initialPassword, newPassword: 'synthetic-after-password' },
+    });
+    assert.equal(changed.statusCode, 200);
+    const renewed = sessionCookie(changed);
+    assert.notEqual(renewed, cookie);
+    for (const oldCookie of [cookie, otherCookie])
+      for (const url of ['/api/auth/me', '/api/catalog', '/api/vault/credentials'])
+        assert.equal(
+          (await server.inject({ url, headers: { cookie: oldCookie } })).statusCode,
+          401,
+        );
+    assert.equal(
+      (
+        await server.inject({
+          method: 'POST',
+          url: '/api/vault/exchange',
+          headers: { origin: extensionOrigin },
+          payload: { serviceId, ticket: ticket.json().ticket },
+        })
+      ).statusCode,
+      403,
+    );
+    assert.equal(
+      (await server.inject({ url: '/api/auth/me', headers: { cookie: renewed } })).statusCode,
+      200,
+    );
+    const newEmail = `changed-${email}`;
+    const changeEmail = (payload: object) =>
+      server.inject({
+        method: 'PUT',
+        url: '/api/auth/profile',
+        headers: { cookie: renewed },
+        payload,
+      });
+    assert.equal((await changeEmail({ email: newEmail })).statusCode, 400);
+    const emailChanged = await changeEmail({
+      email: newEmail,
+      currentPassword: 'synthetic-after-password',
+    });
+    assert.equal(emailChanged.statusCode, 200);
+    assert.equal(
+      (await server.inject({ url: '/api/auth/me', headers: { cookie: renewed } })).statusCode,
+      401,
+    );
+    assert.equal(
+      (
+        await server.inject({
+          url: '/api/auth/me',
+          headers: { cookie: sessionCookie(emailChanged) },
+        })
+      ).statusCode,
+      200,
+    );
+    const events = await pool.query<{ action: string; details: unknown }>(
+      "SELECT action, details FROM audit_logs WHERE user_id=$1 AND action IN ('password_changed','email_changed')",
+      [userId],
+    );
+    assert.deepEqual(events.rows.map((r) => r.action).sort(), [
+      'email_changed',
+      'password_changed',
+    ]);
+    assert.equal(JSON.stringify(events.rows).includes('synthetic-after-password'), false);
+  } finally {
+    await pool.query('DELETE FROM services WHERE owner_user_id=$1', [userId]);
+    await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+  }
+});
+
+test('security: private API responses never permit caching or anonymous configuration reads', async () => {
+  const cookie = await adminLogin();
+  for (const url of [
+    '/api/config',
+    '/api/auth/me',
+    '/api/catalog',
+    '/api/vault/credentials',
+    '/api/admin/users',
+    '/api/admin/audit',
+    '/api/me/preferences',
+  ]) {
+    const anonymous = await server.inject(url);
+    assert.equal(anonymous.statusCode, 401, url);
+    assert.equal(anonymous.headers['cache-control'], 'no-store', url);
+    const response = await server.inject({ url, headers: { cookie } });
+    assert.equal(response.statusCode, 200, url);
+    assert.equal(response.headers['cache-control'], 'no-store', url);
+    for (const secret of [
+      'password_hash',
+      'encrypted_password',
+      'encrypted_username',
+      'token_hash',
+    ])
+      assert.equal(response.body.includes(secret), false, `${url}: ${secret}`);
+  }
+  const missing = await server.inject({
+    method: 'POST',
+    url: '/api/vault/credentials/nonexistent/reveal',
+    headers: { cookie },
+    payload: {},
+  });
+  assert.equal(missing.headers['cache-control'], 'no-store');
+});
+
+test('security: audit failure rolls back credential saves, user creation and ticket issuance', async () => {
+  const owner = await personalLayerActor('attendant');
+  const admin = await personalLayerActor('admin');
+  const suffix = randomBytes(6).toString('hex');
+  const made = await server.inject({
+    method: 'POST',
+    url: '/api/catalog/services',
+    headers: { cookie: owner.cookie },
+    payload: {
+      name: 'Synthetic audit rollback',
+      category: 'sva',
+      credentialType: 'individual',
+      targetUrl: 'https://rollback.example.test/login',
+    },
+  });
+  const serviceId: string = made.json().service.id;
+  const save = (password: string) =>
+    server.inject({
+      method: 'PUT',
+      url: `/api/vault/credentials/${serviceId}`,
+      headers: { cookie: owner.cookie },
+      payload: { username: 'synthetic', password },
+    });
+  assert.equal((await save('synthetic-original')).statusCode, 200);
+  const functionName = `security_reject_audit_${suffix}`;
+  const newEmail = `audit-rollback-${suffix}@example.test`;
+  await pool.query(`CREATE FUNCTION ${functionName}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+    IF NEW.user_id IN ('${owner.id}', '${admin.id}') AND NEW.action IN ('credential_saved','ticket_issued','user_created')
+    THEN RAISE EXCEPTION 'Synthetic audit failure'; END IF; RETURN NEW; END $$;
+    CREATE TRIGGER ${functionName} BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION ${functionName}()`);
+  try {
+    assert.equal((await save('synthetic-rejected')).statusCode, 500);
+    const reveal = await server.inject({
+      method: 'POST',
+      url: `/api/vault/credentials/${serviceId}/reveal`,
+      headers: { cookie: owner.cookie },
+      payload: {},
+    });
+    assert.equal(reveal.json().password, 'synthetic-original');
+    assert.equal(reveal.headers['cache-control'], 'no-store');
+    assert.equal(
+      (
+        await server.inject({
+          method: 'POST',
+          url: '/api/vault/tickets',
+          headers: { cookie: owner.cookie },
+          payload: { serviceId },
+        })
+      ).statusCode,
+      500,
+    );
+    assert.equal(
+      (await pool.query('SELECT 1 FROM opening_tickets WHERE user_id=$1', [owner.id])).rowCount,
+      0,
+    );
+    assert.equal(
+      (
+        await server.inject({
+          method: 'POST',
+          url: '/api/admin/users',
+          headers: { cookie: admin.cookie },
+          payload: {
+            displayName: 'Synthetic rejected',
+            email: newEmail,
+            password: 'synthetic-rejected',
+          },
+        })
+      ).statusCode,
+      500,
+    );
+    assert.equal((await pool.query('SELECT 1 FROM users WHERE email=$1', [newEmail])).rowCount, 0);
+  } finally {
+    await pool.query(`DROP TRIGGER ${functionName} ON audit_logs; DROP FUNCTION ${functionName}()`);
+    await pool.query('DELETE FROM services WHERE id=$1', [serviceId]);
+    await pool.query('DELETE FROM users WHERE id=ANY($1::uuid[])', [[owner.id, admin.id]]);
+  }
+});
+
+test('security: waiting for a ticket row lock cannot extend the actual expiry deadline', async () => {
+  const owner = await personalLayerActor('attendant');
+  const made = await server.inject({
+    method: 'POST',
+    url: '/api/catalog/services',
+    headers: { cookie: owner.cookie },
+    payload: {
+      name: 'Synthetic expiry lock',
+      category: 'sva',
+      credentialType: 'individual',
+      targetUrl: 'https://expiry.example.test/login',
+    },
+  });
+  const serviceId: string = made.json().service.id;
+  await server.inject({
+    method: 'PUT',
+    url: `/api/vault/credentials/${serviceId}`,
+    headers: { cookie: owner.cookie },
+    payload: { username: 'synthetic', password: 'synthetic-secret' },
+  });
+  const ticket = await server.inject({
+    method: 'POST',
+    url: '/api/vault/tickets',
+    headers: { cookie: owner.cookie },
+    payload: { serviceId },
+  });
+  const hash = createHash('sha256')
+    .update(ticket.json().ticket as string)
+    .digest('hex');
+  const blocker = await pool.connect();
+  let pending: Promise<{ statusCode: number; body: string }> | undefined;
+  try {
+    await pool.query(
+      "UPDATE opening_tickets SET expires_at=clock_timestamp()+INTERVAL '500 milliseconds' WHERE ticket_hash=$1",
+      [hash],
+    );
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM opening_tickets WHERE ticket_hash=$1 FOR UPDATE', [hash]);
+    pending = server.inject({
+      method: 'POST',
+      url: '/api/vault/exchange',
+      headers: { origin: extensionOrigin },
+      payload: { serviceId, ticket: ticket.json().ticket },
+    });
+    // LightMyRequest starts injection when awaited/then'ed.
+    const exchange = Promise.resolve(pending);
+    let waiting = false;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const blocked = await pool.query(
+        "SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'SELECT *, expires_at%' ",
+      );
+      if (blocked.rowCount) {
+        waiting = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(waiting, true, 'Exchange must actually wait for the row lock');
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    await blocker.query('COMMIT');
+    const response = await exchange;
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.body.includes('synthetic-secret'), false);
+  } finally {
+    await blocker.query('ROLLBACK');
+    blocker.release();
+    if (pending) await pending;
+    await pool.query('DELETE FROM services WHERE id=$1', [serviceId]);
+    await pool.query('DELETE FROM users WHERE id=$1', [owner.id]);
+  }
+});
+
+test('security: malformed JSON responses and request logs cannot echo submitted secrets or queries', async () => {
+  const canary = `synthetic-log-canary-${randomBytes(8).toString('hex')}`;
+  const script = `
+    import assert from 'node:assert/strict';
+    import {createServer} from './apps/api/src/server.ts';
+    const app=createServer();
+    try {
+      const response=await app.inject({method:'POST',url:'/api/auth/login?private=${canary}',headers:{'content-type':'application/json'},payload:'${canary}'});
+      assert.equal(response.statusCode,400);
+      assert.equal(response.body.includes('${canary}'),false);
+      await app.inject('/api/not-found?private=${canary}');
+    } finally {await app.close();}
+  `;
+  const { stdout, stderr } = await promisify(execFile)(
+    process.execPath,
+    ['--import', 'tsx', '--input-type=module', '-e', script],
+    { cwd: fileURLToPath(new URL('../../../', import.meta.url)) },
+  );
+  assert.equal(stdout.includes(canary), false);
+  assert.equal(stderr.includes(canary), false);
+});
+
 test('/health reports readiness', async () => {
   const response = await server.inject('/health');
   assert.equal(response.statusCode, 200);
@@ -268,12 +609,14 @@ test('individual opening ticket is bound to the authenticated credential owner',
   }
 });
 
-test('GET creates the initial configuration and reads it again', async () => {
-  const first = await server.inject('/api/config');
+test('authenticated GET creates the initial configuration and reads it again', async () => {
+  assert.equal((await server.inject('/api/config')).statusCode, 401);
+  const cookie = await adminLogin();
+  const first = await server.inject({ url: '/api/config', headers: { cookie } });
   assert.equal(first.statusCode, 200);
   assert.equal(first.json().version, 1);
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), first.json());
-  const second = await server.inject('/api/config');
+  const second = await server.inject({ url: '/api/config', headers: { cookie } });
   assert.deepEqual(second.json(), first.json());
 });
 
@@ -303,7 +646,10 @@ test('PUT persists a valid configuration and GET returns it', async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().status, 'ok');
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), response.json().config);
-  assert.deepEqual((await server.inject('/api/config')).json(), response.json().config);
+  assert.deepEqual(
+    (await server.inject({ url: '/api/config', headers: { cookie: await adminLogin() } })).json(),
+    response.json().config,
+  );
 });
 
 test('PUT rejects invalid payloads without replacing the file', async () => {
@@ -1143,7 +1489,7 @@ test('admin updates user role, deactivates user and revokes sessions, and blocks
   }
 });
 
-test('catalog favicon endpoint enforces admin auth and blocks non-HTTPS or private hosts (SSRF)', async () => {
+test('catalog favicon endpoint requires authentication and rejects literal unsafe hosts', async () => {
   const adminLoginRes = await server.inject({
     method: 'POST',
     url: '/api/auth/login',
@@ -1500,7 +1846,9 @@ test('personal-layer migration is idempotent and company Home defaults are inher
   await pool.query(migration);
   const admin = await personalLayerActor('admin'),
     user = await personalLayerActor('attendant');
-  const original = (await server.inject('/api/config')).json();
+  const original = (
+    await server.inject({ url: '/api/config', headers: { cookie: admin.cookie } })
+  ).json();
   try {
     assert.equal(
       (await server.inject({ method: 'PUT', url: '/api/config', payload: original })).statusCode,
@@ -1707,7 +2055,7 @@ test('self profile: authentication, identity, duplicate email, avatar and passwo
     url: '/api/auth/login',
     payload: { email, password: 'synthetic-profile-password' },
   });
-  const ownCookie = sessionCookie(login);
+  let ownCookie = sessionCookie(login);
   const put = (payload: object, authenticated = true) =>
     server.inject({
       method: 'PUT',
@@ -1722,9 +2070,11 @@ test('self profile: authentication, identity, duplicate email, avatar and passwo
     const saved = await put({
       displayName: 'Updated profile',
       email: ` PROFILE-UPDATED-${suffix}@EXAMPLE.TEST `,
+      currentPassword: 'synthetic-profile-password',
       avatar,
     });
     assert.equal(saved.statusCode, 200);
+    ownCookie = sessionCookie(saved);
     assert.equal(saved.json().user.displayName, 'Updated profile');
     assert.equal(saved.json().user.email, `profile-updated-${suffix}@example.test`);
     assert.equal(saved.json().user.avatar, avatar);
@@ -1735,7 +2085,10 @@ test('self profile: authentication, identity, duplicate email, avatar and passwo
       headers: { cookie: ownCookie },
     });
     assert.equal(me.json().user.avatar, avatar);
-    assert.equal((await put({ email: otherEmail })).statusCode, 409);
+    assert.equal(
+      (await put({ email: otherEmail, currentPassword: 'synthetic-profile-password' })).statusCode,
+      409,
+    );
     for (const payload of [
       { role: 'admin' },
       { displayName: '' },

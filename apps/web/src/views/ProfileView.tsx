@@ -16,6 +16,7 @@ export function ProfileView({
   const [reading, setReading] = useState(false);
   const [notice, setNotice] = useState('');
   const readerId = useRef(0);
+  const emailChanged = email.trim().toLowerCase() !== currentUser.email;
   async function upload(file?: File) {
     const id = ++readerId.current;
     setNotice('');
@@ -62,7 +63,8 @@ export function ProfileView({
         displayName,
         email,
         avatar,
-        ...(newPassword ? { currentPassword, newPassword } : {}),
+        ...(newPassword || emailChanged ? { currentPassword } : {}),
+        ...(newPassword ? { newPassword } : {}),
       });
       setCurrentPassword('');
       setNewPassword('');
@@ -145,14 +147,17 @@ export function ProfileView({
           </div>
           <div className="profile-card">
             <h2>Alterar senha</h2>
-            <p>Preencha apenas se quiser trocar sua senha.</p>
+            <p>
+              Para alterar o e-mail ou a senha, confirme sua senha atual. As outras sessões serão
+              encerradas.
+            </p>
             <label>
               Senha atual
               <input
                 type="password"
                 autoComplete="current-password"
                 maxLength={1024}
-                required={!!newPassword}
+                required={!!newPassword || emailChanged}
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
               />

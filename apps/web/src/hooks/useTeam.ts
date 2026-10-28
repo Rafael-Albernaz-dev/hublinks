@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ManagedUser } from '../types';
 import type { WorkspaceState } from './useWorkspaceState';
 export function useTeam(
@@ -38,20 +38,25 @@ export function useTeam(
     setResetId,
   } = state;
   const [adminRole, setAdminRole] = useState<'admin' | 'attendant'>('attendant');
+  const activeId = useRef(currentUser?.id);
+  activeId.current = currentUser?.id;
 
   useEffect(() => {
     if (page !== 'equipe' || currentUser?.role !== 'admin') return;
     void refreshUsers();
   }, [page, currentUser]);
   async function refreshUsers() {
+    const ownerId = currentUser?.id;
     try {
       const response = await fetch('/api/admin/users');
+      if (activeId.current !== ownerId) return;
       if (response.status === 401) {
         setCurrentUser(null);
         return;
       }
       if (!response.ok) throw new Error('Could not list users');
       const data: unknown = await response.json();
+      if (activeId.current !== ownerId) return;
       if (
         typeof data !== 'object' ||
         data === null ||
@@ -83,6 +88,7 @@ export function useTeam(
           })),
       );
     } catch {
+      if (activeId.current !== ownerId) return;
       setAdminNotice('Não foi possível carregar os usuários da equipe.');
     }
   }

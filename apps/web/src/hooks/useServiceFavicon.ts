@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export function useServiceFavicon({
   targetUrl,
@@ -17,6 +17,9 @@ export function useServiceFavicon({
   );
   const [capturedHost, setCapturedHost] = useState<string>('');
   const [faviconMessage, setFaviconMessage] = useState<string>('');
+  const latestUrl = useRef(targetUrl);
+  latestUrl.current = targetUrl;
+  const attemptId = useRef(0);
   async function fetchFaviconForUrl(rawUrl: string, isManualTrigger = false) {
     const trimmed = rawUrl.trim();
     if (!trimmed) {
@@ -49,11 +52,15 @@ export function useServiceFavicon({
     }
     if (isManualTrigger && candidateUrl !== trimmed) {
       setTargetUrl(parsed.href);
+      latestUrl.current = parsed.href;
     }
+    const id = ++attemptId.current;
+    const requestedUrl = latestUrl.current;
     setFaviconStatus('loading');
     setFaviconMessage(`Buscando favicon de ${parsed.hostname}...`);
     try {
-      const response = await fetch(`/api/catalog/favicon?url=${encodeURIComponent(parsed.href)}`);
+      const response = await fetch(`/api/catalog/favicon?url=${encodeURIComponent(parsed.origin)}`);
+      if (id !== attemptId.current || latestUrl.current !== requestedUrl) return;
       if (!response.ok) {
         setFaviconStatus(isManualTrigger ? 'failed' : 'idle');
         setFaviconMessage(
@@ -62,6 +69,7 @@ export function useServiceFavicon({
         return;
       }
       const data = (await response.json()) as { logoDataUrl?: string | null; host?: string };
+      if (id !== attemptId.current || latestUrl.current !== requestedUrl) return;
       if (typeof data.logoDataUrl === 'string' && data.logoDataUrl.startsWith('data:image/')) {
         setLogoDataUrl(data.logoDataUrl);
         setCapturedHost(data.host || parsed.hostname);
@@ -76,6 +84,7 @@ export function useServiceFavicon({
         );
       }
     } catch {
+      if (id !== attemptId.current || latestUrl.current !== requestedUrl) return;
       setFaviconStatus(isManualTrigger ? 'failed' : 'idle');
       setFaviconMessage(
         isManualTrigger ? 'Erro ao buscar o favicon. Envie uma logo manualmente.' : '',

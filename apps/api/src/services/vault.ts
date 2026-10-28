@@ -166,13 +166,34 @@ export async function upsertVaultCredential(
   input: VaultInput,
   ip: string,
 ): Promise<ServiceResult<{ status: string; id: string | undefined; updatedAt: Date | undefined }>> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await saveVaultCredential(client, session, serviceId, input, ip);
+    await client.query(result.ok ? 'COMMIT' : 'ROLLBACK');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function saveVaultCredential(
+  pool: Pick<Pool, 'query'>,
+  session: SessionRow,
+  serviceId: string,
+  input: VaultInput,
+  ip: string,
+): Promise<ServiceResult<{ status: string; id: string | undefined; updatedAt: Date | undefined }>> {
   const serviceRes = await pool.query<{
     id: string;
     name: string;
     credential_type: string;
     owner_user_id: string | null;
   }>(
-    'SELECT id, name, credential_type, owner_user_id FROM services WHERE id = $1 AND (owner_user_id IS NULL OR owner_user_id = $2)',
+    'SELECT id, name, credential_type, owner_user_id FROM services WHERE id = $1 AND (owner_user_id IS NULL OR owner_user_id = $2) FOR SHARE',
     [serviceId, session.id],
   );
   const service = serviceRes.rows[0];
@@ -374,6 +395,36 @@ export async function issueVaultTicket(
   input: TicketInput,
   ip: string,
 ): Promise<ServiceResult<{ ticket: string; serviceId: string; targetUrl: string }>> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const live = await client.query(
+      `SELECT s.id FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.id = $1 AND s.user_id = $2 AND u.active = TRUE AND s.revoked_at IS NULL
+       AND s.last_seen_at > clock_timestamp() - INTERVAL '365 days' FOR SHARE OF s, u`,
+      [session.session_id, session.id],
+    );
+    if (!live.rowCount) {
+      await client.query('ROLLBACK');
+      return { ok: false, statusCode: 401, error: 'Não autenticado.' };
+    }
+    const result = await createVaultTicket(client, session, input, ip);
+    await client.query(result.ok ? 'COMMIT' : 'ROLLBACK');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function createVaultTicket(
+  pool: Pick<Pool, 'query'>,
+  session: SessionRow,
+  input: TicketInput,
+  ip: string,
+): Promise<ServiceResult<{ ticket: string; serviceId: string; targetUrl: string }>> {
   const service = (
     await pool.query<{
       id: string;
@@ -381,7 +432,7 @@ export async function issueVaultTicket(
       credential_type: CatalogCredentialType;
     }>(
       `SELECT id, target_url, credential_type FROM services
-       WHERE id = $1 AND has_action = TRUE AND (owner_user_id IS NULL OR owner_user_id = $2)`,
+       WHERE id = $1 AND has_action = TRUE AND (owner_user_id IS NULL OR owner_user_id = $2) FOR SHARE`,
       [input.serviceId, session.id],
     )
   ).rows[0];
@@ -434,8 +485,9 @@ export async function exchangeVaultTicket(
     }
     const session = (
       await client.query<{ id: string }>(
-        `SELECT id FROM sessions WHERE id = $1 AND user_id = $2
-         AND revoked_at IS NULL AND last_seen_at > NOW() - INTERVAL '365 days' FOR SHARE`,
+        `SELECT s.id FROM sessions s JOIN users u ON u.id = s.user_id
+         WHERE s.id = $1 AND s.user_id = $2 AND u.active = TRUE
+         AND s.revoked_at IS NULL AND s.last_seen_at > clock_timestamp() - INTERVAL '365 days' FOR SHARE OF s, u`,
         [ticket.session_id, ticket.user_id],
       )
     ).rows[0];
@@ -444,7 +496,7 @@ export async function exchangeVaultTicket(
         target_url: string | null;
         credential_type: CatalogCredentialType;
       }>(
-        'SELECT target_url, credential_type FROM services WHERE id = $1 AND has_action = TRUE AND (owner_user_id IS NULL OR owner_user_id = $2)',
+        'SELECT target_url, credential_type FROM services WHERE id = $1 AND has_action = TRUE AND (owner_user_id IS NULL OR owner_user_id = $2) FOR SHARE',
         [ticket.service_id, ticket.user_id],
       )
     ).rows[0];
@@ -485,7 +537,15 @@ export async function exchangeVaultTicket(
       owner,
       credential.key_version,
     );
-    await client.query('UPDATE opening_tickets SET used_at = NOW() WHERE id = $1', [ticket.id]);
+    // NOW() is fixed at transaction start, before any row-lock wait. Enforce the actual deadline.
+    const consumed = await client.query(
+      'UPDATE opening_tickets SET used_at = clock_timestamp() WHERE id = $1 AND used_at IS NULL AND expires_at > clock_timestamp() RETURNING id',
+      [ticket.id],
+    );
+    if (!consumed.rowCount) {
+      await client.query('ROLLBACK');
+      return { ok: false, statusCode: 403, error: 'Bilhete indisponível.' };
+    }
     await client.query(
       'INSERT INTO audit_logs (user_id, action, service_id, ip_address) VALUES ($1, $2, $3, $4)',
       [ticket.user_id, 'ticket_exchanged', ticket.service_id, ip],

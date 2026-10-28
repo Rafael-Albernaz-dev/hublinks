@@ -29,19 +29,24 @@ async function login(
   await expect(page.getByRole('button', { name: /Menu do usuário/ })).toBeVisible();
 }
 
-test.beforeEach(async ({ page, request }) => {
-  await page.route('**/api/**', async (route) => {
-    const target = new URL(route.request().url());
-    const response = await route.fetch({ url: `${apiBase}${target.pathname}${target.search}` });
-    await route.fulfill({ response });
-  });
-  const auth = await request.post(`${apiBase}/api/auth/login`, {
+let setupCookie: string;
+test.beforeAll(async ({ playwright }) => {
+  const setup = await playwright.request.newContext();
+  const auth = await setup.post(`${apiBase}/api/auth/login`, {
     data: {
       email: process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
       password: process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
     },
   });
   expect(auth.ok()).toBeTruthy();
+  setupCookie = auth.headers()['set-cookie']!.split(';')[0]!;
+  await setup.dispose();
+});
+
+test.beforeEach(async ({ request }) => {
+  // Reuse the setup session, not browser sessions; don't exhaust the real login limiter on fixtures.
+  const session = await request.get(`${apiBase}/api/auth/me`, { headers: { cookie: setupCookie } });
+  expect(session.ok()).toBeTruthy();
   const response = await request.put(`${apiBase}/api/config`, {
     data: initialConfig,
   });
@@ -90,8 +95,7 @@ async function createService(page: Page, name: string, withLogo = false) {
   await expect(editor).toHaveCount(0);
 }
 
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'wait' });
+test.afterEach(async () => {
   if (!createdServiceIds.length) return;
   const pool = new pg.Pool({
     connectionString:
@@ -128,6 +132,48 @@ test('initial page displays identity and private catalog state', async ({ page }
   ).toBeVisible();
   await navigate(page, 'Auditoria');
   await expect(page.getByRole('heading', { name: 'Logs de auditoria', exact: true })).toBeVisible();
+});
+
+test('browser login and catalog responses expose only authorized public fields', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const authResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/auth/login' &&
+      response.request().method() === 'POST',
+  );
+  const catalogResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/catalog' && response.request().method() === 'GET',
+  );
+  await login(page);
+  const auth = await authResponse;
+  const catalog = await catalogResponse;
+  expect(auth.headers()['cache-control']).toBe('no-store');
+  expect(catalog.headers()['cache-control']).toBe('no-store');
+  const body = await auth.json();
+  expect(Object.keys(body.user).sort()).toEqual([
+    'active',
+    'avatar',
+    'displayName',
+    'email',
+    'id',
+    'role',
+  ]);
+  const services = (await catalog.json()).services;
+  expect(Array.isArray(services)).toBe(true);
+  for (const service of services) {
+    for (const field of [
+      'username',
+      'password',
+      'password_hash',
+      'encrypted_username',
+      'encrypted_password',
+      'token_hash',
+    ])
+      expect(service).not.toHaveProperty(field);
+  }
 });
 
 test('edits branding and creates a private card with a logo', async ({ page }) => {
