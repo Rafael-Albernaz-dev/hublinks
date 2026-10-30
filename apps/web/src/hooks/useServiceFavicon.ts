@@ -20,6 +20,18 @@ export function useServiceFavicon({
   const latestUrl = useRef(targetUrl);
   latestUrl.current = targetUrl;
   const attemptId = useRef(0);
+  const autoTimer = useRef<number | undefined>(undefined);
+  // Origin of the latest attempt: automatic lookups never repeat or supersede it, so a manual
+  // capture (including the URL normalization it performs) cannot be silently cancelled.
+  const attemptedOrigin = useRef('');
+  const manualInFlight = useRef(false);
+  const originOf = (value: string) => {
+    try {
+      return new URL(value.trim()).origin;
+    } catch {
+      return '';
+    }
+  };
   async function fetchFaviconForUrl(rawUrl: string, isManualTrigger = false) {
     const trimmed = rawUrl.trim();
     if (!trimmed) {
@@ -50,17 +62,25 @@ export function useServiceFavicon({
       }
       return;
     }
-    if (isManualTrigger && candidateUrl !== trimmed) {
-      setTargetUrl(parsed.href);
-      latestUrl.current = parsed.href;
+    if (isManualTrigger) {
+      window.clearTimeout(autoTimer.current);
+      if (candidateUrl !== trimmed) {
+        setTargetUrl(parsed.href);
+        latestUrl.current = parsed.href;
+      }
+    } else if (manualInFlight.current || attemptedOrigin.current === parsed.origin) {
+      return;
     }
     const id = ++attemptId.current;
-    const requestedUrl = latestUrl.current;
+    attemptedOrigin.current = parsed.origin;
+    manualInFlight.current = isManualTrigger;
+    // Only an origin change makes a response stale; editing the path keeps the same icon.
+    const isStale = () => id !== attemptId.current || originOf(latestUrl.current) !== parsed.origin;
     setFaviconStatus('loading');
     setFaviconMessage(`Buscando favicon de ${parsed.hostname}...`);
     try {
       const response = await fetch(`/api/catalog/favicon?url=${encodeURIComponent(parsed.origin)}`);
-      if (id !== attemptId.current || latestUrl.current !== requestedUrl) return;
+      if (isStale()) return;
       if (!response.ok) {
         setFaviconStatus(isManualTrigger ? 'failed' : 'idle');
         setFaviconMessage(
@@ -69,7 +89,7 @@ export function useServiceFavicon({
         return;
       }
       const data = (await response.json()) as { logoDataUrl?: string | null; host?: string };
-      if (id !== attemptId.current || latestUrl.current !== requestedUrl) return;
+      if (isStale()) return;
       if (typeof data.logoDataUrl === 'string' && data.logoDataUrl.startsWith('data:image/')) {
         setLogoDataUrl(data.logoDataUrl);
         setCapturedHost(data.host || parsed.hostname);
@@ -84,11 +104,13 @@ export function useServiceFavicon({
         );
       }
     } catch {
-      if (id !== attemptId.current || latestUrl.current !== requestedUrl) return;
+      if (isStale()) return;
       setFaviconStatus(isManualTrigger ? 'failed' : 'idle');
       setFaviconMessage(
         isManualTrigger ? 'Erro ao buscar o favicon. Envie uma logo manualmente.' : '',
       );
+    } finally {
+      if (id === attemptId.current) manualInFlight.current = false;
     }
   }
 
@@ -103,10 +125,11 @@ export function useServiceFavicon({
     } catch {
       return;
     }
-    const timer = window.setTimeout(() => {
+    if (attemptedOrigin.current === parsed.origin) return;
+    autoTimer.current = window.setTimeout(() => {
       void fetchFaviconForUrl(parsed.href, false);
     }, 350);
-    return () => window.clearTimeout(timer);
+    return () => window.clearTimeout(autoTimer.current);
   }, [targetUrl, manualLogo]);
 
   return {

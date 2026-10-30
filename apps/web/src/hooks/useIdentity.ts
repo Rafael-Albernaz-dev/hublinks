@@ -139,20 +139,44 @@ export function useIdentity(
         setNotice('Personalização pessoal salva.');
         return;
       }
-      const response = await fetch('/api/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(candidate),
-      });
-      if (!response.ok) throw new Error('A API não conseguiu salvar a configuração.');
-      const result = (await response.json()) as { config: unknown };
-      const saved = parseHubConfig(result.config);
-      setGlobalConfig(saved);
-      setPersisted(saved);
-      await personal.loadPreferences();
+      await putGlobalConfig(candidate);
       setNotice('Alterações salvas na API local.');
     } catch {
       setNotice('Não foi possível salvar as alterações na API local.');
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function putGlobalConfig(candidate: HubConfig): Promise<HubConfig> {
+    const response = await fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(candidate),
+    });
+    if (!response.ok) throw new Error('A API não conseguiu salvar a configuração.');
+    const result = (await response.json()) as { config: unknown };
+    const saved = parseHubConfig(result.config);
+    setGlobalConfig(saved);
+    setPersisted(saved);
+    await personal.loadPreferences();
+    return saved;
+  }
+  /** Resets only the visual identity; saved links and Home layout are team content, not theme. */
+  async function restoreHublinkDefaults() {
+    if (apiState !== 'online' || saving) return;
+    const base = persisted ?? config;
+    const candidate: HubConfig = { ...DEFAULT_CONFIG, links: base.links };
+    if (base.homeLayout) candidate.homeLayout = base.homeLayout;
+    if (base.showShortcutCards !== undefined) candidate.showShortcutCards = base.showShortcutCards;
+    setSaving(true);
+    setNotice('');
+    try {
+      const saved = await putGlobalConfig(candidate);
+      setConfig(saved);
+      setColorChosen(false);
+      setNotice('Padrão Hublink restaurado.');
+    } catch {
+      setNotice('Não foi possível restaurar o padrão Hublink.');
     } finally {
       setSaving(false);
     }
@@ -252,6 +276,7 @@ export function useIdentity(
   return {
     isDirty,
     resetPersonalPreferences,
+    restoreHublinkDefaults,
     saveConfig,
     isLegacyDefault,
     visualColor,

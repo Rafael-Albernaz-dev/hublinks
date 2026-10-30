@@ -49,8 +49,26 @@ const publicLookup: LookupFunction = (hostname, options, callback) => {
   });
 };
 
+type PublicResource = { bytes: Buffer; mime: string; url: URL };
+type ReadOptions = {
+  accept: string;
+  maxBytes: number;
+  /** HTTPS redirects to follow; every hop repeats the literal-IP and per-socket DNS checks. */
+  redirects?: number;
+  /** Keep the first maxBytes instead of discarding an oversized body (HTML head parsing). */
+  truncate?: boolean;
+};
+
 /** Optional icon lookup: no redirects, no private sockets, bounded time and streaming size. */
-export function readPublicImage(url: URL): Promise<{ bytes: Buffer; mime: string } | null> {
+export async function readPublicImage(url: URL): Promise<{ bytes: Buffer; mime: string } | null> {
+  const result = await readPublicResource(url, {
+    accept: 'image/png,image/jpeg,image/webp',
+    maxBytes: 200_000,
+  });
+  return result && { bytes: result.bytes, mime: result.mime };
+}
+
+export function readPublicResource(url: URL, options: ReadOptions): Promise<PublicResource | null> {
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
   if (
     url.protocol !== 'https:' ||
@@ -59,9 +77,10 @@ export function readPublicImage(url: URL): Promise<{ bytes: Buffer; mime: string
     (isIP(hostname) && !isPublicAddress(hostname))
   )
     return Promise.resolve(null);
+  const { maxBytes, truncate = false, redirects = 0 } = options;
   return new Promise((resolve) => {
     let settled = false;
-    const finish = (result: { bytes: Buffer; mime: string } | null) => {
+    const finish = (result: PublicResource | null | Promise<PublicResource | null>) => {
       if (settled) return;
       settled = true;
       resolve(result);
@@ -72,16 +91,28 @@ export function readPublicImage(url: URL): Promise<{ bytes: Buffer; mime: string
         agent: false,
         lookup: publicLookup,
         signal: AbortSignal.timeout(3500),
-        headers: {
-          Accept: 'image/png,image/jpeg,image/webp',
-          'User-Agent': 'HublinkFaviconBot/1.0',
-        },
+        headers: { Accept: options.accept, 'User-Agent': 'HublinkFaviconBot/1.0' },
       },
       (response) => {
+        const status = response.statusCode ?? 0;
+        const location = response.headers.location;
+        if (redirects > 0 && [301, 302, 303, 307, 308].includes(status) && location) {
+          response.destroy();
+          let next: URL;
+          try {
+            next = new URL(location, url);
+          } catch {
+            finish(null);
+            return;
+          }
+          // The next hop goes through this same guarded reader, never a raw follow.
+          finish(readPublicResource(next, { ...options, redirects: redirects - 1 }));
+          return;
+        }
         // Reject before reading or following Location, including public-to-private redirects.
         if (
-          response.statusCode !== 200 ||
-          Number(response.headers['content-length'] ?? 0) > 200_000
+          status !== 200 ||
+          (!truncate && Number(response.headers['content-length'] ?? 0) > maxBytes)
         ) {
           response.destroy();
           finish(null);
@@ -89,27 +120,30 @@ export function readPublicImage(url: URL): Promise<{ bytes: Buffer; mime: string
         }
         const chunks: Buffer[] = [];
         let size = 0;
-        response.on('data', (chunk: Buffer) => {
-          size += chunk.length;
-          if (size > 200_000) {
-            response.destroy();
-            finish(null);
-          } else chunks.push(chunk);
-        });
-        response.on('error', () => finish(null));
-        response.on('end', () =>
+        const done = () =>
           finish(
             size
               ? {
-                  bytes: Buffer.concat(chunks),
+                  bytes: Buffer.concat(chunks).subarray(0, maxBytes),
                   mime: (response.headers['content-type'] ?? '')
                     .split(';')[0]!
                     .trim()
                     .toLowerCase(),
+                  url,
                 }
               : null,
-          ),
-        );
+          );
+        response.on('data', (chunk: Buffer) => {
+          size += chunk.length;
+          chunks.push(chunk);
+          if (size > maxBytes) {
+            response.destroy();
+            if (truncate) done();
+            else finish(null);
+          }
+        });
+        response.on('error', () => finish(null));
+        response.on('end', done);
       },
     );
     request.on('error', () => finish(null));

@@ -1,4 +1,6 @@
-import { DEFAULT_CONFIG, brandInk, hexToRgb, rgbToCss, rgbToHex } from '../../config';
+import { useState } from 'react';
+import { ModalDialog } from '../ModalDialog';
+import { brandInk, hexToRgb, rgbToCss, rgbToHex } from '../../config';
 import {
   WORKSPACE_PURPLE,
   parseHexField,
@@ -148,6 +150,8 @@ export function ColorPaletteCard({
               ...current,
               textColor: null,
               backgroundColor: null,
+              brandPrimaryColor: null,
+              brandSecondaryColor: null,
             }));
           }}
         >
@@ -159,15 +163,18 @@ export function ColorPaletteCard({
 }
 
 export function IdentityBackupCard({
-  setConfig,
+  canRestoreDefaults,
+  restoreHublinkDefaults,
+  saving,
   exportConfig,
   importConfig,
-  setColorChosen,
-  setNotice,
 }: Pick<
   AuthenticatedWorkspace,
-  'setConfig' | 'exportConfig' | 'importConfig' | 'setColorChosen' | 'setNotice'
->) {
+  'restoreHublinkDefaults' | 'saving' | 'exportConfig' | 'importConfig'
+> & {
+  canRestoreDefaults: boolean;
+}) {
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="setting-group transfer-group">
       <h3>Levar configuração</h3>
@@ -193,19 +200,45 @@ export function IdentityBackupCard({
           }}
         />
       </div>
-      <button
-        type="button"
-        className="reset-button"
-        onClick={() => {
-          if (window.confirm('Restaurar a configuração de exemplo?')) {
-            setConfig(DEFAULT_CONFIG);
-            setColorChosen(false);
-            setNotice('Exemplo restaurado.');
-          }
-        }}
-      >
-        Restaurar exemplo
-      </button>
+      {canRestoreDefaults && (
+        <button
+          type="button"
+          className="reset-button"
+          disabled={saving}
+          onClick={() => setConfirming(true)}
+        >
+          Restaurar padrão Hublink
+        </button>
+      )}
+      {confirming && (
+        <ModalDialog
+          titleId="identity-reset-dialog-title"
+          chip="Personalização"
+          title="Restaurar padrão Hublink"
+          description="Nome, textos, logo e cores voltam ao padrão Hublink e são salvos para toda a equipe. Links e layout da Home são mantidos."
+          onClose={() => setConfirming(false)}
+        >
+          <div className="hublink-modal-actions">
+            <button
+              type="button"
+              className="button button-danger"
+              onClick={() => {
+                setConfirming(false);
+                void restoreHublinkDefaults();
+              }}
+            >
+              Confirmar restauração
+            </button>
+            <button
+              type="button"
+              className="button button-plain"
+              onClick={() => setConfirming(false)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </ModalDialog>
+      )}
     </div>
   );
 }
