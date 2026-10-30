@@ -152,3 +152,40 @@ it('favicon requests omit private paths, query parameters and fragments, and ign
   });
   expect(result.current.logoDataUrl).toBe(initialLogo);
 });
+
+it('a manual favicon capture is not cancelled by the automatic lookup its URL normalization triggers', async () => {
+  const response = deferred<unknown>();
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: true, json: () => response.promise })
+    .mockResolvedValue({ ok: true, json: async () => ({ logoDataUrl: null }) });
+  vi.stubGlobal('fetch', fetch);
+  let current = 'portal.example.test';
+  const { result, rerender } = renderHook(() =>
+    useServiceFavicon({
+      targetUrl: current,
+      setTargetUrl: (value) => {
+        current = typeof value === 'function' ? value(current) : value;
+      },
+    }),
+  );
+  let request!: Promise<void>;
+  act(() => {
+    result.current.setManualLogo(false);
+    request = result.current.fetchFaviconForUrl(current, true);
+  });
+  expect(current).toBe('https://portal.example.test/');
+  rerender();
+  // Wait past the automatic debounce; previously it re-requested and discarded this capture.
+  await act(() => new Promise((resolve) => setTimeout(resolve, 450)));
+  await act(async () => {
+    response.resolve({
+      logoDataUrl: 'data:image/png;base64,aWNvbg==',
+      host: 'portal.example.test',
+    });
+    await request;
+  });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(result.current.faviconStatus).toBe('captured');
+  expect(result.current.logoDataUrl).toBe('data:image/png;base64,aWNvbg==');
+});

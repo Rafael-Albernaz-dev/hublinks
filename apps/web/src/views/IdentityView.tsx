@@ -24,13 +24,13 @@ export function IdentityView({
   setRgbDraft,
   exportConfig,
   importConfig,
-  setColorChosen,
   setNotice,
   isDirty,
   saving,
   saveConfig,
   notice,
   resetPersonalPreferences,
+  restoreHublinkDefaults,
   preferences,
   updatePreferences,
 }: Pick<
@@ -53,12 +53,12 @@ export function IdentityView({
   | 'setRgbDraft'
   | 'exportConfig'
   | 'importConfig'
-  | 'setColorChosen'
   | 'setNotice'
   | 'isDirty'
   | 'saving'
   | 'saveConfig'
   | 'resetPersonalPreferences'
+  | 'restoreHublinkDefaults'
   | 'preferences'
   | 'updatePreferences'
   | 'notice'
@@ -134,11 +134,11 @@ export function IdentityView({
               />
 
               <IdentityBackupCard
-                setConfig={setConfig}
+                canRestoreDefaults={currentUser.role === 'admin'}
+                restoreHublinkDefaults={restoreHublinkDefaults}
+                saving={saving}
                 exportConfig={exportConfig}
                 importConfig={importConfig}
-                setColorChosen={setColorChosen}
-                setNotice={setNotice}
               />
             </div>
 

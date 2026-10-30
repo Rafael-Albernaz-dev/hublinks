@@ -889,6 +889,39 @@ describe('Workspace UX refinements', () => {
     expect(saved.brandSecondaryText).toBe('Conecta');
   });
 
+  it('restores and saves the Hublink identity defaults without a browser dialog or losing links', async () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+    saved = {
+      ...apiConfig,
+      homeLayout: 'list',
+      color: { r: 17, g: 170, b: 51 },
+      textColor: '#222222',
+      brandPrimaryText: 'Rural',
+      brandPrimaryColor: '#112233',
+      brandSecondaryText: 'Conecta',
+      logoDataUrl: 'data:image/png;base64,aWNvbg==',
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Rural');
+    await user.click(screen.getByRole('button', { name: 'Personalização' }));
+    await user.click(screen.getByRole('button', { name: 'Restaurar padrão Hublink' }));
+    const dialog = screen.getByRole('dialog', { name: 'Restaurar padrão Hublink' });
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar restauração' }));
+    await screen.findByText('Padrão Hublink restaurado.');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(saved).toEqual({ ...DEFAULT_CONFIG, links: apiConfig.links, homeLayout: 'list' });
+    expect(
+      (screen.getByRole('textbox', { name: 'Nome da empresa' }) as HTMLInputElement).value,
+    ).toBe(DEFAULT_CONFIG.companyName);
+    expect(screen.queryByText('Alterações pendentes')).toBeNull();
+    expect(document.querySelector('.hb-brand-bicolor')).toBeNull();
+    const shell = document.querySelector('.site-shell') as HTMLElement;
+    expect(shell.style.getPropertyValue('--hb-accent')).toBe('');
+    expect(shell.style.getPropertyValue('--hb-ink')).toBe('');
+  });
+
   it('falls back to the approved Home subtitle when the configured text is empty', async () => {
     saved = { ...apiConfig, subtitle: '' };
     render(<App />);
