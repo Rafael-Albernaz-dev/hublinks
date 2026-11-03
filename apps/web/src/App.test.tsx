@@ -1719,3 +1719,213 @@ it('lets an administrator retry an audit query after a network failure', async (
   await screen.findByText('Nenhum evento encontrado.');
   expect(attempts).toBe(2);
 });
+
+it('navigates to Agenda, adds card, auto-saves on blur and moves columns', async () => {
+  const user = userEvent.setup();
+  let agendaCards = [
+    {
+      id: 'card-1',
+      userId: admin.id,
+      title: 'Tarefa Existente',
+      columnId: 'todo',
+      position: 0,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    },
+  ];
+  const putCalls: { id: string; body: unknown }[] = [];
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      const method = init?.method ?? 'GET';
+
+      if (u === '/api/auth/me') return { ok: true, json: async () => ({ user: admin }) };
+      if (u === '/api/config') return { ok: true, json: async () => ({ ...apiConfig }) };
+      if (u === '/api/catalog') return { ok: true, json: async () => ({ services: [] }) };
+      if (u === '/api/me/preferences')
+        return { ok: true, json: async () => ({ preferences: null }) };
+      if (u === '/api/agenda' && method === 'GET') {
+        return { ok: true, json: async () => ({ cards: agendaCards }) };
+      }
+      if (u === '/api/agenda' && method === 'POST') {
+        const body = JSON.parse(init?.body as string) as { title: string; columnId: string };
+        const newCard = {
+          id: 'card-new-1',
+          userId: admin.id,
+          title: body.title,
+          columnId: body.columnId || 'todo',
+          position: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        agendaCards.push(newCard);
+        return { ok: true, json: async () => newCard };
+      }
+      if (u.startsWith('/api/agenda/') && method === 'PUT') {
+        const id = u.replace('/api/agenda/', '');
+        const body = JSON.parse(init?.body as string) as { title?: string; columnId?: string };
+        putCalls.push({ id, body });
+        const target = agendaCards.find((c) => c.id === id);
+        if (target) {
+          if (body.title) target.title = body.title;
+          if (body.columnId) target.columnId = body.columnId;
+        }
+        return { ok: true, json: async () => ({ ...target }) };
+      }
+      if (u.startsWith('/api/agenda/') && method === 'DELETE') {
+        const id = u.replace('/api/agenda/', '');
+        agendaCards = agendaCards.filter((c) => c.id !== id);
+        return { ok: true, json: async () => ({ id, status: 'deleted' }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    }),
+  );
+
+  render(<App />);
+  await screen.findByRole('button', { name: 'Agenda' });
+  await user.click(screen.getByRole('button', { name: 'Agenda' }));
+
+  // 1. Verifies title and columns
+  expect(await screen.findByRole('heading', { name: 'Minha Agenda' })).not.toBeNull();
+  expect(screen.getByText('A Fazer')).not.toBeNull();
+  expect(screen.getByText('Em Progresso')).not.toBeNull();
+  expect(screen.getByText('Concluído')).not.toBeNull();
+  expect(await screen.findByDisplayValue('Tarefa Existente')).not.toBeNull();
+
+  // 2. Add card in A Fazer
+  const addInput = screen.getByLabelText('Nova tarefa em A Fazer');
+  await user.type(addInput, 'Nova Tarefa Adicionada');
+  await user.click(screen.getByRole('button', { name: 'Adicionar tarefa em A Fazer' }));
+  expect(await screen.findByDisplayValue('Nova Tarefa Adicionada')).not.toBeNull();
+
+  // 3. Auto-save on blur
+  const cardInput = screen.getByDisplayValue('Nova Tarefa Adicionada');
+  await user.clear(cardInput);
+  await user.type(cardInput, 'Tarefa Editada');
+  await user.tab(); // trigger blur
+
+  await waitFor(() => {
+    expect(
+      putCalls.some((c) => c.body && (c.body as { title?: string }).title === 'Tarefa Editada'),
+    ).toBe(true);
+  });
+
+  // 4. Move column to next (Em Progresso)
+  const newCardEl = document.querySelector('[data-card-id="card-new-1"]') as HTMLElement;
+  expect(newCardEl).not.toBeNull();
+  const moveBtn = within(newCardEl).getByRole('button', { name: 'Mover para próxima coluna' });
+  await user.click(moveBtn);
+  await waitFor(() => {
+    expect(
+      putCalls.some(
+        (c) =>
+          c.id === 'card-new-1' && (c.body as { columnId?: string }).columnId === 'in_progress',
+      ),
+    ).toBe(true);
+  });
+
+  // 5. Delete card
+  const movedCardEl = (await screen.findByDisplayValue('Tarefa Editada')).closest(
+    '[data-card-id]',
+  ) as HTMLElement;
+  expect(movedCardEl).not.toBeNull();
+  const deleteBtn = within(movedCardEl).getByRole('button', { name: 'Excluir tarefa' });
+  await user.click(deleteBtn);
+  await waitFor(() => {
+    expect(agendaCards.some((c) => c.id === 'card-new-1')).toBe(false);
+  });
+});
+
+it('allows adding standalone credential in Access tab, reveals on manage, and copies inputs', async () => {
+  const user = userEvent.setup();
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+
+  const standaloneCreds = [
+    {
+      serviceId: 'cred-1',
+      serviceName: 'Mikrotik Router',
+      category: 'outros',
+      credentialType: 'individual' as const,
+      inCatalog: false,
+      credentialId: 'vault-uuid-1',
+      ownerUserId: admin.id,
+      ownerName: admin.displayName,
+      keyVersion: 1,
+      updatedAt: '2026-01-01T00:00:00Z',
+    },
+  ];
+
+  let postCredCall: unknown = null;
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      const method = init?.method ?? 'GET';
+
+      if (u === '/api/auth/me') return { ok: true, json: async () => ({ user: admin }) };
+      if (u === '/api/config') return { ok: true, json: async () => ({ ...apiConfig }) };
+      if (u === '/api/catalog') return { ok: true, json: async () => ({ services: [] }) };
+      if (u === '/api/me/preferences')
+        return { ok: true, json: async () => ({ preferences: null }) };
+      if (u === '/api/vault/credentials' && method === 'GET') {
+        return { ok: true, json: async () => ({ credentials: standaloneCreds }) };
+      }
+      if (u === '/api/vault/credentials' && method === 'POST') {
+        postCredCall = JSON.parse(init?.body as string);
+        return { ok: true, json: async () => ({ serviceId: 'new-cred-id', status: 'ok' }) };
+      }
+      if (u === '/api/vault/credentials/cred-1/reveal' && method === 'POST') {
+        return {
+          ok: true,
+          json: async () => ({ username: 'admin_mkt', password: 'mkt_password_123' }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    }),
+  );
+
+  render(<App />);
+  await screen.findByRole('button', { name: 'Acessos' });
+  await user.click(screen.getByRole('button', { name: 'Acessos' }));
+
+  // 1. Verify "Adicionar credencial" button opens modal
+  const addBtn = await screen.findByRole('button', { name: 'Adicionar credencial' });
+  await user.click(addBtn);
+
+  expect(
+    await screen.findByRole('dialog', { name: 'Adicionar credencial ao cofre' }),
+  ).not.toBeNull();
+  await user.type(screen.getByLabelText('Nome do serviço ou aplicação'), 'Proxmox Server');
+  await user.type(screen.getByLabelText('Usuário'), 'root@pam');
+  await user.type(screen.getByLabelText('Senha'), 'proxmox_secret');
+  await user.click(screen.getByRole('button', { name: 'Salvar no cofre' }));
+
+  await waitFor(() => {
+    expect(postCredCall).toEqual({
+      name: 'Proxmox Server',
+      username: 'root@pam',
+      password: 'proxmox_secret',
+    });
+  });
+
+  // 2. Click "Gerenciar" on existing standalone credential
+  const manageBtn = await screen.findByRole('button', { name: 'Gerenciar' });
+  await user.click(manageBtn);
+
+  // 3. Verify revealed username and password prefilled
+  expect(await screen.findByDisplayValue('admin_mkt')).not.toBeNull();
+  expect(await screen.findByDisplayValue('mkt_password_123')).not.toBeNull();
+
+  // 4. Click copy buttons and verify clipboard called
+  const copyUserBtn = screen.getByRole('button', { name: 'Copiar usuário' });
+  await user.click(copyUserBtn);
+  expect(writeText).toHaveBeenCalledWith('admin_mkt');
+
+  const copyPassBtn = screen.getByRole('button', { name: 'Copiar senha' });
+  await user.click(copyPassBtn);
+  expect(writeText).toHaveBeenCalledWith('mkt_password_123');
+});

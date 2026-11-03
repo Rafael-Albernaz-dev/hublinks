@@ -63,6 +63,12 @@ export async function initializeDatabase(pool: pg.Pool): Promise<void> {
     await client.query(
       await readFile(resolve(dirname(migrationPath), '007_user_profile_avatar.sql'), 'utf8'),
     );
+    await client.query(
+      await readFile(resolve(dirname(migrationPath), '008_user_agenda_cards.sql'), 'utf8'),
+    );
+    await client.query(
+      await readFile(resolve(dirname(migrationPath), '009_services_in_catalog_flag.sql'), 'utf8'),
+    );
     const seedPilot = freshDatabase && process.env.HUB_SEED_PILOT !== 'false';
     getMasterKey();
 

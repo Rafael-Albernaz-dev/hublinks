@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SearchBar } from '../components/SearchBar';
 import { normalizeSearch } from '../hooks/normalizeSearch';
 import type { AuthenticatedWorkspace } from '../hooks/useWorkspace';
@@ -11,6 +11,9 @@ export function AccessView({
   currentUser,
   editingVaultKey,
   handleSaveVaultCredential,
+  createStandaloneCredential,
+  deleteStandaloneCredential,
+  revealCredential,
   vaultUsername,
   setVaultUsername,
   vaultPassword,
@@ -25,6 +28,9 @@ export function AccessView({
   | 'currentUser'
   | 'editingVaultKey'
   | 'handleSaveVaultCredential'
+  | 'createStandaloneCredential'
+  | 'deleteStandaloneCredential'
+  | 'revealCredential'
   | 'vaultUsername'
   | 'setVaultUsername'
   | 'vaultPassword'
@@ -36,6 +42,12 @@ export function AccessView({
   const [accessQuery, setAccessQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'shared' | 'individual'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'saved' | 'empty'>('all');
+  const [copiedField, setCopiedField] = useState<'user' | 'pass' | null>(null);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCredName, setNewCredName] = useState('');
+  const [newCredUsername, setNewCredUsername] = useState('');
+  const [newCredPassword, setNewCredPassword] = useState('');
 
   const visibleCredentials = vaultCredentials.filter(
     (c) =>
@@ -65,6 +77,45 @@ export function AccessView({
         return key === editingVaultKey;
       })
     : undefined;
+
+  useEffect(() => {
+    if (!activeEditingItem || !activeEditingItem.credentialId) return;
+    let active = true;
+    void revealCredential(activeEditingItem.serviceId, activeEditingItem.ownerUserId).then(
+      (data) => {
+        if (active && data) {
+          setVaultUsername(data.username);
+          setVaultPassword(data.password);
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [editingVaultKey]);
+
+  function copyText(text: string, field: 'user' | 'pass') {
+    if (!text) return;
+    void navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  }
+
+  async function handleAddStandaloneSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newCredName.trim() || !newCredUsername.trim() || !newCredPassword) return;
+    const ok = await createStandaloneCredential(
+      newCredName.trim(),
+      newCredUsername.trim(),
+      newCredPassword,
+    );
+    if (ok) {
+      setShowAddModal(false);
+      setNewCredName('');
+      setNewCredUsername('');
+      setNewCredPassword('');
+    }
+  }
 
   return (
     <>
@@ -102,21 +153,94 @@ export function AccessView({
                 <option value="empty">Não cadastrada</option>
               </select>
             </div>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => {
+                setShowAddModal(true);
+                setNewCredName('');
+                setNewCredUsername('');
+                setNewCredPassword('');
+              }}
+            >
+              <Icon name="Plus" />
+              Adicionar credencial
+            </button>
           </div>
+
+          {showAddModal && (
+            <ModalDialog
+              titleId="vault-add-standalone-dialog-title"
+              chip="Cofre individual avulso · AES-256-GCM"
+              title="Adicionar credencial ao cofre"
+              description="Cadastre usuário e senha de outros serviços externos. Esta credencial fica visível exclusivamente para a sua conta e não entra no catálogo geral."
+              icon="LockKeyhole"
+              onClose={() => setShowAddModal(false)}
+            >
+              <form className="hublink-modal-form" onSubmit={handleAddStandaloneSubmit}>
+                <label className="hublink-form-label">
+                  <span>Nome do serviço ou aplicação</span>
+                  <input
+                    className="hublink-input"
+                    required
+                    value={newCredName}
+                    onChange={(e) => setNewCredName(e.target.value)}
+                    placeholder="Ex: Servidor Mikrotik, Portal Parceiro"
+                    autoFocus
+                  />
+                </label>
+                <label className="hublink-form-label">
+                  <span>Usuário</span>
+                  <input
+                    className="hublink-input"
+                    required
+                    value={newCredUsername}
+                    onChange={(e) => setNewCredUsername(e.target.value)}
+                    placeholder="Ex: admin@servidor"
+                  />
+                </label>
+                <label className="hublink-form-label">
+                  <span>Senha</span>
+                  <input
+                    className="hublink-input"
+                    required
+                    type="password"
+                    value={newCredPassword}
+                    onChange={(e) => setNewCredPassword(e.target.value)}
+                    placeholder="Senha de acesso"
+                  />
+                </label>
+                <div className="hublink-modal-actions">
+                  <button type="submit" className="button button-primary" disabled={vaultBusy}>
+                    Salvar no cofre
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-plain"
+                    onClick={() => setShowAddModal(false)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </ModalDialog>
+          )}
 
           {activeEditingItem && (
             <ModalDialog
               titleId="vault-manage-dialog-title"
               chip={
-                activeEditingItem.credentialType === 'shared'
-                  ? 'Cofre compartilhado · AES-256-GCM'
-                  : 'Cofre individual · AES-256-GCM'
+                activeEditingItem.inCatalog === false
+                  ? 'Cofre individual avulso · AES-256-GCM'
+                  : activeEditingItem.credentialType === 'shared'
+                    ? 'Cofre compartilhado · AES-256-GCM'
+                    : 'Cofre individual · AES-256-GCM'
               }
               title={`${activeEditingItem.credentialId ? 'Gerenciar' : 'Cadastrar'} ${activeEditingItem.serviceName}`}
               description={
                 <>
-                  Defina o usuário e a senha para <strong>{activeEditingItem.serviceName}</strong>{' '}
-                  (Responsável:{' '}
+                  Defina ou copie o usuário e a senha para{' '}
+                  <strong>{activeEditingItem.serviceName}</strong> (Responsável:{' '}
                   {activeEditingItem.credentialType === 'shared'
                     ? 'Equipe'
                     : activeEditingItem.ownerName || currentUser.displayName}
@@ -140,31 +264,77 @@ export function AccessView({
                   )
                 }
               >
-                <label className="hublink-form-label">
-                  <span>Usuário do serviço</span>
-                  <input
-                    className="hublink-input"
-                    required
-                    value={vaultUsername}
-                    onChange={(e) => setVaultUsername(e.target.value)}
-                    placeholder="Ex: operador@sva.local"
-                  />
-                </label>
-                <label className="hublink-form-label">
-                  <span>Senha do serviço</span>
-                  <input
-                    className="hublink-input"
-                    required
-                    type="password"
-                    value={vaultPassword}
-                    onChange={(e) => setVaultPassword(e.target.value)}
-                    placeholder="Senha de acesso"
-                  />
-                </label>
+                <div className="hublink-form-group">
+                  <label htmlFor="vault-username-input" className="hublink-form-label">
+                    <span>Usuário do serviço</span>
+                  </label>
+                  <div className="hb-input-action-row">
+                    <input
+                      id="vault-username-input"
+                      className="hublink-input"
+                      required
+                      value={vaultUsername}
+                      onChange={(e) => setVaultUsername(e.target.value)}
+                      placeholder="Ex: operador@sva.local"
+                    />
+                    <button
+                      type="button"
+                      className="button button-plain hb-copy-btn"
+                      onClick={() => copyText(vaultUsername, 'user')}
+                      title="Copiar usuário"
+                      aria-label="Copiar usuário"
+                      disabled={!vaultUsername}
+                    >
+                      <Icon name={copiedField === 'user' ? 'Check' : 'Copy'} />
+                      <span>{copiedField === 'user' ? 'Copiado!' : 'Copiar'}</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="hublink-form-group">
+                  <label htmlFor="vault-password-input" className="hublink-form-label">
+                    <span>Senha do serviço</span>
+                  </label>
+                  <div className="hb-input-action-row">
+                    <input
+                      id="vault-password-input"
+                      className="hublink-input"
+                      required
+                      type="password"
+                      value={vaultPassword}
+                      onChange={(e) => setVaultPassword(e.target.value)}
+                      placeholder="Senha de acesso"
+                    />
+                    <button
+                      type="button"
+                      className="button button-plain hb-copy-btn"
+                      onClick={() => copyText(vaultPassword, 'pass')}
+                      title="Copiar senha"
+                      aria-label="Copiar senha"
+                      disabled={!vaultPassword}
+                    >
+                      <Icon name={copiedField === 'pass' ? 'Check' : 'Copy'} />
+                      <span>{copiedField === 'pass' ? 'Copiado!' : 'Copiar'}</span>
+                    </button>
+                  </div>
+                </div>
                 <div className="hublink-modal-actions">
                   <button type="submit" className="button button-primary" disabled={vaultBusy}>
                     Salvar no cofre
                   </button>
+                  {activeEditingItem.inCatalog === false && (
+                    <button
+                      type="button"
+                      className="button button-plain button-danger"
+                      onClick={async () => {
+                        if (window.confirm('Excluir esta credencial avulsa do cofre?')) {
+                          await deleteStandaloneCredential(activeEditingItem.serviceId);
+                          setEditingVaultKey(null);
+                        }
+                      }}
+                    >
+                      Excluir
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="button button-plain"
@@ -214,7 +384,11 @@ export function AccessView({
                           </td>
                           <td>
                             <span className="credential-badge">
-                              {c.credentialType === 'shared' ? 'Compartilhada' : 'Individual'}
+                              {c.inCatalog === false
+                                ? 'Avulsa'
+                                : c.credentialType === 'shared'
+                                  ? 'Compartilhada'
+                                  : 'Individual'}
                             </span>
                           </td>
                           <td>

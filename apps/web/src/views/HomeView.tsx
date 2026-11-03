@@ -177,6 +177,7 @@ export function HomeView({
                     {
                       {
                         inicio: '',
+                        agenda: 'Quadro de tarefas pessoal',
                         catalogo: catalog.length + ' serviços',
                         cofre: 'Individuais e equipe',
                         equipe: 'Pessoas e permissões',

@@ -12,6 +12,10 @@ import type {
   DemoConfig,
   UserPreferences,
   UserThemeOverrides,
+  StandaloneVaultInput,
+  AgendaCardInput,
+  AgendaCardUpdateInput,
+  AgendaColumnId,
 } from '../types/index.js';
 
 export function ticketInput(body: unknown, exchange = false): TicketInput | null {
@@ -217,6 +221,81 @@ export function vaultInput(body: unknown): VaultInput | null {
     ownerUserId = b.ownerUserId;
   }
   return { username, password, ownerUserId };
+}
+
+export function standaloneVaultInput(body: unknown): StandaloneVaultInput | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const b = body as Record<string, unknown>;
+  if (
+    typeof b.name !== 'string' ||
+    typeof b.username !== 'string' ||
+    typeof b.password !== 'string'
+  ) {
+    return null;
+  }
+  const name = b.name.trim();
+  const username = b.username.trim();
+  const password = b.password;
+  if (
+    !name ||
+    name.length > 80 ||
+    !username ||
+    username.length > 255 ||
+    !password ||
+    password.length > 2048
+  ) {
+    return null;
+  }
+  return { name, username, password };
+}
+
+export function agendaCardInput(body: unknown): AgendaCardInput | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const b = body as Record<string, unknown>;
+  if (typeof b.title !== 'string') return null;
+  const title = b.title.trim();
+  if (!title || title.length > 255) return null;
+  let columnId: AgendaColumnId | undefined;
+  if ('columnId' in b && b.columnId !== undefined) {
+    if (b.columnId !== 'todo' && b.columnId !== 'in_progress' && b.columnId !== 'done') {
+      return null;
+    }
+    columnId = b.columnId;
+  }
+  return { title, ...(columnId ? { columnId } : {}) };
+}
+
+export function agendaCardUpdateInput(body: unknown): AgendaCardUpdateInput | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const b = body as Record<string, unknown>;
+  const result: AgendaCardUpdateInput = {};
+  let hasAny = false;
+
+  if ('title' in b && b.title !== undefined) {
+    if (typeof b.title !== 'string') return null;
+    const title = b.title.trim();
+    if (!title || title.length > 255) return null;
+    result.title = title;
+    hasAny = true;
+  }
+
+  if ('columnId' in b && b.columnId !== undefined) {
+    if (b.columnId !== 'todo' && b.columnId !== 'in_progress' && b.columnId !== 'done') {
+      return null;
+    }
+    result.columnId = b.columnId;
+    hasAny = true;
+  }
+
+  if ('position' in b && b.position !== undefined) {
+    if (typeof b.position !== 'number' || !Number.isInteger(b.position) || b.position < 0) {
+      return null;
+    }
+    result.position = b.position;
+    hasAny = true;
+  }
+
+  return hasAny ? result : null;
 }
 
 export function revealInput(body: unknown): RevealInput | null {

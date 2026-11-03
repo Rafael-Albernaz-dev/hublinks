@@ -5,8 +5,10 @@ A customizable team portal with personal links, an encrypted credential vault, a
 ## Features
 
 - **Workspace:** searchable cards, category filters, five display modes, and keyboard or drag-and-drop ordering.
+- **Personal agenda:** private three-column Kanban board (To Do, In Progress, Done) with auto-save on blur, per-column quick entry, and strict account isolation.
 - **Personal links:** save an HTTPS page from the extension or create a card in the portal. Personal cards are visible only to their owner.
 - **Team catalog:** administrators manage shared cards; users manage their own cards and individual credentials.
+- **Standalone and shared vault:** store credentials for arbitrary external services without catalog clutter, with quick-copy actions for usernames and passwords directly inside management modals.
 - **Branding:** company colors, logo, and Home text, with personal overrides and light/dark themes.
 - **Accounts:** profile editing, avatars, password changes, user administration, and administrator-only audit history.
 - **Chrome extension:** quick links, optional startup/New Tab integration, and assisted autofill without automatic submission.
@@ -73,15 +75,16 @@ The sign-in screen uses the Hublink icon and Workspace typography, colors and pa
 
 Browser icons use the same Hublink mark in SVG, a multi-size ICO, a 32 px PNG and a 180 px Apple touch icon. Versioned icon URLs refresh previously cached failures. The Web image explicitly makes its public static files readable by Nginx, including assets copied from restrictive source permissions.
 
-| Area           | Available actions                                                                           |
-| -------------- | ------------------------------------------------------------------------------------------- |
-| Início         | Search, filter, open, and reorder cards; choose Grid, List, Carousel, Compact, or Sections. |
-| Catálogo       | Manage personal cards; administrators also manage team cards.                               |
-| Acessos        | Save individual credentials; administrators manage shared credentials.                      |
-| Equipe         | Administrators create, edit, deactivate, and reset user accounts.                           |
-| Auditoria      | Administrators browse and filter recorded events.                                           |
-| Personalização | Edit company branding as an administrator or personal overrides as a user.                  |
-| Meu Perfil     | Update your name, email, avatar, or password from the account menu.                         |
+| Area           | Available actions                                                                             |
+| -------------- | --------------------------------------------------------------------------------------------- |
+| Início         | Search, filter, open, and reorder cards; choose Grid, List, Carousel, Compact, or Sections.   |
+| Agenda         | Manage private Kanban cards (To Do, In Progress, Done) with automatic save on blur.           |
+| Catálogo       | Manage personal cards; administrators also manage team cards.                                 |
+| Acessos        | Save individual or standalone credentials with quick copy; administrators manage shared ones. |
+| Equipe         | Administrators create, edit, deactivate, and reset user accounts.                             |
+| Auditoria      | Administrators browse and filter recorded events.                                             |
+| Personalização | Edit company branding as an administrator or personal overrides as a user.                    |
+| Meu Perfil     | Update your name, email, avatar, or password from the account menu.                           |
 
 Personal cards remain private even from other administrators. Direct links open without the vault. Vault cards use the extension; passwords are never listed by the web client. CAPTCHA, 2FA, and form submission remain manual.
 

@@ -2372,3 +2372,263 @@ test('extension bookmarks require bound origin/session and create only owner-sco
     ]);
   }
 });
+
+test('vault: standalone credentials without catalog with strict owner isolation', async () => {
+  const adminCookie = await adminLogin();
+
+  // Create two attendants
+  const att1Res = await server.inject({
+    method: 'POST',
+    url: '/api/admin/users',
+    headers: { cookie: adminCookie },
+    payload: {
+      displayName: 'Attendant One Standalone',
+      email: `att1-standalone-${process.pid}@example.test`,
+      password: 'password-12345',
+    },
+  });
+  assert.equal(att1Res.statusCode, 201);
+  const att1Id = att1Res.json().user.id;
+
+  const att2Res = await server.inject({
+    method: 'POST',
+    url: '/api/admin/users',
+    headers: { cookie: adminCookie },
+    payload: {
+      displayName: 'Attendant Two Standalone',
+      email: `att2-standalone-${process.pid}@example.test`,
+      password: 'password-12345',
+    },
+  });
+  assert.equal(att2Res.statusCode, 201);
+  const att2Id = att2Res.json().user.id;
+
+  const login1 = await server.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { email: `att1-standalone-${process.pid}@example.test`, password: 'password-12345' },
+  });
+  const cookie1 = sessionCookie(login1);
+
+  const login2 = await server.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { email: `att2-standalone-${process.pid}@example.test`, password: 'password-12345' },
+  });
+  const cookie2 = sessionCookie(login2);
+
+  try {
+    // 1. Attendant 1 creates a standalone credential
+    const createRes = await server.inject({
+      method: 'POST',
+      url: '/api/vault/credentials',
+      headers: { cookie: cookie1 },
+      payload: {
+        name: 'Servidor Externo',
+        username: 'operador_ext',
+        password: 'senha_secreta_999',
+      },
+    });
+    assert.equal(createRes.statusCode, 201);
+    const serviceId = createRes.json().serviceId;
+    assert.ok(serviceId);
+
+    // 2. Verified: NOT in catalog ("sem o catálogo")
+    const cat1Res = await server.inject({
+      method: 'GET',
+      url: '/api/catalog',
+      headers: { cookie: cookie1 },
+    });
+    assert.equal(cat1Res.statusCode, 200);
+    const inCatalog = cat1Res.json().services.some((s: { id: string }) => s.id === serviceId);
+    assert.equal(inCatalog, false, 'Standalone credential must not appear in catalog');
+
+    // 3. Appears in vault credentials for Attendant 1 with inCatalog: false
+    const vault1Res = await server.inject({
+      method: 'GET',
+      url: '/api/vault/credentials',
+      headers: { cookie: cookie1 },
+    });
+    assert.equal(vault1Res.statusCode, 200);
+    const credItem1 = vault1Res
+      .json()
+      .credentials.find((c: { serviceId: string }) => c.serviceId === serviceId);
+    assert.ok(credItem1);
+    assert.equal(credItem1.serviceName, 'Servidor Externo');
+    assert.equal(credItem1.inCatalog, false);
+    assert.equal(credItem1.credentialType, 'individual');
+
+    // 4. Isolation: Attendant 2 CANNOT see Attendant 1's standalone credential
+    const vault2Res = await server.inject({
+      method: 'GET',
+      url: '/api/vault/credentials',
+      headers: { cookie: cookie2 },
+    });
+    assert.equal(vault2Res.statusCode, 200);
+    const credItem2 = vault2Res
+      .json()
+      .credentials.find((c: { serviceId: string }) => c.serviceId === serviceId);
+    assert.equal(
+      credItem2,
+      undefined,
+      'Attendant 2 must not see Attendant 1 standalone credential',
+    );
+
+    // 5. Attendant 1 can reveal and copy the saved credential
+    const reveal1 = await server.inject({
+      method: 'POST',
+      url: `/api/vault/credentials/${serviceId}/reveal`,
+      headers: { cookie: cookie1 },
+      payload: {},
+    });
+    assert.equal(reveal1.statusCode, 200);
+    assert.equal(reveal1.json().username, 'operador_ext');
+    assert.equal(reveal1.json().password, 'senha_secreta_999');
+
+    // 6. Attendant 2 CANNOT reveal Attendant 1's standalone credential
+    const reveal2 = await server.inject({
+      method: 'POST',
+      url: `/api/vault/credentials/${serviceId}/reveal`,
+      headers: { cookie: cookie2 },
+      payload: {},
+    });
+    assert.equal(reveal2.statusCode, 404);
+
+    // 7. Attendant 2 CANNOT delete Attendant 1's standalone credential
+    const delete2 = await server.inject({
+      method: 'DELETE',
+      url: `/api/vault/credentials/${serviceId}`,
+      headers: { cookie: cookie2 },
+    });
+    assert.equal(delete2.statusCode, 404);
+
+    // 8. Attendant 1 can delete their standalone credential
+    const delete1 = await server.inject({
+      method: 'DELETE',
+      url: `/api/vault/credentials/${serviceId}`,
+      headers: { cookie: cookie1 },
+    });
+    assert.equal(delete1.statusCode, 200);
+  } finally {
+    await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[att1Id, att2Id]]);
+  }
+});
+
+test('agenda: kanban cards with auto-save updates and strict user isolation', async () => {
+  const adminCookie = await adminLogin();
+
+  // Create two attendants
+  const att1Res = await server.inject({
+    method: 'POST',
+    url: '/api/admin/users',
+    headers: { cookie: adminCookie },
+    payload: {
+      displayName: 'Attendant One Agenda',
+      email: `att1-agenda-${process.pid}@example.test`,
+      password: 'password-12345',
+    },
+  });
+  assert.equal(att1Res.statusCode, 201);
+  const att1Id = att1Res.json().user.id;
+
+  const att2Res = await server.inject({
+    method: 'POST',
+    url: '/api/admin/users',
+    headers: { cookie: adminCookie },
+    payload: {
+      displayName: 'Attendant Two Agenda',
+      email: `att2-agenda-${process.pid}@example.test`,
+      password: 'password-12345',
+    },
+  });
+  assert.equal(att2Res.statusCode, 201);
+  const att2Id = att2Res.json().user.id;
+
+  const login1 = await server.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { email: `att1-agenda-${process.pid}@example.test`, password: 'password-12345' },
+  });
+  const cookie1 = sessionCookie(login1);
+
+  const login2 = await server.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { email: `att2-agenda-${process.pid}@example.test`, password: 'password-12345' },
+  });
+  const cookie2 = sessionCookie(login2);
+
+  try {
+    // 1. Unauthenticated returns 401
+    const anon = await server.inject({ method: 'GET', url: '/api/agenda' });
+    assert.equal(anon.statusCode, 401);
+
+    // 2. Attendant 1 creates a card in todo
+    const createRes = await server.inject({
+      method: 'POST',
+      url: '/api/agenda',
+      headers: { cookie: cookie1 },
+      payload: { title: 'Verificar chamado #123' },
+    });
+    assert.equal(createRes.statusCode, 201);
+    const card1 = createRes.json();
+    assert.equal(card1.title, 'Verificar chamado #123');
+    assert.equal(card1.columnId, 'todo');
+    assert.equal(card1.position, 0);
+
+    // 3. Attendant 1 updates card (auto-save behavior: title edit & column move)
+    const updateRes = await server.inject({
+      method: 'PUT',
+      url: `/api/agenda/${card1.id}`,
+      headers: { cookie: cookie1 },
+      payload: { title: 'Verificar chamado #123 - Atualizado', columnId: 'in_progress' },
+    });
+    assert.equal(updateRes.statusCode, 200);
+    assert.equal(updateRes.json().title, 'Verificar chamado #123 - Atualizado');
+    assert.equal(updateRes.json().columnId, 'in_progress');
+
+    // 4. User isolation: Attendant 2 listing agenda sees zero cards
+    const att2List = await server.inject({
+      method: 'GET',
+      url: '/api/agenda',
+      headers: { cookie: cookie2 },
+    });
+    assert.equal(att2List.statusCode, 200);
+    assert.equal(att2List.json().cards.length, 0);
+
+    // 5. Attendant 2 CANNOT update Attendant 1's card
+    const att2Update = await server.inject({
+      method: 'PUT',
+      url: `/api/agenda/${card1.id}`,
+      headers: { cookie: cookie2 },
+      payload: { title: 'Tentativa de alteração maliciosa' },
+    });
+    assert.equal(att2Update.statusCode, 404);
+
+    // 6. Attendant 2 CANNOT delete Attendant 1's card
+    const att2Delete = await server.inject({
+      method: 'DELETE',
+      url: `/api/agenda/${card1.id}`,
+      headers: { cookie: cookie2 },
+    });
+    assert.equal(att2Delete.statusCode, 404);
+
+    // 7. Attendant 1 deletes their card
+    const att1Delete = await server.inject({
+      method: 'DELETE',
+      url: `/api/agenda/${card1.id}`,
+      headers: { cookie: cookie1 },
+    });
+    assert.equal(att1Delete.statusCode, 200);
+
+    // Verify it is gone
+    const finalList = await server.inject({
+      method: 'GET',
+      url: '/api/agenda',
+      headers: { cookie: cookie1 },
+    });
+    assert.equal(finalList.json().cards.length, 0);
+  } finally {
+    await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[att1Id, att2Id]]);
+  }
+});

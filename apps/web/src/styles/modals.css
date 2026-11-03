@@ -244,3 +244,32 @@
 :root[data-theme='dark'] .extension-center-notice.is-confirmed {
   color: #34d399;
 }
+
+.hb-input-action-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.hb-input-action-row .hublink-input {
+  flex: 1;
+  min-width: 0;
+}
+.hb-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--hb-line);
+  border-radius: 8px;
+  background: var(--hb-soft);
+  color: var(--hb-ink);
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+.hb-copy-btn:hover {
+  background: var(--hb-line);
+}

@@ -2,6 +2,7 @@ export const pages = [
   { id: 'inicio', label: 'Início', icon: 'LayoutDashboard' },
   { id: 'catalogo', label: 'Catálogo', icon: 'Grid2x2' },
   { id: 'cofre', label: 'Acessos', icon: 'KeyRound' },
+  { id: 'agenda', label: 'Agenda', icon: 'Columns3' },
   { id: 'equipe', label: 'Equipe', icon: 'Users' },
   { id: 'auditoria', label: 'Auditoria', icon: 'Shield' },
   { id: 'identidade', label: 'Personalização', icon: 'Palette' },

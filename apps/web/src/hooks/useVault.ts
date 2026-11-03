@@ -155,7 +155,90 @@ export function useVault(
       setIndividualSaving(false);
     }
   }
-  return { loadVaultCredentials, handleSaveVaultCredential, saveIndividualCredential };
+
+  async function createStandaloneCredential(name: string, username: string, password: string) {
+    setVaultBusy(true);
+    setVaultNotice('');
+    try {
+      const response = await fetch('/api/vault/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, username, password }),
+      });
+      if (response.status === 401) {
+        setCurrentUser(null);
+        return false;
+      }
+      if (!response.ok) {
+        const err = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || 'Erro ao criar credencial.');
+      }
+      setVaultNotice('Credencial avulsa criada e protegida em AES-256-GCM.');
+      await loadVaultCredentials();
+      return true;
+    } catch (cause) {
+      setVaultNotice(
+        cause instanceof Error ? cause.message : 'Não foi possível criar a credencial.',
+      );
+      return false;
+    } finally {
+      setVaultBusy(false);
+    }
+  }
+
+  async function deleteStandaloneCredential(serviceId: string) {
+    setVaultBusy(true);
+    setVaultNotice('');
+    try {
+      const response = await fetch(`/api/vault/credentials/${serviceId}`, {
+        method: 'DELETE',
+      });
+      if (response.status === 401) {
+        setCurrentUser(null);
+        return false;
+      }
+      if (!response.ok) {
+        const err = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || 'Erro ao excluir credencial.');
+      }
+      setVaultNotice('Credencial removida com sucesso.');
+      await loadVaultCredentials();
+      return true;
+    } catch (cause) {
+      setVaultNotice(
+        cause instanceof Error ? cause.message : 'Não foi possível excluir a credencial.',
+      );
+      return false;
+    } finally {
+      setVaultBusy(false);
+    }
+  }
+
+  async function revealCredential(
+    serviceId: string,
+    ownerUserId?: string | null,
+  ): Promise<{ username: string; password: string } | null> {
+    try {
+      const response = await fetch(`/api/vault/credentials/${serviceId}/reveal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ownerUserId ? { ownerUserId } : {}),
+      });
+      if (!response.ok) return null;
+      return (await response.json()) as { username: string; password: string };
+    } catch {
+      return null;
+    }
+  }
+
+  return {
+    loadVaultCredentials,
+    handleSaveVaultCredential,
+    saveIndividualCredential,
+    createStandaloneCredential,
+    deleteStandaloneCredential,
+    revealCredential,
+  };
 }
 
 /** Issues an opaque ticket only; credential exchange remains inside the extension. */

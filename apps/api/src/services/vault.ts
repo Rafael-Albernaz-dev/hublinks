@@ -5,6 +5,7 @@ import type {
   SessionRow,
   ServiceInput,
   VaultInput,
+  StandaloneVaultInput,
   RevealInput,
   TicketInput,
 } from '../types/index.js';
@@ -78,6 +79,7 @@ export async function listVaultCredentials(pool: Pool, session: SessionRow) {
       service_name: string;
       category: string;
       credential_type: string;
+      in_catalog: boolean;
       credential_id: string | null;
       owner_user_id: string | null;
       owner_name: string | null;
@@ -89,6 +91,7 @@ export async function listVaultCredentials(pool: Pool, session: SessionRow) {
           s.name AS service_name,
           s.category,
           s.credential_type,
+          s.in_catalog,
           vc.id AS credential_id,
           vc.owner_user_id,
           u.display_name AS owner_name,
@@ -107,6 +110,7 @@ export async function listVaultCredentials(pool: Pool, session: SessionRow) {
         serviceName: r.service_name,
         category: r.category,
         credentialType: r.credential_type,
+        inCatalog: r.in_catalog ?? true,
         credentialId: r.credential_id,
         ownerUserId: r.owner_user_id,
         ownerName: r.owner_name,
@@ -120,6 +124,7 @@ export async function listVaultCredentials(pool: Pool, session: SessionRow) {
       service_name: string;
       category: string;
       credential_type: string;
+      in_catalog: boolean;
       credential_id: string | null;
       owner_user_id: string | null;
       owner_name: string | null;
@@ -131,6 +136,7 @@ export async function listVaultCredentials(pool: Pool, session: SessionRow) {
           s.name AS service_name,
           s.category,
           s.credential_type,
+          s.in_catalog,
           vc.id AS credential_id,
           vc.owner_user_id,
           u.display_name AS owner_name,
@@ -149,6 +155,7 @@ export async function listVaultCredentials(pool: Pool, session: SessionRow) {
         serviceName: r.service_name,
         category: r.category,
         credentialType: r.credential_type,
+        inCatalog: r.in_catalog ?? true,
         credentialId: r.credential_id,
         ownerUserId: r.owner_user_id,
         ownerName: r.owner_name,
@@ -156,6 +163,91 @@ export async function listVaultCredentials(pool: Pool, session: SessionRow) {
         updatedAt: r.updated_at,
       })),
     };
+  }
+}
+
+export async function createStandaloneVaultCredential(
+  pool: Pool,
+  session: SessionRow,
+  input: StandaloneVaultInput,
+  ip: string,
+): Promise<ServiceResult<{ serviceId: string; serviceName: string; status: string }>> {
+  const serviceId = randomUUID();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO services (id, name, category, credential_type, target_url, has_action, owner_user_id, in_catalog)
+       VALUES ($1, $2, 'outros', 'individual', NULL, FALSE, $3, FALSE)`,
+      [serviceId, input.name, session.id],
+    );
+    const enc = encryptCredential(input.username, input.password, serviceId, session.id, 1);
+    await client.query(
+      `INSERT INTO vault_credentials (
+        service_id, owner_user_id, encrypted_username, encrypted_password, iv, auth_tag, key_version, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+      [
+        serviceId,
+        session.id,
+        enc.encryptedUsername,
+        enc.encryptedPassword,
+        enc.iv,
+        enc.authTag,
+        enc.keyVersion,
+      ],
+    );
+    await audit(client, session.id, 'credential_saved', ip, serviceId, {
+      credentialType: 'individual',
+      isShared: false,
+      ownerUserId: session.id,
+      inCatalog: false,
+    });
+    await client.query('COMMIT');
+    return {
+      ok: true,
+      value: {
+        serviceId,
+        serviceName: input.name,
+        status: 'ok',
+      },
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteStandaloneVaultCredential(
+  pool: Pool,
+  session: SessionRow,
+  serviceId: string,
+  ip: string,
+): Promise<ServiceResult<{ status: string }>> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const check = await client.query<{ id: string }>(
+      'SELECT id FROM services WHERE id = $1 AND owner_user_id = $2 AND in_catalog = FALSE FOR UPDATE',
+      [serviceId, session.id],
+    );
+    if (check.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return { ok: false, statusCode: 404, error: 'Credencial não encontrada ou sem permissão.' };
+    }
+    await audit(client, session.id, 'credential_deleted', ip, serviceId, {
+      ownerUserId: session.id,
+      inCatalog: false,
+    });
+    await client.query('DELETE FROM services WHERE id = $1', [serviceId]);
+    await client.query('COMMIT');
+    return { ok: true, value: { status: 'deleted' } };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
 }
 

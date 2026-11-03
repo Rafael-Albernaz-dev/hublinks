@@ -25,6 +25,7 @@ export type VaultCredentialMeta = {
   serviceName: string;
   category: string;
   credentialType: 'shared' | 'individual' | 'none';
+  inCatalog?: boolean;
   credentialId: string | null;
   ownerUserId: string | null;
   ownerName: string | null;
@@ -60,4 +61,16 @@ export type UserPreferences = {
   shortcutOrder: string[];
   shortcutStyle: 'cards' | 'chips';
   themeOverrides: UserThemeOverrides | null;
+};
+
+export type AgendaColumnId = 'todo' | 'in_progress' | 'done';
+
+export type AgendaCard = {
+  id: string;
+  userId: string;
+  title: string;
+  columnId: AgendaColumnId;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
 };

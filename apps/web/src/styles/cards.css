@@ -424,3 +424,141 @@
     will-change: auto;
   }
 }
+
+/* Kanban Board & Agenda */
+.hb-kanban-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .hb-kanban-board {
+    grid-template-columns: 1fr;
+  }
+}
+.hb-kanban-column {
+  background: var(--hb-panel);
+  border: 1px solid var(--hb-line);
+  border-radius: var(--hb-radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 250px;
+}
+.hb-kanban-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hb-line);
+}
+.hb-kanban-column-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hb-ink);
+}
+.hb-kanban-count-pill {
+  font-size: 11px;
+  background: var(--hb-soft);
+  border: 1px solid var(--hb-line);
+  color: var(--hb-sub);
+  padding: 2px 7px;
+  border-radius: 12px;
+}
+.hb-kanban-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+.hb-kanban-card {
+  background: var(--hb-soft);
+  border: 1px solid var(--hb-line);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition:
+    box-shadow 150ms ease,
+    border-color 150ms ease;
+}
+.hb-kanban-card:focus-within {
+  border-color: var(--hb-accent);
+  box-shadow: 0 0 0 1px var(--hb-accent);
+}
+.hb-kanban-card-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--hb-ink);
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 48px;
+  line-height: 1.4;
+  outline: none;
+}
+.hb-kanban-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--hb-sub);
+  padding-top: 4px;
+}
+.hb-kanban-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.hb-kanban-action-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--hb-sub);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hb-kanban-action-btn:hover {
+  background: var(--hb-panel);
+  color: var(--hb-ink);
+}
+.hb-kanban-add-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.hb-kanban-add-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--hb-line);
+  background: var(--hb-panel);
+  color: var(--hb-ink);
+}
+.hb-kanban-add-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: var(--hb-accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+.hb-kanban-autosave-indicator {
+  font-size: 10px;
+  color: var(--hb-sub);
+  font-style: italic;
+}

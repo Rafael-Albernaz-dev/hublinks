@@ -12,6 +12,7 @@ import { registerVaultRoutes } from './routes/vault.js';
 import { registerPreferencesRoutes } from './routes/preferences.js';
 import { registerExtensionRoutes } from './routes/extension.js';
 import { registerConfigRoutes } from './routes/config.js';
+import { registerAgendaRoutes } from './routes/agenda.js';
 export type { ServerOptions } from './types/index.js';
 
 const defaultPath =
@@ -165,6 +166,7 @@ export function createServer(
   registerConfigRoutes(server, context);
   registerExtensionRoutes(server, context);
   registerPreferencesRoutes(server, context);
+  registerAgendaRoutes(server, context);
   return server;
 }
 

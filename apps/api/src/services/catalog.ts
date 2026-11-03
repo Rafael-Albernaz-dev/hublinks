@@ -37,7 +37,8 @@ export async function readCatalogItem(
               EXISTS (SELECT 1 FROM vault_credentials vc WHERE vc.service_id = s.id
                 AND ((s.credential_type = 'shared' AND vc.owner_user_id IS NULL)
                   OR (s.credential_type = 'individual' AND vc.owner_user_id = $2))) AS has_credential
-       FROM services s WHERE s.id = $1 AND (s.owner_user_id IS NULL OR s.owner_user_id = $2)`,
+       FROM services s WHERE s.id = $1 AND (s.owner_user_id IS NULL OR s.owner_user_id = $2)
+         AND (s.in_catalog IS NOT FALSE)`,
     [serviceId, userId],
   );
   return result.rows[0] ? catalogItem(result.rows[0]) : null;
@@ -50,7 +51,8 @@ export async function listCatalogServices(pool: Pool, userId: string): Promise<C
               EXISTS (SELECT 1 FROM vault_credentials vc WHERE vc.service_id = s.id
                 AND ((s.credential_type = 'shared' AND vc.owner_user_id IS NULL)
                   OR (s.credential_type = 'individual' AND vc.owner_user_id = $1))) AS has_credential
-       FROM services s WHERE s.owner_user_id IS NULL OR s.owner_user_id = $1 ORDER BY s.created_at ASC, s.id ASC`,
+       FROM services s WHERE (s.owner_user_id IS NULL OR s.owner_user_id = $1)
+         AND (s.in_catalog IS NOT FALSE) ORDER BY s.created_at ASC, s.id ASC`,
     [userId],
   );
   return result.rows.map(catalogItem);

@@ -65,6 +65,7 @@ export type ServiceInput = {
   targetUrl: string | null;
 };
 export type VaultInput = { username: string; password: string; ownerUserId?: string | null };
+export type StandaloneVaultInput = { name: string; username: string; password: string };
 export type RevealInput = { ownerUserId?: string | null };
 export type TicketInput = { serviceId: string; ticket?: string };
 export type CatalogInput = Omit<
@@ -126,4 +127,27 @@ export type UserPreferences = {
   shortcutOrder: string[];
   shortcutStyle: 'cards' | 'chips';
   themeOverrides: UserThemeOverrides | null;
+};
+
+export type AgendaColumnId = 'todo' | 'in_progress' | 'done';
+
+export type AgendaCard = {
+  id: string;
+  userId: string;
+  title: string;
+  columnId: AgendaColumnId;
+  position: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type AgendaCardInput = {
+  title: string;
+  columnId?: AgendaColumnId;
+};
+
+export type AgendaCardUpdateInput = {
+  title?: string;
+  columnId?: AgendaColumnId;
+  position?: number;
 };

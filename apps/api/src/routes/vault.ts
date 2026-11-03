@@ -1,10 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../types/index.js';
-import { serviceInput, vaultInput, revealInput, ticketInput } from '../validators/index.js';
+import {
+  serviceInput,
+  vaultInput,
+  standaloneVaultInput,
+  revealInput,
+  ticketInput,
+} from '../validators/index.js';
 import { activeSession, adminSession } from '../services/session.js';
 import {
   createVaultService,
   listVaultCredentials,
+  createStandaloneVaultCredential,
+  deleteStandaloneVaultCredential,
   upsertVaultCredential,
   revealVaultCredential,
   issueVaultTicket,
@@ -33,6 +41,37 @@ export function registerVaultRoutes(server: FastifyInstance, context: ApiContext
 
     return listVaultCredentials(pool, session);
   });
+
+  server.post('/api/vault/credentials', async (request, reply) => {
+    const session = await activeSession(pool, request, reply);
+    if (!session) return;
+
+    const input = standaloneVaultInput(request.body);
+    if (!input) {
+      return reply.code(400).send({ error: 'Dados de credencial inválidos.' });
+    }
+
+    const result = await createStandaloneVaultCredential(pool, session, input, request.ip);
+    if (!result.ok) return reply.code(result.statusCode).send({ error: result.error });
+    return reply.code(201).send(result.value);
+  });
+
+  server.delete<{ Params: { serviceId: string } }>(
+    '/api/vault/credentials/:serviceId',
+    async (request, reply) => {
+      const session = await activeSession(pool, request, reply);
+      if (!session) return;
+
+      const result = await deleteStandaloneVaultCredential(
+        pool,
+        session,
+        request.params.serviceId,
+        request.ip,
+      );
+      if (!result.ok) return reply.code(result.statusCode).send({ error: result.error });
+      return reply.code(200).send(result.value);
+    },
+  );
 
   server.put<{ Params: { serviceId: string } }>(
     '/api/vault/credentials/:serviceId',

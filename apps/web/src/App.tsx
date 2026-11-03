@@ -12,6 +12,7 @@ import { IdentityView } from './views/IdentityView';
 import { LoginView } from './views/LoginView';
 import { TeamView } from './views/TeamView';
 import { AuditView } from './views/AuditView';
+import { AgendaView } from './views/AgendaView';
 export function App() {
   const workspace = useWorkspace();
   if (!workspace.authChecked)
@@ -41,7 +42,7 @@ export function App() {
       <main className="hb-main" id="inicio">
         {page === 'perfil' && <ProfileView key={model.currentUser.id} {...model} />}
         <HomeView {...model} />
-
+        {page === 'agenda' && <AgendaView currentUser={model.currentUser} />}
         <CatalogView {...model} />
         <AccessView {...model} />
         <TeamView {...model} />
