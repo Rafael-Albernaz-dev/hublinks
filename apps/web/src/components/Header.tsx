@@ -77,7 +77,6 @@ export function Header({
           type="button"
           className={'extension-status is-' + extensionState}
           onClick={() => {
-            setExtensionModal(null);
             setShowExtensionGuide(true);
           }}
         >

@@ -41,6 +41,8 @@ export type ExtensionReply = {
   status?: string;
   version?: string;
   autofill?: boolean;
+  autofillResult?:
+    'filled_only' | 'filled_username_only' | 'filled_pending_challenge' | 'form_not_found';
   settings?: ExtensionSettings;
 };
 export type ChromeBridge = {

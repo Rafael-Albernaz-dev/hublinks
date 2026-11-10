@@ -10,7 +10,12 @@ function extensionMessage(message: unknown): Promise<ExtensionReply> {
       'nhodfnpljikjfeoihaimabljdenmfbio';
     if (!runtime || !extensionId || !/^[a-p]{32}$/.test(extensionId))
       return reject(new Error('Extension unavailable'));
-    const timeout = window.setTimeout(() => reject(new Error('Extension timeout')), 1500);
+    const timeout = window.setTimeout(
+      () => reject(new Error('A extensão demorou para responder. Tente novamente.')),
+      message && typeof message === 'object' && 'type' in message && message.type === 'OPEN_SERVICE'
+        ? 35_000
+        : 3000,
+    );
     try {
       runtime.sendMessage(extensionId, message, (reply) => {
         window.clearTimeout(timeout);
@@ -27,6 +32,7 @@ export function useExtensionBridge(
   state: Pick<
     WorkspaceState,
     | 'setExtensionSettings'
+    | 'currentUser'
     | 'showExtensionGuide'
     | 'setExtensionState'
     | 'openingServiceId'
@@ -38,10 +44,10 @@ export function useExtensionBridge(
     | 'setExtensionModal'
     | 'setShowExtensionGuide'
     | 'setOpeningServiceId'
-    | 'extensionState'
   >,
 ) {
   const {
+    currentUser,
     setExtensionSettings,
     showExtensionGuide,
     setExtensionState,
@@ -54,12 +60,27 @@ export function useExtensionBridge(
     setExtensionModal,
     setShowExtensionGuide,
     setOpeningServiceId,
-    extensionState,
   } = state;
 
   const checkId = useRef(0);
+  const opening = useRef(false);
+  const sessionVersion = useRef(0);
   const manualCheck = useRef(false);
   const [extensionChecking, setExtensionChecking] = useState(false);
+  useEffect(() => {
+    sessionVersion.current++;
+    opening.current = false;
+    setOpeningServiceId(null);
+    setOpeningNotice('');
+    setExtensionModal(null);
+    setShowExtensionGuide(false);
+  }, [
+    currentUser?.id,
+    setOpeningServiceId,
+    setOpeningNotice,
+    setExtensionModal,
+    setShowExtensionGuide,
+  ]);
   const recheckExtension = useCallback(
     async (silent = false) => {
       if (manualCheck.current) return false;
@@ -133,30 +154,36 @@ export function useExtensionBridge(
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   async function openVaultService(service: CatalogService) {
-    if (!service.targetUrl || openingServiceId) return;
-    setOpeningNotice('');
-
-    if (service.credentialType === 'individual' && !service.hasCredential) {
-      setIndividualModal(service);
-      setIndividualUsername('');
-      setIndividualPassword('');
-      setIndividualError('');
-      return;
-    }
-
-    // DOM markers can be spoofed by the page; confirm the bridge before issuing a ticket.
-    const extensionReady = await extensionMessage({ type: 'PING' })
-      .then((reply) => reply.status === 'ok')
-      .catch(() => false);
-    if (!extensionReady) {
-      setExtensionState('missing');
-      setExtensionModal(service);
-      setShowExtensionGuide(true);
-      return;
-    }
+    if (!service.targetUrl || !service.hasAction || openingServiceId || opening.current) return;
+    opening.current = true;
+    const version = sessionVersion.current;
     setOpeningServiceId(service.id);
+    setOpeningNotice('');
     try {
+      if (service.credentialType === 'individual' && !service.hasCredential) {
+        setIndividualModal(service);
+        setIndividualUsername('');
+        setIndividualPassword('');
+        setIndividualError('');
+        return;
+      }
+
+      // DOM markers can be spoofed by the page; confirm the bridge before issuing a ticket.
+      const extensionReady = await extensionMessage({ type: 'PING' })
+        .then((reply) => reply.status === 'ok')
+        .catch(() => false);
+      if (version !== sessionVersion.current) return;
+      if (!extensionReady) {
+        setExtensionState('missing');
+        setExtensionModal(service);
+        setOpeningNotice(
+          'Extensão indisponível. Abra a Central da Extensão pelo botão no topo para verificar a conexão ou entrar manualmente.',
+        );
+        return;
+      }
+      setExtensionState('detected');
       const response = await issueOpeningTicket(service.id);
+      if (version !== sessionVersion.current) return;
       if (!response.ok) {
         if (service.credentialType === 'individual' && response.status === 404) {
           setIndividualModal(service);
@@ -175,25 +202,35 @@ export function useExtensionBridge(
         serviceId: string;
         targetUrl: string;
       };
+      if (version !== sessionVersion.current) return;
       if (data.serviceId !== service.id || data.targetUrl !== service.targetUrl)
         throw new Error('Resposta de bilhete inválida.');
       const reply = await extensionMessage({ type: 'OPEN_SERVICE', ...data });
-      if (reply.status !== 'opened') throw new Error('A extensão não conseguiu abrir o destino.');
-      setOpeningNotice('Destino aberto com preenchimento assistido.');
+      if (version !== sessionVersion.current) return;
+      if (reply.status === 'busy') {
+        setOpeningNotice('Este acesso já está em andamento.');
+        return;
+      }
+      if (reply.status !== 'opened')
+        throw new Error('Não foi possível abrir o acesso. Tente novamente.');
+      setOpeningNotice(
+        reply.autofillResult === 'filled_pending_challenge'
+          ? 'Credenciais preenchidas. Conclua a verificação humana no destino.'
+          : reply.autofillResult === 'filled_username_only'
+            ? 'Usuário preenchido. Continue a autenticação no destino.'
+            : reply.autofill === true
+              ? 'Credenciais preenchidas. Confira os dados e clique em Entrar no destino.'
+              : 'Destino aberto. Não foi possível reconhecer um formulário seguro; entre manualmente.',
+      );
     } catch (error) {
+      if (version !== sessionVersion.current) return;
       const msg = error instanceof Error ? error.message : 'Falha ao abrir destino.';
       setOpeningNotice(msg);
-      if (
-        extensionState !== 'detected' ||
-        msg.includes('extensão') ||
-        msg.includes('Extension') ||
-        msg.includes('bilhete')
-      ) {
-        setExtensionModal(service);
-        setShowExtensionGuide(true);
-      }
     } finally {
-      setOpeningServiceId(null);
+      if (version === sessionVersion.current) {
+        opening.current = false;
+        setOpeningServiceId(null);
+      }
     }
   }
   return {

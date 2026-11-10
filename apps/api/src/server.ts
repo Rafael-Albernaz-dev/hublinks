@@ -113,7 +113,8 @@ export function createServer(
     const extensionCatalogRequest =
       request.headers.origin === extensionOrigin &&
       ((routePath === '/api/catalog' && ['GET', 'OPTIONS'].includes(request.method)) ||
-        (routePath === '/api/extension/bookmarks' && ['POST', 'OPTIONS'].includes(request.method)));
+        (['/api/extension/bookmarks', '/api/vault/tickets'].includes(routePath) &&
+          ['POST', 'OPTIONS'].includes(request.method)));
     if (extensionCatalogRequest) {
       reply.header('Cache-Control', 'no-store');
       reply.header('Access-Control-Allow-Origin', extensionOrigin!);

@@ -1536,6 +1536,98 @@ async function personalLayerActor(role: 'admin' | 'attendant') {
   return { id, cookie: `hublink_session=${token}` };
 }
 
+test('popup ticket issuance requires the bound extension, a live session and the credential owner', async () => {
+  const owner = await personalLayerActor('attendant');
+  const other = await personalLayerActor('attendant');
+  let serviceId: string | undefined;
+  try {
+    const made = await server.inject({
+      method: 'POST',
+      url: '/api/catalog/services',
+      headers: { cookie: owner.cookie },
+      payload: {
+        name: 'Synthetic popup login',
+        category: 'sistemas',
+        credentialType: 'individual',
+        targetUrl: 'https://popup.example.test/login',
+      },
+    });
+    assert.equal(made.statusCode, 201);
+    serviceId = made.json().service.id;
+    const saved = await server.inject({
+      method: 'PUT',
+      url: `/api/vault/credentials/${serviceId}`,
+      headers: { cookie: owner.cookie },
+      payload: { username: 'synthetic-popup-user', password: 'synthetic-popup-password' },
+    });
+    assert.equal(saved.statusCode, 200);
+    const issue = (cookie: string | undefined, origin = extensionOrigin) =>
+      server.inject({
+        method: 'POST',
+        url: '/api/vault/tickets',
+        headers: { origin, ...(cookie ? { cookie } : {}) },
+        payload: { serviceId },
+      });
+    const preflight = await server.inject({
+      method: 'OPTIONS',
+      url: '/api/vault/tickets',
+      headers: { origin: extensionOrigin, 'access-control-request-method': 'POST' },
+    });
+    assert.equal(preflight.statusCode, 204);
+    assert.equal(preflight.headers['access-control-allow-origin'], extensionOrigin);
+    assert.equal(preflight.headers['access-control-allow-credentials'], 'true');
+    assert.equal((await issue(undefined)).statusCode, 401);
+    assert.equal(
+      (await issue(owner.cookie, `chrome-extension://${'b'.repeat(32)}`)).statusCode,
+      403,
+    );
+    assert.equal((await issue(owner.cookie, 'https://untrusted.example.test')).statusCode, 403);
+    assert.equal((await issue(other.cookie)).statusCode, 404);
+    const issued = await issue(owner.cookie);
+    assert.equal(issued.statusCode, 200);
+    assert.equal(issued.headers['cache-control'], 'no-store');
+    assert.equal(issued.body.includes('synthetic-popup-user'), false);
+    assert.equal(issued.body.includes('synthetic-popup-password'), false);
+    const exchange = () =>
+      server.inject({
+        method: 'POST',
+        url: '/api/vault/exchange',
+        headers: { origin: extensionOrigin },
+        payload: { serviceId, ticket: issued.json().ticket },
+      });
+    assert.equal((await exchange()).statusCode, 200);
+    assert.equal((await exchange()).statusCode, 403);
+    const pending = await issue(owner.cookie);
+    await pool.query('UPDATE sessions SET revoked_at = NOW() WHERE user_id = $1', [owner.id]);
+    assert.equal((await issue(owner.cookie)).statusCode, 401);
+    assert.equal(
+      (
+        await server.inject({
+          method: 'POST',
+          url: '/api/vault/exchange',
+          headers: { origin: extensionOrigin },
+          payload: { serviceId, ticket: pending.json().ticket },
+        })
+      ).statusCode,
+      403,
+    );
+    assert.equal(
+      (
+        await server.inject({
+          method: 'PUT',
+          url: '/api/config',
+          headers: { cookie: other.cookie, origin: extensionOrigin },
+          payload: {},
+        })
+      ).statusCode,
+      403,
+    );
+  } finally {
+    if (serviceId) await pool.query('DELETE FROM services WHERE id=$1', [serviceId]);
+    await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[owner.id, other.id]]);
+  }
+});
+
 test('personal services enforce ownership across catalog, vault and ticket operations', async () => {
   const actors = await Promise.all([
     personalLayerActor('admin'),

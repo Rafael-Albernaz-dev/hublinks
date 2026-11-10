@@ -3,6 +3,8 @@ import { API_ORIGIN } from './config';
 import { DEFAULT_EXTENSION_SETTINGS } from './settings';
 import type { ExtensionSettings } from './settings';
 import { isWorkspace, openWorkspace, WORKSPACE_URL } from './workspace';
+import { validServiceId } from './opening';
+import type { OpeningResult } from './opening';
 
 async function settingsMessage(
   type: string,
@@ -99,15 +101,18 @@ export async function initPopup(
     })(),
     (async () => {
       if (!tabStatus) return;
-      tabStatus.textContent = 'Abra o Workspace para iniciar um acesso assistido.';
-      if (!tabs?.query) return;
+      tabStatus.textContent = 'Abra um atalho abaixo para usar sua credencial salva.';
+      if (!tabs?.query) {
+        tabStatus.textContent = 'Abra o Workspace para verificar sua extensão.';
+        return;
+      }
       try {
         const [tab] = await tabs.query({ active: true, currentWindow: true });
         tabStatus.dataset.state = isWorkspace(tab?.url) ? 'online' : 'neutral';
         tabStatus.textContent = isWorkspace(tab?.url)
           ? 'Você está no Hublink Workspace.'
           : tab?.url?.startsWith('https:')
-            ? 'Página HTTPS ativa. Inicie o acesso pelo Workspace.'
+            ? 'Página HTTPS ativa. Escolha um atalho para preencher sua credencial.'
             : 'Esta aba não é um destino HTTPS. Abra o Workspace.';
       } catch {
         tabStatus.textContent = 'Não foi possível consultar a aba ativa.';
@@ -142,6 +147,7 @@ export async function initPopup(
           if (!raw || typeof raw !== 'object') continue;
           const service = raw as Record<string, unknown>;
           if (
+            !validServiceId(service.id) ||
             typeof service.name !== 'string' ||
             service.name.length > 80 ||
             typeof service.targetUrl !== 'string' ||
@@ -165,10 +171,32 @@ export async function initPopup(
           button.append(name, address);
           button.title = url.href;
           button.addEventListener('click', () => {
-            if (!tabs?.create) return;
-            void tabs
-              .create({ url: url.href })
-              .catch(() => notice('Não foi possível abrir o atalho.'));
+            if (button.disabled || !chrome.runtime?.sendMessage) return;
+            button.disabled = true;
+            notice('Abrindo acesso…');
+            void chrome.runtime
+              .sendMessage({ type: 'OPEN_CATALOG_SERVICE', serviceId: service.id })
+              .then((reply: OpeningResult) => {
+                if (reply.status === 'opened') {
+                  notice(
+                    reply.autofill === false
+                      ? 'Destino aberto. Formulário não reconhecido; entre manualmente.'
+                      : 'Destino aberto. Confira o preenchimento na nova aba.',
+                  );
+                } else if (reply.status === 'busy') notice('Este acesso já está em andamento.');
+                else
+                  notice(
+                    reply.reason === 'session_required'
+                      ? 'Entre novamente no Workspace para usar suas credenciais.'
+                      : reply.reason === 'credential_missing'
+                        ? 'Cadastre sua credencial no Workspace antes de abrir este acesso.'
+                        : 'Não foi possível abrir o acesso. Tente novamente.',
+                  );
+              })
+              .catch(() => notice('Não foi possível abrir o acesso. Tente novamente.'))
+              .finally(() => {
+                button.disabled = false;
+              });
           });
           links.push(button);
         }

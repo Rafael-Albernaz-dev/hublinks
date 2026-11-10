@@ -349,6 +349,13 @@ describe('extension settings and browser integration', () => {
         internal(msg, sender, response);
         return response;
       },
+      internalReply: (
+        msg: unknown,
+        sender = { id: 'test-id', url: 'chrome-extension://test-id/popup.html' },
+      ) =>
+        new Promise<Record<string, unknown>>((resolve) =>
+          internal(msg, sender, (reply) => resolve(reply as Record<string, unknown>)),
+        ),
       startup: () => startup(),
       created: (value: Partial<chrome.tabs.Tab>) => created(tab(value)),
       query,
@@ -480,6 +487,196 @@ describe('extension settings and browser integration', () => {
     ).toBe('error');
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
+  it('does not inject after an authorized page navigates away immediately before injection', async () => {
+    const w = await worker();
+    w.create.mockResolvedValue({ id: 8 });
+    w.tabsGet
+      .mockResolvedValueOnce({ id: 8, status: 'complete', url: 'https://example.test/login' })
+      .mockResolvedValue({ id: 8, status: 'complete', url: 'https://evil.test/login' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ ...creds, targetUrl: 'https://example.test/login' })),
+      ),
+    );
+    expect(
+      await w.external({
+        type: 'OPEN_SERVICE',
+        ticket: 'a'.repeat(43),
+        serviceId: 'synthetic',
+        targetUrl: 'https://example.test/login',
+      }),
+    ).toEqual({ status: 'opened', autofill: false });
+    expect(w.executeScript).not.toHaveBeenCalled();
+    expect(w.sendTabMessage).not.toHaveBeenCalled();
+  });
+  it('deduplicates concurrent openings without replaying a credential', async () => {
+    const w = await worker();
+    w.create.mockResolvedValue({ id: 8 });
+    w.tabsGet.mockResolvedValue({ id: 8, status: 'complete', url: 'https://example.test/login' });
+    let release!: (response: Response) => void;
+    const fetchFn = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    vi.stubGlobal('fetch', fetchFn);
+    const input = {
+      type: 'OPEN_SERVICE',
+      ticket: 'a'.repeat(43),
+      serviceId: 'synthetic',
+      targetUrl: 'https://example.test/login',
+    };
+    const first = w.external(input);
+    expect(await w.external(input)).toEqual({ status: 'busy' });
+    release(new Response(JSON.stringify({ ...creds, targetUrl: input.targetUrl })));
+    expect((await first).autofill).toBe(true);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(w.create).toHaveBeenCalledTimes(1);
+    expect(w.sendTabMessage).toHaveBeenCalledTimes(1);
+  });
+  it('waits for an explicit pending destination instead of treating about:blank as a failed load', async () => {
+    const w = await worker();
+    w.create.mockResolvedValue({ id: 8 });
+    w.tabsGet
+      .mockResolvedValueOnce({
+        id: 8,
+        status: 'complete',
+        url: 'about:blank',
+        pendingUrl: 'https://example.test/login',
+      })
+      .mockResolvedValue({ id: 8, status: 'complete', url: 'https://example.test/login' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ ...creds, targetUrl: 'https://example.test/login' })),
+      ),
+    );
+    const pending = w.external({
+      type: 'OPEN_SERVICE',
+      ticket: 'a'.repeat(43),
+      serviceId: 'synthetic',
+      targetUrl: 'https://example.test/login',
+    });
+    await vi.waitFor(() => expect(w.tabsGet).toHaveBeenCalledTimes(1));
+    expect(w.executeScript).not.toHaveBeenCalled();
+    const listener = vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls.at(-1)![0];
+    listener(8, { status: 'complete' }, {
+      id: 8,
+      url: 'https://example.test/login',
+      status: 'complete',
+    } as chrome.tabs.Tab);
+    expect((await pending).autofill).toBe(true);
+  });
+  it('opens popup catalog credentials through authenticated issuance and the same protected exchange', async () => {
+    const w = await worker();
+    w.create.mockResolvedValue({ id: 8 });
+    w.tabsGet.mockResolvedValue({ id: 8, status: 'complete', url: 'https://example.test/login' });
+    const fetchFn = vi.fn(
+      async (url: string) =>
+        new Response(
+          JSON.stringify(
+            url.endsWith('/api/catalog')
+              ? {
+                  services: [
+                    {
+                      id: 'synthetic',
+                      targetUrl: 'https://example.test/login',
+                      hasAction: true,
+                      credentialType: 'individual',
+                      hasCredential: true,
+                    },
+                  ],
+                }
+              : url.endsWith('/tickets')
+                ? {
+                    ticket: 'a'.repeat(43),
+                    serviceId: 'synthetic',
+                    targetUrl: 'https://example.test/login',
+                  }
+                : { ...creds, targetUrl: 'https://example.test/login' },
+          ),
+        ),
+    );
+    vi.stubGlobal('fetch', fetchFn);
+    expect(
+      await w.internalReply({
+        type: 'OPEN_CATALOG_SERVICE',
+        serviceId: 'synthetic',
+        targetUrl: 'https://evil.test/',
+      }),
+    ).toEqual({ status: 'opened', autofill: true, autofillResult: 'filled_only' });
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://127.0.0.1:3177/api/vault/tickets',
+      expect.objectContaining({
+        credentials: 'include',
+        body: JSON.stringify({ serviceId: 'synthetic' }),
+      }),
+    );
+    expect(w.create).toHaveBeenCalledWith({ url: 'https://example.test/login' });
+    expect(w.sendTabMessage).toHaveBeenCalledTimes(1);
+    expect(w.set).not.toHaveBeenCalled();
+  });
+  it('does not issue a ticket or open a tab for a missing session or credential', async () => {
+    const w = await worker();
+    const fetchFn = vi.fn().mockResolvedValue(new Response('{}', { status: 401 }));
+    vi.stubGlobal('fetch', fetchFn);
+    expect(
+      (await w.internalReply({ type: 'OPEN_CATALOG_SERVICE', serviceId: 'synthetic' })).reason,
+    ).toBe('session_required');
+    fetchFn.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            services: [
+              {
+                id: 'synthetic',
+                targetUrl: 'https://example.test/login',
+                hasAction: true,
+                credentialType: 'individual',
+                hasCredential: false,
+              },
+            ],
+          }),
+        ),
+    );
+    expect(
+      (await w.internalReply({ type: 'OPEN_CATALOG_SERVICE', serviceId: 'synthetic' })).reason,
+    ).toBe('credential_missing');
+    expect(
+      (await w.internalReply({ type: 'OPEN_CATALOG_SERVICE', serviceId: 'unknown' })).reason,
+    ).toBe('service_unavailable');
+    expect(w.create).not.toHaveBeenCalled();
+    expect(w.sendTabMessage).not.toHaveBeenCalled();
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+  it('opens a credential-free popup link without vault exchange', async () => {
+    const w = await worker();
+    const fetchFn = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          services: [
+            {
+              id: 'sheet',
+              targetUrl: 'https://example.test/sheet',
+              hasAction: true,
+              credentialType: 'none',
+            },
+          ],
+        }),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchFn);
+    expect(
+      (await w.internalReply({ type: 'OPEN_CATALOG_SERVICE', serviceId: 'sheet' })).status,
+    ).toBe('opened');
+    expect(w.create).toHaveBeenCalledWith({ url: 'https://example.test/sheet' });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(w.executeScript).not.toHaveBeenCalled();
+  });
   it('suppresses visual toasts while preserving human challenge results and manual submit', async () => {
     const { waitForAndExecuteAutofill } = await import('./autofill');
     document.body.innerHTML =
@@ -505,6 +702,7 @@ describe('rich popup controls', () => {
     document.body.innerHTML = markup;
     const settings = { openOnStartup: false, openOnNewTab: false, showToastNotifications: true };
     const sendMessage = vi.fn(async (msg: { type: string; settings?: object }) => {
+      if (msg.type === 'OPEN_CATALOG_SERVICE') return { status: 'opened', autofill: true };
       Object.assign(settings, msg.settings);
       return { status: 'ok', settings: { ...settings } };
     });
@@ -522,18 +720,21 @@ describe('rich popup controls', () => {
               : {
                   services: [
                     {
+                      id: 'sheet',
                       name: 'Public sheet',
                       targetUrl: 'https://example.test/sheet',
                       credentialType: 'none',
                       hasAction: true,
                     },
                     {
+                      id: 'protected',
                       name: 'Protected service',
                       targetUrl: 'https://example.test/login',
                       credentialType: 'shared',
                       hasAction: true,
                     },
                     {
+                      id: 'unsafe',
                       name: 'Unsafe',
                       targetUrl: 'javascript:alert(1)',
                       credentialType: 'none',
@@ -569,12 +770,19 @@ describe('rich popup controls', () => {
     expect(shortcuts).toHaveLength(2);
     shortcuts[0]!.click();
     await vi.waitFor(() =>
-      expect(create).toHaveBeenCalledWith({ url: 'https://example.test/sheet' }),
+      expect(sendMessage).toHaveBeenCalledWith({
+        type: 'OPEN_CATALOG_SERVICE',
+        serviceId: 'sheet',
+      }),
     );
     shortcuts[1]!.click();
     await vi.waitFor(() =>
-      expect(create).toHaveBeenCalledWith({ url: 'https://example.test/login' }),
+      expect(sendMessage).toHaveBeenCalledWith({
+        type: 'OPEN_CATALOG_SERVICE',
+        serviceId: 'protected',
+      }),
     );
+    expect(create).not.toHaveBeenCalled();
   });
   it('reverts failed saves and does not show a stale catalog after an unauthorized response', async () => {
     const { initPopup } = await import('./popup');

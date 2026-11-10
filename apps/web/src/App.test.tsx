@@ -252,12 +252,15 @@ describe('extension bridge', () => {
     expect(extensionManifest.externally_connectable.matches).toEqual(origins);
   });
 
-  it('shows installation and manual fallback when the extension is missing', async () => {
+  it('keeps missing-extension clicks nonmodal and offers installation only on explicit request', async () => {
     const open = vi.fn();
     vi.stubGlobal('open', open);
     render(<App />);
     expect(await screen.findByRole('button', { name: 'Instalar extensão' })).not.toBeNull();
     fireEvent.click(await screen.findByRole('link', { name: /PARTIU!/ }));
+    await screen.findByText(/Extensão indisponível. Abra a Central/);
+    expect(screen.queryByRole('dialog', { name: 'Central da Extensão' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Instalar extensão' }));
     expect(await screen.findByRole('dialog', { name: 'Central da Extensão' })).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Baixar extensão (.zip)' })).not.toBeNull();
     fireEvent.click(
@@ -291,13 +294,134 @@ describe('extension bridge', () => {
     expect(requests.some((item) => item.url === '/api/vault/tickets')).toBe(true);
   });
 
+  it('discards stale opening responses and fallback destinations across account changes', async () => {
+    const callbacks: Array<(reply: unknown) => void> = [];
+    vi.stubGlobal('chrome', {
+      runtime: {
+        sendMessage: (
+          _id: string,
+          message: { type: string },
+          callback: (reply: unknown) => void,
+        ) => {
+          if (message.type === 'PING') callback({ status: 'ok' });
+          else callbacks.push(callback);
+        },
+      },
+    });
+    const hook = renderHook(() => {
+      const state = useWorkspaceState();
+      return { state, bridge: useExtensionBridge(state) };
+    });
+    const service = {
+      id: 'partiu',
+      name: 'Synthetic',
+      category: 'sistemas' as const,
+      credentialType: 'shared' as const,
+      targetUrl: 'https://example.test/',
+      hasAction: true,
+      hasCredential: true,
+      description: null,
+      logoDataUrl: null,
+    };
+    act(() => hook.result.current.state.setCurrentUser({ ...admin, role: 'admin' }));
+    let oldAttempt!: Promise<void>;
+    act(() => {
+      oldAttempt = hook.result.current.bridge.openVaultService(service);
+    });
+    await waitFor(() => expect(callbacks).toHaveLength(1));
+    act(() => hook.result.current.state.setCurrentUser({ ...admin, id: 'other', role: 'admin' }));
+    let newAttempt!: Promise<void>;
+    act(() => {
+      newAttempt = hook.result.current.bridge.openVaultService(service);
+    });
+    await waitFor(() => expect(callbacks).toHaveLength(2));
+    await act(async () => {
+      callbacks[0]!({ status: 'error' });
+      await oldAttempt;
+    });
+    expect(hook.result.current.state.openingServiceId).toBe('partiu');
+    expect(hook.result.current.state.openingNotice).toBe('');
+    expect(hook.result.current.state.showExtensionGuide).toBe(false);
+    expect(hook.result.current.state.extensionModal).toBeNull();
+    await act(async () => {
+      callbacks[1]!({ status: 'opened', autofill: true, autofillResult: 'filled_only' });
+      await newAttempt;
+    });
+    expect(hook.result.current.state.openingServiceId).toBeNull();
+    expect(hook.result.current.state.openingNotice).toContain('Credenciais preenchidas');
+  });
   it('requires a confirmed bridge even when a content-script marker is present', async () => {
     document.documentElement.setAttribute('data-hublink-extension', 'active');
     render(<App />);
     expect(await screen.findByRole('button', { name: 'Instalar extensão' })).not.toBeNull();
     fireEvent.click(await screen.findByRole('link', { name: /PARTIU!/ }));
-    expect(await screen.findByRole('dialog', { name: 'Central da Extensão' })).not.toBeNull();
+    await screen.findByText(/Extensão indisponível. Abra a Central/);
+    expect(screen.queryByRole('dialog', { name: 'Central da Extensão' })).toBeNull();
     expect(requests.some((item) => item.url === '/api/vault/tickets')).toBe(false);
+  });
+  it.each([
+    [{ status: 'opened', autofill: false }, /Não foi possível reconhecer/],
+    [
+      { status: 'opened', autofill: true, autofillResult: 'filled_only' },
+      /Credenciais preenchidas. Confira/,
+    ],
+    [
+      { status: 'opened', autofill: true, autofillResult: 'filled_pending_challenge' },
+      /Conclua a verificação humana/,
+    ],
+    [
+      { status: 'opened', autofill: true, autofillResult: 'filled_username_only' },
+      /Usuário preenchido. Continue/,
+    ],
+    [{ status: 'error' }, /Não foi possível abrir o acesso/],
+  ])(
+    'reports the actual opening result without an installation modal: %j',
+    async (reply, notice) => {
+      vi.stubGlobal('chrome', {
+        runtime: {
+          sendMessage: (
+            _id: string,
+            message: { type: string },
+            callback: (reply: unknown) => void,
+          ) => callback(message.type === 'PING' ? { status: 'ok' } : reply),
+        },
+      });
+      render(<App />);
+      await screen.findByRole('button', { name: 'Extensão ativa' });
+      fireEvent.click(await screen.findByRole('link', { name: /PARTIU!/ }));
+      expect(await screen.findByText(notice)).not.toBeNull();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    },
+  );
+  it('waits for a slow destination and ignores repeated clicks during the same attempt', async () => {
+    let complete: (reply: unknown) => void = () => {};
+    const messages: string[] = [];
+    vi.stubGlobal('chrome', {
+      runtime: {
+        sendMessage: (
+          _id: string,
+          message: { type: string },
+          callback: (reply: unknown) => void,
+        ) => {
+          messages.push(message.type);
+          if (message.type === 'PING') callback({ status: 'ok' });
+          else complete = callback;
+        },
+      },
+    });
+    render(<App />);
+    await screen.findByRole('button', { name: 'Extensão ativa' });
+    const link = await screen.findByRole('link', { name: /PARTIU!/ });
+    fireEvent.click(link);
+    fireEvent.click(link);
+    await waitFor(() => expect(messages.filter((type) => type === 'OPEN_SERVICE')).toHaveLength(1));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(screen.queryByText(/demorou para responder/)).toBeNull();
+    act(() => complete({ status: 'opened', autofill: true, autofillResult: 'filled_only' }));
+    expect(await screen.findByText(/Credenciais preenchidas. Confira/)).not.toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 

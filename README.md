@@ -52,7 +52,13 @@ The Extension Center also offers an authenticated ZIP download after the build. 
 
 The extension ID is `nhodfnpljikjfeoihaimabljdenmfbio`. Default builds use Workspace origins `http://127.0.0.1:5177` and `http://localhost:5177`, with API `http://127.0.0.1:3177`. For a deployed installation, set `HUB_EXTENSION_ORIGIN` to one exact HTTPS origin (without a trailing slash) when building. The compiled worker, popup, page saving, content script and external-message allowlist then use only that origin; the extension ID stays the same. Changing runtime API configuration alone does not rebuild the extension. Reload the unpacked extension after replacing its files.
 
-Startup and New Tab options are off by default and apply per Chrome profile. Popup shortcuts open destinations directly; assisted autofill starts from a card in the Workspace.
+Startup and New Tab options are off by default and apply per Chrome profile. Both Workspace cards and popup shortcuts automatically fill the catalog credential after a user click. The popup rechecks the authenticated catalog, requests a fresh session-bound ticket, and uses the same destination verification and credential exchange as the Workspace. Links without credentials open directly. A missing or expired Hub session requires signing in again; a missing individual credential must be saved in the Workspace first.
+
+### Automatic filling
+
+Supported layouts include native forms, nested div fields, ARIA forms, email or phone/CPF identifiers, associated controls outside a form, revealed current-password fields, and open Shadow DOM. Separate registration forms and hidden controls do not prevent recognition of one unambiguous login. Delayed forms are observed for up to ten seconds. A two-step SPA can receive the username first and the password after you advance within that window; changing the username stops the attempt. Full-page navigation between steps, cross-origin frames, closed shadow roots, ambiguous forms and unexpected redirects require manual login. A site that already has an authenticated session may not expose a login form; opening a card does not log out or switch the external account.
+
+The extension never clicks Next or submits a form. Review the filled fields and click **Entrar** yourself; CAPTCHA and 2FA remain human steps. The Workspace reports the actual filling result. Access failures appear inline; the Extension Center opens only when you explicitly select it from the header or account menu.
 
 ### Save a page
 
@@ -129,13 +135,22 @@ E2E_DATABASE_URL=postgres://hublink:hublink_dev_password@127.0.0.1:5439/hublink_
 
 Create each database once. `npm run check` runs typechecks, zero-warning lint, formatting, all workspace tests, and builds. E2E starts its own API on `3178` and web on `5177`; both ports must be free.
 
+The real-extension browser suite requires the Playwright Chromium already installed, OpenSSL, and a dedicated disposable PostgreSQL database. It refuses non-loopback database hosts and names outside `hublink_extension_*test`:
+
+```bash
+npm run build
+EXTENSION_TEST_DATABASE_URL=postgres://hublink:hublink_dev_password@127.0.0.1:5439/hublink_extension_browser_test npm run test:extension:browser
+```
+
+The suite loads the actual extension into a temporary Chromium profile and exercises real API sessions, tickets, catalog cards and popup controls over synthetic HTTPS pages. It uses the [Playwright extension-testing workflow](https://playwright.dev/docs/chrome-extensions), pins only its disposable TLS certificate, changes no system trust settings, and removes the temporary profile and key afterward. Sanitized results and synthetic screenshots remain under the printed `/tmp/hublink-extension-browser-*` directory. Set `EXTENSION_TEST_HEADED=true` to watch the browser. This test does not use production, provider accounts or your browser profile; real provider and human acceptance remain separate.
+
 Individual checks: `npm run typecheck`, `npm run lint`, `npm run format:check`, and `npm run test -w @hublink/extension` (or `@hublink/api` / `@hublink/web`).
 
-CI additionally runs `npm audit --audit-level=moderate` and browser E2E against a separate database. E2E uses Vite's actual API proxy to port `3178`, with no endpoint interception. Regressions cover session/ticket revocation, cross-owner access, audit-write rollback, secret-free errors/logs, no-store responses, lock-wait expiry, private DNS answers, redirects, streamed image size, account switches and origin-only favicon requests. See the [security review](docs/SECURITY_REVIEW_2026-10-28.md) for findings and evidence limits.
+CI additionally runs `npm audit --audit-level=moderate` and browser E2E against a separate database. E2E uses Vite's actual API proxy to port `3178`, with no endpoint interception. Regressions cover session/ticket revocation, cross-owner access, audit-write rollback, secret-free errors/logs, no-store responses, lock-wait expiry, private DNS answers, redirects, streamed image size, account switches and origin-only favicon requests.
 
 CI also builds the production API/Web images and runs `python3 scripts/check-images.py --api-image hublink-api:ci --web-image hublink-web:ci --origin https://hub.example.test`. Build the API image with that same `HUB_EXTENSION_ORIGIN`. The check requires Python 3 and Docker; it creates and removes its own network, PostgreSQL and synthetic accounts. It checks the actual Nginx/API response headers, authentication, password-change session rotation, packaged extension origin/ZIP and public icon bytes. Private API locations disable Nginx's inherited `expires` rule so upstream `no-store` survives the production proxy.
 
-The page-saving feature passed 43 API tests, 35 extension tests, 63 web tests, and eight existing E2E scenarios. A separate run with the unpacked extension in an isolated Chromium profile verified the popup/session/API/database/Workspace journey using synthetic data. See [validation evidence and remaining gates](docs/CONTEXT.md#extension-page-saving). Local checks do not establish production or supplier acceptance.
+The page-saving feature passed 43 API tests, 35 extension tests, 63 web tests, and eight existing E2E scenarios. A separate run with the unpacked extension in an isolated Chromium profile verified the popup/session/API/database/Workspace journey using synthetic data. Local checks do not establish production or supplier acceptance.
 
 ## Deployment and recovery
 
@@ -153,7 +168,7 @@ docker compose --env-file "$HUB_RUNTIME_ENV_FILE" -f docker-compose.prod.yml up 
 
 Use immutable image tags and retain the previous images and vault key. Deployments and updates are operator-initiated; CI runs checks, not automatic on-premise deployment. Installed-browser HTTPS session and extension behavior require validation after deployment.
 
-Backup and restore use `scripts/backup.sh` and `scripts/restore.sh`. They require private runtime secrets, a separate backup passphrase, and a maintenance window. Restore replaces the selected project's data; PostgreSQL and config-file replacement are not one atomic transaction. Follow the [recovery and rollback playbook](docs/ROLLBACK.md) for the complete procedure.
+Backup and restore use `scripts/backup.sh` and `scripts/restore.sh`. They require private runtime secrets, a separate backup passphrase, and a maintenance window. Restore replaces the selected project's data; PostgreSQL and config-file replacement are not one atomic transaction. Follow the operator's private recovery and rollback playbook for the complete procedure.
 
 `scripts/provision-tenant.sh` generates a separate client's protected configuration and secrets without starting containers. Review its domain, ports, storage permissions, and capacity before starting that installation. TLS, off-host retention, monitoring, and recovery rehearsals remain operator responsibilities.
 
@@ -163,7 +178,6 @@ Backup and restore use `scripts/backup.sh` and `scripts/restore.sh`. They requir
 apps/web/        React Workspace, views, hooks, and shared styles
 apps/api/        Fastify routes, services, PostgreSQL migrations, and vault
 apps/extension/  Chrome MV3 worker, popup, and assisted autofill
-docs/            Context, decisions, roadmap, and recovery procedures
 tests/e2e/       Isolated browser regression scenarios
 ```
 
@@ -174,5 +188,3 @@ Page saving uses `POST /api/extension/bookmarks`, accepting only name, category,
 Favicon discovery contacts only the destination origin (and HTTPS hosts it redirects to or declares in its HTML), without sending hostnames to a third-party favicon service. It reads up to 256 KB of the home page for `<link rel="icon">`/`apple-touch-icon` declarations, then tries `/apple-touch-icon.png`, `/favicon.ico` and `/favicon.png`. Every request validates and pins the DNS answers used by its own HTTPS socket and rejects private/reserved IPv4 and IPv6 destinations; up to three HTTPS redirects are followed, each hop repeating those checks (HTTP or private targets end the lookup). Icon downloads stop above 1 MB, image types are detected from the bytes, ICO files (PNG or BMP entries) are converted server-side to PNG at up to 128 px, and SVG is ignored. Sites that block automated requests or require sign-in still need a manually uploaded logo. In the service modal, a manual capture cancels the pending automatic lookup and is never superseded by it. Discovery and extension page-saving requests share a 30-per-minute IP budget. API logs omit query strings and redact bodies, authorization and session headers; unexpected errors return a generic message and log only an error code. Production client origins must use HTTPS.
 
 Revoking a Hub session does not end supplier sessions or change spreadsheet permissions. The repository contains no operational destinations or customer data. Do not treat the local pilot, broad HTTPS autofill permission, or a successful build as production readiness.
-
-Further reference: [current state](docs/CONTEXT.md), [decisions](docs/DECISIONS.md), [roadmap](docs/ROADMAP.md), and [open operational questions](docs/OPEN_QUESTIONS.md).

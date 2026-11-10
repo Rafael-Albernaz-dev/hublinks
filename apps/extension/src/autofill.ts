@@ -1,12 +1,15 @@
 /* eslint-disable no-useless-assignment -- Intentional best-effort release of plaintext references. */
 import { matchesAuthorizedLocation } from './destination';
+import { findIdentifierStep, findLoginFields, inputRoots, usable } from './loginFields';
 export { matchesAuthorizedLocation } from './destination';
+export { findLoginFields } from './loginFields';
 export interface AutofillCredentials {
   username: string;
   password: string;
 }
 
-export type AutofillStatus = 'filled_only' | 'filled_pending_challenge' | 'form_not_found';
+export type AutofillStatus =
+  'filled_only' | 'filled_username_only' | 'filled_pending_challenge' | 'form_not_found';
 
 export interface AutofillResult {
   status: AutofillStatus;
@@ -14,17 +17,6 @@ export interface AutofillResult {
 }
 
 type Challenge = NonNullable<AutofillResult['challengeDetected']>;
-
-function usable(input: HTMLInputElement): boolean {
-  if (!input.isConnected || input.disabled || input.readOnly) return false;
-  for (let element: Element | null = input; element; element = element.parentElement) {
-    if (element.hasAttribute('hidden') || element.hasAttribute('inert')) return false;
-    if (element.getAttribute('aria-hidden') === 'true') return false;
-    const style = element.ownerDocument.defaultView?.getComputedStyle(element);
-    if (style?.display === 'none' || style?.visibility === 'hidden') return false;
-  }
-  return true;
-}
 
 export function fillNativeInput(input: HTMLInputElement, value: string): void {
   input.focus();
@@ -34,69 +26,34 @@ export function fillNativeInput(input: HTMLInputElement, value: string): void {
   );
   if (descriptor?.set) descriptor.set.call(input, value);
   else input.value = value;
+  if ((descriptor?.get?.call(input) ?? input.value) !== value)
+    throw new Error('Input rejected the value');
   const InputEvent = input.ownerDocument.defaultView?.Event ?? Event;
   input.dispatchEvent(new InputEvent('input', { bubbles: true }));
   input.dispatchEvent(new InputEvent('change', { bubbles: true }));
 }
 
 export function detectHumanChallenge(doc: Document): Challenge | null {
-  if (doc.querySelector('.cf-turnstile, iframe[src*="challenges.cloudflare.com"]'))
-    return 'turnstile';
-  if (doc.querySelector('.h-captcha, iframe[src*="hcaptcha.com"]')) return 'hcaptcha';
-  if (
-    doc.querySelector('.g-recaptcha, iframe[src*="recaptcha"], iframe[src*="google.com/recaptcha"]')
-  )
-    return 'recaptcha';
-  if (
-    Array.from(
-      doc.querySelectorAll<HTMLInputElement>(
-        'input[autocomplete="one-time-code"], input[name*="2fa" i], input[name*="otp" i], input[id*="otp" i]',
-      ),
-    ).some(usable)
-  )
-    return '2fa';
+  for (const root of inputRoots(doc)) {
+    if (root.querySelector('.cf-turnstile, iframe[src*="challenges.cloudflare.com"]'))
+      return 'turnstile';
+    if (root.querySelector('.h-captcha, iframe[src*="hcaptcha.com"]')) return 'hcaptcha';
+    if (
+      root.querySelector(
+        '.g-recaptcha, iframe[src*="recaptcha"], iframe[src*="google.com/recaptcha"]',
+      )
+    )
+      return 'recaptcha';
+    if (
+      Array.from(
+        root.querySelectorAll<HTMLInputElement>(
+          'input[autocomplete="one-time-code"], input[name*="2fa" i], input[name*="otp" i], input[id*="otp" i]',
+        ),
+      ).some(usable)
+    )
+      return '2fa';
+  }
   return null;
-}
-
-export function findLoginFields(doc: Document): {
-  usernameInput: HTMLInputElement | null;
-  passwordInput: HTMLInputElement | null;
-} {
-  const passwordInputs = Array.from(
-    doc.querySelectorAll<HTMLInputElement>('input[type="password"]'),
-  ).filter(usable);
-  // Multiple password fields usually indicate registration or password change.
-  if (passwordInputs.length !== 1) return { usernameInput: null, passwordInput: null };
-  const passwordInput = passwordInputs[0] ?? null;
-  if (!passwordInput) return { usernameInput: null, passwordInput: null };
-  const passwordHint = `${passwordInput.name} ${passwordInput.id} ${passwordInput.autocomplete}`;
-  if (/new-password|confirm|repeat|retype|nova.?senha/i.test(passwordHint))
-    return { usernameInput: null, passwordInput: null };
-
-  const scope =
-    passwordInput.form ??
-    passwordInput.closest('[role="form"]') ??
-    passwordInput.parentElement?.parentElement;
-  if (!scope) return { usernameInput: null, passwordInput: null };
-  const inputs = Array.from(
-    scope.querySelectorAll<HTMLInputElement>(
-      'input[type="text"], input[type="email"], input:not([type])',
-    ),
-  ).filter(usable);
-  const beforePassword = inputs.filter(
-    (input) => !!(input.compareDocumentPosition(passwordInput) & Node.DOCUMENT_POSITION_FOLLOWING),
-  );
-  const usernameInput =
-    beforePassword.find((input) => input.autocomplete.toLowerCase() === 'username') ??
-    beforePassword.find((input) => input.type === 'email') ??
-    beforePassword.find((input) =>
-      /user|email|login|cpf|usuario|usuário|identificador|matricula|matrícula|conta/i.test(
-        `${input.name} ${input.id} ${input.placeholder}`,
-      ),
-    ) ??
-    beforePassword.at(-1) ??
-    null;
-  return { usernameInput, passwordInput };
 }
 
 export function executeAutofill(doc: Document, creds: AutofillCredentials): AutofillResult {
@@ -122,9 +79,11 @@ export function renderAutofillToast(doc: Document, result: AutofillResult): HTML
     'position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; max-width: 340px; padding: 12px 14px; border-radius: 10px; background: #18181b; color: #fafafa; font: 13px/1.4 system-ui, sans-serif; box-shadow: 0 10px 25px rgba(0,0,0,0.25); display: flex; gap: 10px; align-items: start;';
   const text = doc.createElement('span');
   text.textContent =
-    result.status === 'filled_only'
-      ? 'Hublink: credenciais preenchidas. Confira os dados e clique em Entrar.'
-      : `Hublink: credenciais preenchidas. Conclua a verificação humana (${result.challengeDetected ?? '2FA/CAPTCHA'}) e envie o formulário.`;
+    result.status === 'filled_username_only'
+      ? 'Hublink: usuário preenchido. Continue a autenticação no destino.'
+      : result.status === 'filled_only'
+        ? 'Hublink: credenciais preenchidas. Confira os dados e clique em Entrar.'
+        : `Hublink: credenciais preenchidas. Conclua a verificação humana (${result.challengeDetected ?? '2FA/CAPTCHA'}) e envie o formulário.`;
   const close = doc.createElement('button');
   close.type = 'button';
   close.setAttribute('aria-label', 'Fechar aviso do Hublink');
@@ -140,21 +99,29 @@ export function renderAutofillToast(doc: Document, result: AutofillResult): HTML
 export function waitForAndExecuteAutofill(
   doc: Document,
   creds: AutofillCredentials,
-  timeoutMs = 4000,
+  timeoutMs = 10_000,
   isAuthorized: () => boolean = () => true,
   showNotifications = true,
 ): Promise<AutofillResult> {
   return new Promise((resolve) => {
     let observer: MutationObserver | undefined = undefined;
     let timeout: ReturnType<typeof setTimeout> | undefined = undefined;
+    let poll: ReturnType<typeof setInterval> | undefined = undefined;
+    let identifier: HTMLInputElement | null = null;
+    const observed = new Set<Node>();
     let done = false;
     const finish = (result: AutofillResult) => {
       if (done) return;
       done = true;
       observer?.disconnect();
       clearTimeout(timeout);
+      clearInterval(poll);
+      identifier?.removeEventListener('input', onIdentifierInput);
       if (showNotifications) renderAutofillToast(doc, result);
       resolve(result);
+    };
+    const onIdentifierInput = () => {
+      if (identifier?.value !== creds.username) finish({ status: 'form_not_found' });
     };
     const attempt = () => {
       if (done) return;
@@ -163,8 +130,33 @@ export function waitForAndExecuteAutofill(
           finish({ status: 'form_not_found' });
           return;
         }
-        const result = executeAutofill(doc, creds);
-        if (result.status !== 'form_not_found') finish(result);
+        const fields = findLoginFields(doc, identifier !== null);
+        if (fields.passwordInput && (fields.usernameInput || identifier)) {
+          if (fields.usernameInput && fields.usernameInput !== identifier)
+            fillNativeInput(fields.usernameInput, creds.username);
+          fillNativeInput(fields.passwordInput, creds.password);
+          const challenge = detectHumanChallenge(doc);
+          finish(
+            challenge
+              ? { status: 'filled_pending_challenge', challengeDetected: challenge }
+              : { status: 'filled_only' },
+          );
+        } else if (!identifier) {
+          const field = findIdentifierStep(doc);
+          if (field) {
+            fillNativeInput(field, creds.username);
+            identifier = field;
+            identifier.addEventListener('input', onIdentifierInput);
+          }
+        }
+        if (!done && observer)
+          for (const root of inputRoots(doc)) {
+            const node = root === doc ? (doc.body ?? doc.documentElement) : root;
+            if (!observed.has(node)) {
+              observer.observe(node, { childList: true, subtree: true, attributes: true });
+              observed.add(node);
+            }
+          }
       } catch {
         finish({ status: 'form_not_found' });
       }
@@ -173,22 +165,13 @@ export function waitForAndExecuteAutofill(
     if (done) return;
     const Observer = doc.defaultView?.MutationObserver ?? MutationObserver;
     observer = new Observer(attempt);
-    observer.observe(doc.body ?? doc.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: [
-        'type',
-        'hidden',
-        'disabled',
-        'readonly',
-        'style',
-        'class',
-        'aria-hidden',
-        'inert',
-      ],
-    });
-    timeout = setTimeout(() => finish({ status: 'form_not_found' }), timeoutMs);
+    attempt();
+    if (done) return;
+    poll = setInterval(attempt, 200);
+    timeout = setTimeout(
+      () => finish({ status: identifier ? 'filled_username_only' : 'form_not_found' }),
+      timeoutMs,
+    );
   });
 }
 
@@ -234,7 +217,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
           await waitForAndExecuteAutofill(
             document,
             creds,
-            4000,
+            10_000,
             () => matchesAuthorizedLocation(location.href, targetUrl),
             input.showToastNotifications !== false,
           ),

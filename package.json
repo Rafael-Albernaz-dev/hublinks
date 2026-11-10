@@ -13,6 +13,7 @@
     "dev:web": "npm run dev -w @hublink/web",
     "dev:api": "npm run dev -w @hublink/api",
     "test:e2e": "playwright test",
+    "test:extension:browser": "node scripts/test-extension-browser.mjs",
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces && tsc --noEmit --strict --skipLibCheck --module nodenext --moduleResolution nodenext --target es2022 --types node playwright.config.ts tests/e2e/hublink.spec.ts",
     "lint": "eslint . --max-warnings=0",
