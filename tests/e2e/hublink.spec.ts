@@ -23,9 +23,11 @@ async function login(
   email = process.env.INITIAL_ADMIN_EMAIL ?? 'admin@hublink.local',
   password = process.env.INITIAL_ADMIN_PASSWORD ?? 'admin123456',
 ) {
+  const submit = page.getByRole('button', { name: 'Entrar no Hublink' });
+  await expect(submit).toBeVisible();
   await page.getByRole('textbox', { name: 'E-mail' }).fill(email);
-  await page.getByLabel('Senha').fill(password);
-  await page.getByRole('button', { name: 'Entrar no Hublink' }).click();
+  await page.getByLabel('Senha', { exact: true }).fill(password);
+  await submit.click();
   await expect(page.getByRole('button', { name: /Menu do usuário/ })).toBeVisible();
 }
 
