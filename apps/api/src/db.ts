@@ -23,11 +23,12 @@ const usersActiveMigrationPath = resolve(
 );
 
 export function createPool(): pg.Pool {
-  const port = process.env.HUB_DB_PORT ?? '5439';
+  const connectionString = process.env.DATABASE_URL?.trim();
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is required. For local development, copy .env.example to .env.');
+  }
   return new pg.Pool({
-    connectionString:
-      process.env.DATABASE_URL ??
-      `postgres://hublink:hublink_dev_password@127.0.0.1:${port}/hublink`,
+    connectionString,
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,

@@ -20,6 +20,7 @@ Requires Node.js 24, npm, Docker Compose, and Chrome for the extension. Default 
 
 ```bash
 npm ci
+cp .env.example .env
 docker compose up -d postgres
 ```
 
@@ -102,7 +103,7 @@ See [.env.example](.env.example) for the full list. Export variables before star
 
 | Variable                                         | Purpose                                                                             |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                   | PostgreSQL connection; defaults to the local development database on port `5439`.   |
+| `DATABASE_URL`                                   | PostgreSQL connection. Required, no fallback; `dev:api` reads it from `.env`.       |
 | `HUB_API_PORT` / `HUB_DB_PORT`                   | Local API and development database ports.                                           |
 | `INITIAL_ADMIN_EMAIL` / `INITIAL_ADMIN_PASSWORD` | Administrator identity on first boot.                                               |
 | `VAULT_MASTER_KEY`                               | Vault key: 32 bytes, normally encoded as 64 hex characters. Required in production. |
