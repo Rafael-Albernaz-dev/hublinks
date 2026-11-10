@@ -55,3 +55,7 @@ Thumbs.db
 /vigiadev.yaml
 /vigiadev.local.yaml
 /skills-lock.json
+
+# Internal project notes, operations records and generated deliverables (never versioned)
+/docs/
+/output/pdf/
